@@ -5,6 +5,7 @@ hello
 ## Getting Started
 
 First, run the development server:
+hello 
 
 ```bash
 npm run dev
