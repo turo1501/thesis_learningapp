@@ -2,8 +2,8 @@ import React from 'react'
 
 export const NonDashboardNavbar = () => {
   return (
-    <nav className ="nondashboard-navbar">
-        hello
+    <nav className ="nondashboard-layout">
+
     </nav>
 )
 }
