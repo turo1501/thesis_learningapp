@@ -23,7 +23,13 @@ export default function RootLayout({
   return (
     <html lang="en" className="mdl-js">
       
-      <body className={dmSans.className}><Providers>{children}</Providers></body>
+      <body className={dmSans.className}>
+        <Providers>
+          <div className="root-layout">
+            {children}
+          </div>
+        </Providers>
+      </body>
     </html>
   )
 }
