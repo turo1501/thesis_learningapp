@@ -5,7 +5,7 @@
     "dateTime": "2024-03-01T10:30:00Z",
     "courseId": "3a9f3d6c-c391-4b1c-9c3d-6c3f3d6c3f3d",
     "paymentProvider": "stripe",
-    "amount": 4999
+    "amount": 50000000
   },
   {
     "userId": "user_2ntu96pUCljUV2T9W0AThzjacQB",
