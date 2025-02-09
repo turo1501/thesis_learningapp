@@ -9,6 +9,8 @@ import React from "react";
 const NonDashboardNavbar = () => {
   const { user } = useUser();
   const userRole = user?.publicMetadata?.userType as "student" | "teacher";
+  console.log(user?.publicMetadata?.userType);
+  
 
   return (
     <nav className="nondashboard-navbar">

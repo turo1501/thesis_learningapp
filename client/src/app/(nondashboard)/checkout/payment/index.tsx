@@ -1,3 +1,4 @@
+
 import React from "react";
 import StripeProvider from "./StripeProvider";
 import {
@@ -32,17 +33,19 @@ const PaymentPageContent = () => {
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_LOCAL_URL
-      ? `http://${process.env.NEXT_PUBLIC_LOCAL_URL}`
-      : process.env.NEXT_PUBLIC_VERCEL_URL
-      ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
-      : undefined;
-
+    ? `http://${process.env.NEXT_PUBLIC_LOCAL_URL}`
+    : process.env.NEXT_PUBLIC_VERCEL_URL
+    ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+    : typeof window !== 'undefined' 
+      ? window.location.origin 
+      : '';
+  
     const result = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
+        elements,
+        confirmParams: {
         return_url: `${baseUrl}/checkout?step=3&id=${courseId}`,
-      },
-      redirect: "if_required",
+        },
+        redirect: "if_required",
     });
 
     if (result.paymentIntent?.status === "succeeded") {
