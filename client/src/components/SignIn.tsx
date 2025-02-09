@@ -1,12 +1,12 @@
 "use client";
 
-import { SignIn, useUser } from "@clerk/nextjs";
-import React from "react";
+import { SignIn, useAuth } from "@clerk/nextjs";
+import React, { useEffect, useState } from "react";
 import { dark } from "@clerk/themes";
 import { useSearchParams } from "next/navigation";
 
 const SignInComponent = () => {
-  const { user } = useUser();
+  const { isSignedIn, isLoaded, userId } = useAuth();
   const searchParams = useSearchParams();
   const isCheckoutPage = searchParams.get("showSignUp") !== null;
   const courseId = searchParams.get("id");
@@ -15,17 +15,32 @@ const SignInComponent = () => {
     ? `/checkout?step=1&id=${courseId}&showSignUp=true`
     : "/signup";
 
-  const getRedirectUrl = () => {
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isLoaded) return; // Đợi Clerk tải dữ liệu xong
+
+    if (!isSignedIn) return; // Nếu chưa đăng nhập, không cần xử lý tiếp
+
     if (isCheckoutPage) {
-      return `/checkout?step=2&id=${courseId}&showSignUp=true`;
+      setRedirectUrl(`/checkout?step=2&id=${courseId}&showSignUp=true`);
+      return;
     }
 
-    const userType = user?.publicMetadata?.userType as string;
-    if (userType === "teacher") {
-      return "/teacher/courses";
-    }
-    return "/user/courses";
-  };
+    fetch(`/api/get-user-role?userId=${userId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const userType = data.userType;
+        console.log("UserType:", userType);
+
+        if (userType === "user") {
+          setRedirectUrl("/user/courses");
+        } else {
+          setRedirectUrl("/teacher/courses");
+        }
+      })
+      .catch((error) => console.error("Error fetching user role:", error));
+  }, [isLoaded, isSignedIn, userId, isCheckoutPage, courseId]);
 
   return (
     <SignIn
@@ -50,7 +65,7 @@ const SignInComponent = () => {
         },
       }}
       signUpUrl={signUpUrl}
-      forceRedirectUrl={getRedirectUrl()}
+      forceRedirectUrl={redirectUrl} // Chỉ redirect khi redirectUrl có giá trị
       routing="hash"
       afterSignOutUrl="/"
     />
