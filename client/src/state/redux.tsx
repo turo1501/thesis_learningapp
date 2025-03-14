@@ -6,11 +6,13 @@ import { combineReducers, configureStore } from "@reduxjs/toolkit";
 import { Provider } from "react-redux";
 import { setupListeners } from "@reduxjs/toolkit/query";
 import globalReducer from "@/state";
+import chatReducer from "@/state/chatSlice";
 import { api } from "@/state/api";
 
 /* REDUX STORE */
 const rootReducer = combineReducers({
   global: globalReducer,
+  chat: chatReducer,
   [api.reducerPath]: api.reducer,
 });
 
@@ -56,7 +58,7 @@ export default function StoreProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const storeRef = useRef<AppStore>();
+  const storeRef = useRef<AppStore | null>(null);
   if (!storeRef.current) {
     storeRef.current = makeStore();
     setupListeners(storeRef.current.dispatch);

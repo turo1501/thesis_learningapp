@@ -7,6 +7,7 @@ import morgan from "morgan";
 import * as dynamoose from "dynamoose";
 import serverless from "serverless-http";
 import seed from "./seed/seedDynamodb";
+import { seedCourses } from "./utils/seedData";
 import {
   clerkMiddleware,
   createClerkClient,
@@ -17,6 +18,7 @@ import courseRoutes from "./routes/courseRoutes";
 import userClerkRoutes from "./routes/userClerkRoutes";
 import transactionRoutes from "./routes/transactionRoutes";
 import userCourseProgressRoutes from "./routes/userCourseProgessRoutes";
+import chatRoutes from "./routes/chatRoutes";
 
 /* CONFIGURATIONS */
 dotenv.config();
@@ -48,12 +50,16 @@ app.use("/courses", courseRoutes);
 app.use("/users/clerk", requireAuth(), userClerkRoutes);
 app.use("/transactions", requireAuth(), transactionRoutes);
 app.use("/users/course-progress", requireAuth(), userCourseProgressRoutes);
+app.use("/chat", requireAuth(), chatRoutes);
 
 /* SERVER */
 const port = process.env.PORT || 3000;
 if (!isProduction) {
-  app.listen(port, () => {
+  app.listen(port, async () => {
     console.log(`Server running on port ${port}`);
+    
+    // Seed sample courses to the database
+    await seedCourses();
   });
 }
 
@@ -62,6 +68,7 @@ const serverlessApp = serverless(app);
 export const handler = async (event: any, context: any) => {
   if (event.action === "seed") {
     await seed();
+    await seedCourses();
     return {
       statusCode: 200,
       body: JSON.stringify({ message: "Data seeded successfully" }),

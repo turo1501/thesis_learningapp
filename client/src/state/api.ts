@@ -3,6 +3,7 @@ import { BaseQueryApi, FetchArgs } from "@reduxjs/toolkit/query";
 import { User } from "@clerk/nextjs/server";
 import { Clerk } from "@clerk/clerk-js";
 import { toast } from "sonner";
+import { v4 as uuidv4 } from 'uuid';
 
 const customBaseQuery = async (
   args: string | FetchArgs,
@@ -21,40 +22,46 @@ const customBaseQuery = async (
   });
 
   try {
-    const result: any = await baseQuery(args, api, extraOptions);
+    const result = await baseQuery(args, api, extraOptions);
 
+    // Handle errors
     if (result.error) {
-      const errorData = result.error.data;
+      const errorData = result.error.data as { message?: string };
       const errorMessage =
         errorData?.message ||
         result.error.status.toString() ||
         "An error occurred";
       toast.error(`Error: ${errorMessage}`);
+      return result;
     }
 
-    const isMutationRequest =
-      (args as FetchArgs).method && (args as FetchArgs).method !== "GET";
-
-    if (isMutationRequest) {
-      const successMessage = result.data?.message;
-      if (successMessage) toast.success(successMessage);
-    }
-
+    // Handle successful response
     if (result.data) {
-      result.data = result.data.data;
-    } else if (
-      result.error?.status === 204 ||
-      result.meta?.response?.status === 24
-    ) {
+      // For chat endpoints, return the raw response
+      if (typeof args === 'object' && args.url?.includes('/chat')) {
+        return result;
+      }
+      
+      // For other endpoints, extract data property if it exists
+      const data = result.data as { data?: unknown };
+      if (data && typeof data === 'object' && 'data' in data) {
+        result.data = data.data;
+      }
+    } else if (result.meta?.response?.status === 204) {
       return { data: null };
     }
 
     return result;
   } catch (error: unknown) {
+    console.error('Query error:', error);
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-
-    return { error: { status: "FETCH_ERROR", error: errorMessage } };
+    return {
+      error: {
+        status: 'CUSTOM_ERROR',
+        data: { message: errorMessage }
+      }
+    };
   }
 };
 
@@ -230,6 +237,40 @@ export const api = createApi({
         }
       },
     }),
+
+    // Chat endpoints
+    sendChatMessage: build.mutation<
+      { response: string; id: string },
+      { message: string; userId: string }
+    >({
+      query: (data) => ({
+        url: "chat/message",
+        method: "POST",
+        body: data,
+      }),
+      transformResponse: (response: any) => {
+        if (!response) {
+          throw new Error('Empty response from server');
+        }
+        return {
+          response: response.message || response.response || '',
+          id: response.id || uuidv4()
+        };
+      },
+    }),
+    
+    getChatHistory: build.query<
+      { messages: { content: string; role: "user" | "bot"; timestamp: number }[] },
+      string
+    >({
+      query: (userId) => `chat/history/${userId}`,
+      transformResponse: (response: any) => {
+        if (!response || !Array.isArray(response.messages)) {
+          return { messages: [] };
+        }
+        return response;
+      },
+    }),
   }),
 });
 
@@ -247,4 +288,6 @@ export const {
   useGetUserEnrolledCoursesQuery,
   useGetUserCourseProgressQuery,
   useUpdateUserCourseProgressMutation,
+  useSendChatMessageMutation,
+  useGetChatHistoryQuery,
 } = api;
