@@ -1,79 +1,124 @@
-import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
-import { BaseQueryApi, FetchArgs } from "@reduxjs/toolkit/query";
-import { User } from "@clerk/nextjs/server";
-import { Clerk } from "@clerk/clerk-js";
+import { createApi, fetchBaseQuery, retry } from "@reduxjs/toolkit/query/react";
 import { toast } from "sonner";
-import { v4 as uuidv4 } from 'uuid';
+import type { 
+  BaseQueryFn, 
+  FetchArgs, 
+  FetchBaseQueryError, 
+  FetchBaseQueryMeta
+} from '@reduxjs/toolkit/query';
 
-// Add these interfaces at the beginning of the file after other interfaces
+// Type definitions
+export interface BaseResponse<T> {
+  success: boolean;
+  message?: string;
+  data: T;
+}
+
 export interface BlogPost {
   postId: string;
-  userId: string;
-  userName: string;
-  userAvatar?: string;
   title: string;
   content: string;
+  userId: string;
+  userName?: string;
   category: string;
-  tags: string[];
-  status: 'draft' | 'pending' | 'published' | 'rejected';
-  moderatedBy?: string;
-  moderationComment?: string;
+  tags?: string[];
+  status: 'draft' | 'published' | 'archived';
   featuredImage?: string;
-  createdAt: number;
-  updatedAt: number;
-  publishedAt?: number;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  readTime?: number;
+  likes?: number;
+  commentCount?: number;
 }
 
 export interface BlogPostsResponse {
   posts: BlogPost[];
-  lastKey: string | null;
+  lastKey?: string;
   count: number;
 }
 
-const customBaseQuery = async (
-  args: string | FetchArgs,
-  api: BaseQueryApi,
-  extraOptions: any
-) => {
-  const baseQuery = fetchBaseQuery({
-    baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL,
-    prepareHeaders: async (headers) => {
-      try {
-        // Add cache control headers to prevent caching
-        headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        headers.set('Pragma', 'no-cache');
-        headers.set('Expires', '0');
-        
-        // Check if Clerk is available and authenticated
-        if (typeof window !== 'undefined' && window.Clerk) {
-          const session = await window.Clerk.session;
-          if (session) {
-            const token = await session.getToken();
-            if (token) {
-              headers.set("Authorization", `Bearer ${token}`);
-              console.log("Authorization header set with token");
-            } else {
-              console.warn("No token available from Clerk session");
-            }
-          } else {
-            console.warn("No Clerk session found");
-          }
-        } else {
-          console.warn("Clerk not available in window");
-        }
-      } catch (error) {
-        console.error("Error getting auth token:", error);
-      }
-      return headers;
-    },
-  });
+export interface Community {
+  id: string;
+  name: string;
+  description: string;
+  imageUrl?: string;
+  type: 'public' | 'private';
+  memberCount: number;
+  createdAt: string;
+  updatedAt: string;
+  topics?: string[];
+  ownerId: string;
+}
 
-  // Log the request being made
+export interface Chat {
+  id: string;
+  users: string[];
+  type: 'direct' | 'group';
+  name?: string;
+  lastMessage?: {
+    content: string;
+    sender: string;
+    timestamp: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+  unreadCount?: number;
+}
+
+export interface Message {
+  id: string;
+  chatId: string;
+  content: string;
+  sender: string;
+  timestamp: string;
+  readBy: string[];
+  attachments?: {
+    id: string;
+    url: string;
+    type: string;
+    name: string;
+  }[];
+}
+
+export interface BlogComment {
+  id: string;
+  postId: string;
+  userId: string;
+  userName?: string;
+  content: string;
+  createdAt: string;
+  updatedAt?: string;
+  likes?: number;
+  replies?: BlogComment[];
+}
+
+// Define our custom base query with error handling
+const baseQueryWithRetry = retry(fetchBaseQuery({
+  baseUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api",
+  prepareHeaders: (headers) => {
+    // Add authorization header with JWT token if available
+    const token = localStorage.getItem("token");
+    if (token) {
+      headers.set("authorization", `Bearer ${token}`);
+    }
+    return headers;
+  },
+}), { maxRetries: 3 });
+
+// Enhanced base query with logging and error handling
+const dynamicBaseQuery: BaseQueryFn<
+  string | FetchArgs,
+  unknown,
+  FetchBaseQueryError,
+  {},
+  FetchBaseQueryMeta
+> = async (args, api, extraOptions) => {
   const url = typeof args === 'string' ? args : args.url;
-  console.log(`API Request: ${url}`, args);
+  console.log(`API Request to ${url}:`, args);
 
   try {
-    const result = await baseQuery(args, api, extraOptions);
+    const result = await baseQueryWithRetry(args, api, extraOptions);
 
     // Log the response
     console.log(`API Response for ${url}:`, result);
@@ -112,213 +157,170 @@ const customBaseQuery = async (
   }
 };
 
+// Define our API service
 export const api = createApi({
-  baseQuery: customBaseQuery,
-  reducerPath: "api",
-  tagTypes: ["Courses", "Users", "UserCourseProgress", "BlogPosts", "BlogPost"],
+  baseQuery: dynamicBaseQuery,
+  tagTypes: [
+    'User', 
+    'Course', 
+    'Module', 
+    'Assignment', 
+    'Submission', 
+    'Quiz',
+    'Question',
+    'Attempt',
+    'Coin',
+    'Reward',
+    'Stats',
+    'Enrollment',
+    'Community',
+    'Chat',
+    'Message',
+    'BlogPost',
+    'BlogPosts',
+    'Comment'
+  ],
   endpoints: (build) => ({
     /* 
     ===============
-    USER CLERK
+    CHAT ENDPOINTS
     =============== 
     */
-    updateUser: build.mutation<User, Partial<User> & { userId: string }>({
-      query: ({ userId, ...updatedUser }) => ({
-        url: `users/clerk/${userId}`,
-        method: "PUT",
-        body: updatedUser,
+    getChats: build.query<Chat[], string>({
+      query: (userId) => ({
+        url: `/chats/user/${userId}`,
+        method: 'GET',
       }),
-      invalidatesTags: ["Users"],
-    }),
-
-    /* 
-    ===============
-    COURSES
-    =============== 
-    */
-    getCourses: build.query<Course[], { category?: string }>({
-      query: ({ category }) => ({
-        url: "courses",
-        params: { category },
-      }),
-      providesTags: ["Courses"],
-    }),
-
-    getCourse: build.query<Course, string>({
-      query: (id) => `courses/${id}`,
-      providesTags: (result, error, id) => [{ type: "Courses", id }],
-    }),
-
-    createCourse: build.mutation<
-      Course,
-      { teacherId: string; teacherName: string }
-    >({
-      query: (body) => ({
-        url: `courses`,
-        method: "POST",
-        body,
-      }),
-      invalidatesTags: ["Courses"],
-    }),
-
-    updateCourse: build.mutation<
-      Course,
-      { courseId: string; formData: FormData }
-    >({
-      query: ({ courseId, formData }) => ({
-        url: `courses/${courseId}`,
-        method: "PUT",
-        body: formData,
-      }),
-      invalidatesTags: (result, error, { courseId }) => [
-        { type: "Courses", id: courseId },
-      ],
-    }),
-
-    deleteCourse: build.mutation<{ message: string }, string>({
-      query: (courseId) => ({
-        url: `courses/${courseId}`,
-        method: "DELETE",
-      }),
-      invalidatesTags: ["Courses"],
-    }),
-
-    getUploadVideoUrl: build.mutation<
-      { uploadUrl: string; videoUrl: string },
-      {
-        courseId: string;
-        chapterId: string;
-        sectionId: string;
-        fileName: string;
-        fileType: string;
-      }
-    >({
-      query: ({ courseId, sectionId, chapterId, fileName, fileType }) => ({
-        url: `courses/${courseId}/sections/${sectionId}/chapters/${chapterId}/get-upload-url`,
-        method: "POST",
-        body: { fileName, fileType },
-      }),
-    }),
-
-    /* 
-    ===============
-    TRANSACTIONS
-    =============== 
-    */
-    getTransactions: build.query<Transaction[], string>({
-      query: (userId) => `transactions?userId=${userId}`,
-    }),
-    createStripePaymentIntent: build.mutation<
-      { clientSecret: string },
-      { amount: number }
-    >({
-      query: ({ amount }) => ({
-        url: `/transactions/stripe/payment-intent`,
-        method: "POST",
-        body: { amount },
-      }),
-    }),
-    createTransaction: build.mutation<Transaction, Partial<Transaction>>({
-      query: (transaction) => ({
-        url: "transactions",
-        method: "POST",
-        body: transaction,
-      }),
-    }),
-
-    /* 
-    ===============
-    USER COURSE PROGRESS
-    =============== 
-    */
-    getUserEnrolledCourses: build.query<Course[], string>({
-      query: (userId) => `users/course-progress/${userId}/enrolled-courses`,
-      providesTags: ["Courses", "UserCourseProgress"],
-    }),
-
-    getUserCourseProgress: build.query<
-      UserCourseProgress,
-      { userId: string; courseId: string }
-    >({
-      query: ({ userId, courseId }) =>
-        `users/course-progress/${userId}/courses/${courseId}`,
-      providesTags: ["UserCourseProgress"],
-    }),
-
-    updateUserCourseProgress: build.mutation<
-      UserCourseProgress,
-      {
-        userId: string;
-        courseId: string;
-        progressData: {
-          sections: SectionProgress[];
-        };
-      }
-    >({
-      query: ({ userId, courseId, progressData }) => ({
-        url: `users/course-progress/${userId}/courses/${courseId}`,
-        method: "PUT",
-        body: progressData,
-      }),
-      invalidatesTags: ["UserCourseProgress"],
-      async onQueryStarted(
-        { userId, courseId, progressData },
-        { dispatch, queryFulfilled }
-      ) {
-        const patchResult = dispatch(
-          api.util.updateQueryData(
-            "getUserCourseProgress",
-            { userId, courseId },
-            (draft) => {
-              Object.assign(draft, {
-                ...draft,
-                sections: progressData.sections,
-              });
-            }
-          )
-        );
-        try {
-          await queryFulfilled;
-        } catch {
-          patchResult.undo();
-        }
-      },
-    }),
-
-    // Chat endpoints
-    sendChatMessage: build.mutation<
-      { response: string; id: string },
-      { message: string; userId: string }
-    >({
-      query: (data) => ({
-        url: "chat/message",
-        method: "POST",
-        body: data,
-      }),
-      transformResponse: (response: any) => {
-        if (!response) {
-          throw new Error('Empty response from server');
-        }
-        return {
-          response: response.message || response.response || '',
-          id: response.id || uuidv4()
-        };
-      },
+      providesTags: (result) => 
+        result 
+          ? [
+              ...result.map(({ id }) => ({ type: 'Chat' as const, id })),
+              { type: 'Chat' as const, id: 'LIST' }
+            ]
+          : [{ type: 'Chat' as const, id: 'LIST' }],
     }),
     
-    getChatHistory: build.query<
-      { messages: { content: string; role: "user" | "bot"; timestamp: number }[] },
-      string
-    >({
-      query: (userId) => `chat/history/${userId}`,
-      transformResponse: (response: any) => {
-        if (!response || !Array.isArray(response.messages)) {
-          return { messages: [] };
-        }
-        return response;
-      },
+    getChatById: build.query<Chat, string>({
+      query: (chatId) => ({
+        url: `/chats/${chatId}`,
+        method: 'GET',
+      }),
+      providesTags: (_result, _error, chatId) => [{ type: 'Chat', id: chatId }],
     }),
-
+    
+    createChat: build.mutation<Chat, { users: string[]; type: 'direct' | 'group'; name?: string }>({
+      query: (data) => ({
+        url: '/chats',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: [{ type: 'Chat', id: 'LIST' }],
+    }),
+    
+    getMessages: build.query<{ messages: Message[]; hasMore: boolean }, { chatId: string; limit?: number; before?: string }>({
+      query: ({ chatId, limit = 50, before }) => {
+        const queryParams = new URLSearchParams();
+        queryParams.append('limit', limit.toString());
+        if (before) queryParams.append('before', before);
+        
+        return {
+          url: `/chats/${chatId}/messages?${queryParams.toString()}`,
+          method: 'GET',
+        };
+      },
+      providesTags: (_result, _error, { chatId }) => [{ type: 'Message', id: chatId }],
+    }),
+    
+    sendMessage: build.mutation<Message, { chatId: string; content: string; sender: string; attachments?: { url: string; type: string; name: string }[] }>({
+      query: ({ chatId, ...data }) => ({
+        url: `/chats/${chatId}/messages`,
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: (_result, _error, { chatId }) => [
+        { type: 'Message', id: chatId },
+        { type: 'Chat', id: chatId },
+        { type: 'Chat', id: 'LIST' },
+      ],
+    }),
+    
+    readMessages: build.mutation<void, { chatId: string; userId: string }>({
+      query: ({ chatId, userId }) => ({
+        url: `/chats/${chatId}/read`,
+        method: 'POST',
+        body: { userId },
+      }),
+      invalidatesTags: (_result, _error, { chatId }) => [
+        { type: 'Chat', id: chatId },
+        { type: 'Chat', id: 'LIST' },
+      ],
+    }),
+    
+    /* 
+    ===============
+    COMMUNITY ENDPOINTS
+    =============== 
+    */
+    getCommunities: build.query<Community[], { type?: 'public' | 'private'; search?: string }>({
+      query: ({ type, search }) => {
+        const queryParams = new URLSearchParams();
+        if (type) queryParams.append('type', type);
+        if (search) queryParams.append('search', search);
+        
+        return {
+          url: `/communities?${queryParams.toString()}`,
+          method: 'GET',
+        };
+      },
+      providesTags: (result) => 
+        result 
+          ? [
+              ...result.map(({ id }) => ({ type: 'Community' as const, id })),
+              { type: 'Community' as const, id: 'LIST' }
+            ]
+          : [{ type: 'Community' as const, id: 'LIST' }],
+    }),
+    
+    getCommunityById: build.query<Community, string>({
+      query: (communityId) => ({
+        url: `/communities/${communityId}`,
+        method: 'GET',
+      }),
+      providesTags: (_result, _error, communityId) => [{ type: 'Community', id: communityId }],
+    }),
+    
+    createCommunity: build.mutation<Community, Partial<Community>>({
+      query: (data) => ({
+        url: '/communities',
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: [{ type: 'Community', id: 'LIST' }],
+    }),
+    
+    joinCommunity: build.mutation<void, { communityId: string; userId: string }>({
+      query: ({ communityId, userId }) => ({
+        url: `/communities/${communityId}/members`,
+        method: 'POST',
+        body: { userId },
+      }),
+      invalidatesTags: (_result, _error, { communityId }) => [
+        { type: 'Community', id: communityId },
+        { type: 'Community', id: 'LIST' },
+      ],
+    }),
+    
+    leaveCommunity: build.mutation<void, { communityId: string; userId: string }>({
+      query: ({ communityId, userId }) => ({
+        url: `/communities/${communityId}/members/${userId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_result, _error, { communityId }) => [
+        { type: 'Community', id: communityId },
+        { type: 'Community', id: 'LIST' },
+      ],
+    }),
+    
     /* 
     ===============
     BLOG POSTS
@@ -358,7 +360,7 @@ export const api = createApi({
         url: `/blog-posts/${postId}`,
         method: 'GET',
       }),
-      providesTags: (_, __, postId) => [{ type: 'BlogPost', id: postId }],
+      providesTags: (_result, _error, postId) => [{ type: 'BlogPost', id: postId }],
     }),
     
     createBlogPost: build.mutation<BlogPost, Partial<BlogPost>>({
@@ -376,61 +378,82 @@ export const api = createApi({
         method: 'PUT',
         body: post,
       }),
-      invalidatesTags: (_, __, { postId }) => [
+      invalidatesTags: (_result, _error, { postId }) => [
         { type: 'BlogPost', id: postId },
         { type: 'BlogPosts', id: 'LIST' }
       ],
     }),
     
-    deleteBlogPost: build.mutation<{ message: string }, string>({
+    deleteBlogPost: build.mutation<void, string>({
       query: (postId) => ({
         url: `/blog-posts/${postId}`,
         method: 'DELETE',
       }),
-      invalidatesTags: (_, __, postId) => [
+      invalidatesTags: (_result, _error, postId) => [
         { type: 'BlogPost', id: postId },
         { type: 'BlogPosts', id: 'LIST' }
       ],
     }),
     
-    moderateBlogPost: build.mutation<BlogPost, { 
-      postId: string; 
-      status: 'published' | 'rejected'; 
-      moderationComment?: string 
-    }>({
-      query: ({ postId, ...data }) => ({
-        url: `/blog-posts/${postId}/moderate`,
-        method: 'PUT',
-        body: data,
+    likeBlogPost: build.mutation<{ likes: number }, { postId: string; userId: string }>({
+      query: ({ postId, userId }) => ({
+        url: `/blog-posts/${postId}/like`,
+        method: 'POST',
+        body: { userId },
       }),
-      invalidatesTags: (_, __, { postId }) => [
-        { type: 'BlogPost', id: postId },
-        { type: 'BlogPosts', id: 'LIST' }
+      invalidatesTags: (_result, _error, { postId }) => [
+        { type: 'BlogPost', id: postId }
+      ],
+    }),
+    
+    getComments: build.query<BlogComment[], { postId: string }>({
+      query: ({ postId }) => ({
+        url: `/blog-posts/${postId}/comments`,
+        method: 'GET',
+      }),
+      providesTags: (_result, _error, { postId }) => [
+        { type: 'Comment', id: postId }
+      ],
+    }),
+    
+    addComment: build.mutation<BlogComment, { postId: string; comment: { content: string; userId: string } }>({
+      query: ({ postId, comment }) => ({
+        url: `/blog-posts/${postId}/comments`,
+        method: 'POST',
+        body: comment,
+      }),
+      invalidatesTags: (_result, _error, { postId }) => [
+        { type: 'Comment', id: postId },
+        { type: 'BlogPost', id: postId }
       ],
     }),
   }),
 });
 
+// Export hooks for usage in functional components
 export const {
-  useUpdateUserMutation,
-  useCreateCourseMutation,
-  useUpdateCourseMutation,
-  useDeleteCourseMutation,
-  useGetCoursesQuery,
-  useGetCourseQuery,
-  useGetUploadVideoUrlMutation,
-  useGetTransactionsQuery,
-  useCreateTransactionMutation,
-  useCreateStripePaymentIntentMutation,
-  useGetUserEnrolledCoursesQuery,
-  useGetUserCourseProgressQuery,
-  useUpdateUserCourseProgressMutation,
-  useSendChatMessageMutation,
-  useGetChatHistoryQuery,
+  // Chat hooks
+  useGetChatsQuery,
+  useGetChatByIdQuery,
+  useCreateChatMutation,
+  useGetMessagesQuery,
+  useSendMessageMutation,
+  useReadMessagesMutation,
+  
+  // Community hooks
+  useGetCommunitiesQuery,
+  useGetCommunityByIdQuery,
+  useCreateCommunityMutation,
+  useJoinCommunityMutation,
+  useLeaveCommunityMutation,
+  
+  // Blog hooks
   useGetBlogPostsQuery,
   useGetBlogPostQuery,
   useCreateBlogPostMutation,
   useUpdateBlogPostMutation,
   useDeleteBlogPostMutation,
-  useModerateBlogPostMutation,
+  useLikeBlogPostMutation,
+  useGetCommentsQuery,
+  useAddCommentMutation,
 } = api;

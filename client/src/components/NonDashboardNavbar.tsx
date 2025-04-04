@@ -2,15 +2,25 @@
 
 import { SignedIn, SignedOut, UserButton, useUser } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
-import { Bell, BookOpen, FileText } from "lucide-react";
+import { Bell, BookOpen, FileText, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import React from "react";
 
 const NonDashboardNavbar = () => {
   const { user } = useUser();
-  const userRole = user?.publicMetadata?.userType as "student" | "teacher";
+  const userRole = user?.publicMetadata?.userType as "student" | "teacher" | "admin";
+  const pathname = usePathname();
   console.log(user?.publicMetadata?.userType);
   
+  // Determine dashboard URL based on user role
+  const dashboardUrl = 
+    userRole === "teacher" ? "/teacher/courses" : 
+    userRole === "admin" ? "/admin/dashboard" : 
+    "/user/courses";
+  
+  // Check if current path is the dashboard path
+  const isDashboardActive = pathname.includes("/teacher/") || pathname.includes("/user/");
 
   return (
     <nav className="nondashboard-navbar">
@@ -28,14 +38,27 @@ const NonDashboardNavbar = () => {
               <FileText size={18} />
               <span className="hidden sm:inline">Blog</span>
             </Link>
+            
+            {/* Dashboard button - only visible when signed in */}
+            <SignedIn>
+              <Link
+                href={dashboardUrl}
+                className={`nondashboard-navbar__dashboard-link ${isDashboardActive ? 'active' : ''}`}
+                scroll={false}
+              >
+                <LayoutDashboard size={18} />
+                <span className="hidden sm:inline">Dashboard</span>
+              </Link>
+            </SignedIn>
+            
             <div className="relative group">
               <Link
                 href="/search"
                 className="nondashboard-navbar__search-input"
                 scroll={false}
               >
-                <span className="hidden sm:inline">Search Courses</span>
-                <span className="sm:hidden">Search</span>
+                <span className="hidden sm:inline">Homepage</span>
+                <span className="sm:hidden">Home</span>
               </Link>
               <BookOpen
                 className="nondashboard-navbar__search-icon"
@@ -62,7 +85,9 @@ const NonDashboardNavbar = () => {
               showName={true}
               userProfileMode="navigation"
               userProfileUrl={
-                userRole === "teacher" ? "/teacher/profile" : "/user/profile"
+                userRole === "teacher" ? "/teacher/profile" : 
+                userRole === "admin" ? "/admin/settings" :
+                "/user/profile"
               }
             />
           </SignedIn>
@@ -84,6 +109,11 @@ const NonDashboardNavbar = () => {
           </SignedOut>
         </div>
       </div>
+    </nav>
+  );
+};
+
+export default NonDashboardNavbar;
     </nav>
   );
 };

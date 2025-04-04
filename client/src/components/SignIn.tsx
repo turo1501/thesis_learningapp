@@ -3,13 +3,15 @@
 import { SignIn, useAuth } from "@clerk/nextjs";
 import React, { useEffect, useState } from "react";
 import { dark } from "@clerk/themes";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const SignInComponent = () => {
   const { isSignedIn, isLoaded, userId } = useAuth();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const isCheckoutPage = searchParams.get("showSignUp") !== null;
   const courseId = searchParams.get("id");
+  const step = searchParams.get("step") || "1";
 
   const signUpUrl = isCheckoutPage
     ? `/checkout?step=1&id=${courseId}&showSignUp=true`
@@ -18,12 +20,20 @@ const SignInComponent = () => {
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isLoaded) return; // Đợi Clerk tải dữ liệu xong
+    if (!isLoaded) return; // Wait for Clerk to load
 
-    if (!isSignedIn) return; // Nếu chưa đăng nhập, không cần xử lý tiếp
+    if (!isSignedIn) return; // If not signed in, no need to process further
 
     if (isCheckoutPage) {
-      setRedirectUrl(`/checkout?step=2&id=${courseId}&showSignUp=true`);
+      // For checkout, ensure step is preserved or defaulted to step 2 after login
+      const targetStep = step || "2";
+      const url = `/checkout?step=${targetStep}&id=${courseId}&showSignUp=true`;
+      setRedirectUrl(url);
+      
+      // Handle immediate redirect to prevent flash
+      if (typeof window !== 'undefined') {
+        router.push(url, { scroll: false });
+      }
       return;
     }
 
@@ -40,7 +50,7 @@ const SignInComponent = () => {
         }
       })
       .catch((error) => console.error("Error fetching user role:", error));
-  }, [isLoaded, isSignedIn, userId, isCheckoutPage, courseId]);
+  }, [isLoaded, isSignedIn, userId, isCheckoutPage, courseId, step, router]);
 
   return (
     <SignIn
@@ -65,7 +75,7 @@ const SignInComponent = () => {
         },
       }}
       signUpUrl={signUpUrl}
-      forceRedirectUrl={redirectUrl} // Chỉ redirect khi redirectUrl có giá trị
+      forceRedirectUrl={redirectUrl} // Only redirect when redirectUrl has a value
       routing="hash"
       afterSignOutUrl="/"
     />
