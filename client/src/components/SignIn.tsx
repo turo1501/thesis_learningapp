@@ -1,7 +1,7 @@
 "use client";
 
 import { SignIn, useAuth } from "@clerk/nextjs";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { dark } from "@clerk/themes";
 import { useSearchParams } from "next/navigation";
 
@@ -10,6 +10,8 @@ const SignInComponent = () => {
   const searchParams = useSearchParams();
   const isCheckoutPage = searchParams.get("showSignUp") !== null;
   const courseId = searchParams.get("id");
+  const showSignUpValue = searchParams.get("showSignUp") || "false";
+  const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const signUpUrl = isCheckoutPage
     ? `/checkout?step=1&id=${courseId}&showSignUp=true`
@@ -17,13 +19,30 @@ const SignInComponent = () => {
 
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!isLoaded) return; // Đợi Clerk tải dữ liệu xong
 
     if (!isSignedIn) return; // Nếu chưa đăng nhập, không cần xử lý tiếp
 
+    // Clear any existing timeout
+    if (redirectTimeoutRef.current) {
+      clearTimeout(redirectTimeoutRef.current);
+    }
+
     if (isCheckoutPage) {
-      setRedirectUrl(`/checkout?step=2&id=${courseId}&showSignUp=true`);
+      // Add a small delay to allow the session to stabilize before redirecting
+      redirectTimeoutRef.current = setTimeout(() => {
+        setRedirectUrl(`/checkout?step=2&id=${courseId}&showSignUp=${showSignUpValue}`);
+      }, 300);
       return;
     }
 
@@ -33,14 +52,17 @@ const SignInComponent = () => {
         const userType = data.userType;
         console.log("UserType:", userType);
 
-        if (userType === "user") {
-          setRedirectUrl("/user/courses");
-        } else {
-          setRedirectUrl("/teacher/courses");
-        }
+        // Add a small delay to allow the session to stabilize before redirecting
+        redirectTimeoutRef.current = setTimeout(() => {
+          if (userType === "user") {
+            setRedirectUrl("/user/courses");
+          } else {
+            setRedirectUrl("/teacher/courses");
+          }
+        }, 300);
       })
       .catch((error) => console.error("Error fetching user role:", error));
-  }, [isLoaded, isSignedIn, userId, isCheckoutPage, courseId]);
+  }, [isLoaded, isSignedIn, userId, isCheckoutPage, courseId, showSignUpValue]);
 
   return (
     <SignIn

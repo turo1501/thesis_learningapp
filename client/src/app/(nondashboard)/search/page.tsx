@@ -7,6 +7,7 @@ import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import CourseCardSearch from "@/components/CourseCardSearch";
 import SelectedCourse from "./SelectedCourse";
+import { useUser } from "@clerk/nextjs";
 
 const Search = () => {
   const searchParams = useSearchParams();
@@ -14,6 +15,7 @@ const Search = () => {
   const { data: courses, isLoading, isError } = useGetCoursesQuery({});
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const router = useRouter();
+  const { isSignedIn, isLoaded } = useUser();
 
   useEffect(() => {
     if (courses) {
@@ -37,7 +39,14 @@ const Search = () => {
   };
 
   const handleEnrollNow = (courseId: string) => {
-    router.push(`/checkout?step=1&id=${courseId}&showSignUp=false`, {
+    // Wait for authentication state to be loaded
+    if (!isLoaded) return;
+
+    // Force step=2 for authenticated users, otherwise step=1
+    const step = isSignedIn ? "2" : "1";
+    
+    // Always set showSignUp to false for consistent behavior
+    router.push(`/checkout?step=${step}&id=${courseId}&showSignUp=false`, {
       scroll: false,
     });
   };
