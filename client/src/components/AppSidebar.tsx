@@ -22,6 +22,13 @@ import {
   PenTool,
   FileText,
   CheckSquare,
+  VideoIcon,
+  LayoutDashboard,
+  UserCog,
+  BarChart3,
+  GraduationCap,
+  CreditCard,
+  UserIcon,
 } from "lucide-react";
 import Loading from "./Loading";
 import Image from "next/image";
@@ -36,18 +43,30 @@ const AppSidebar = () => {
 
   const navLinks = {
     student: [
-      { icon: BookOpen, label: "Courses", href: "/user/courses" },
-      { icon: PenTool, label: "Blog", href: "/student/blog" },
-      { icon: Briefcase, label: "Billing", href: "/user/billing" },
-      { icon: User, label: "Profile", href: "/user/profile" },
+      { icon: GraduationCap, label: "Courses", href: "/user/courses" },
+      { icon: CheckSquare, label: "Assignments", href: "/user/assignments" },
+      { icon: BookOpen, label: "Blog", href: "/user/blog" },
+      { icon: VideoIcon, label: "Meetings", href: "/user/meetings" },
+      { icon: CreditCard, label: "Billing", href: "/user/billing" },
+      { icon: UserIcon, label: "Profile", href: "/user/profile" },
       { icon: Settings, label: "Settings", href: "/user/settings" },
     ],
     teacher: [
       { icon: BookOpen, label: "Courses", href: "/teacher/courses" },
-      { icon: CheckSquare, label: "Moderation", href: "/teacher/moderation" },
+      { icon: CheckSquare, label: "Assignments", href: "/teacher/assignments" },
+      { icon: VideoIcon, label: "Meetings", href: "/teacher/meetings" },
       { icon: DollarSign, label: "Billing", href: "/teacher/billing" },
+      { icon: PenTool, label: "Blog", href: "/teacher/blog" },
       { icon: User, label: "Profile", href: "/teacher/profile" },
       { icon: Settings, label: "Settings", href: "/teacher/settings" },
+    ],
+    admin: [
+      { icon: LayoutDashboard, label: "Dashboard", href: "/admin/dashboard" },
+      { icon: UserCog, label: "Users", href: "/admin/user-management" },
+      { icon: BookOpen, label: "Courses", href: "/admin/courses" },
+      { icon: FileText, label: "Blog Approval", href: "/admin/blog-approval" },
+      { icon: BarChart3, label: "Analytics", href: "/admin/analytics" },
+      { icon: User, label: "Profile", href: "/admin/profile" },
     ],
   };
 
@@ -55,8 +74,8 @@ const AppSidebar = () => {
   if (!user) return <div>User not found</div>;
 
   const userType =
-    (user.publicMetadata.userType as "student" | "teacher") || "student";
-  const currentNavLinks = navLinks[userType];
+    (user.publicMetadata.userType as "student" | "teacher" | "admin") || "student";
+  const currentNavLinks = navLinks[userType] || navLinks.student;
 
   return (
     <Sidebar

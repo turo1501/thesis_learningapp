@@ -206,6 +206,60 @@ declare global {
     coursePrice: string;
     courseStatus: boolean;
   }
+
+  interface Assignment {
+    assignmentId: string;
+    courseId: string;
+    teacherId: string;
+    title: string;
+    description: string;
+    dueDate: string;
+    points: number;
+    status: "draft" | "published" | "archived";
+    submissions: AssignmentSubmission[];
+    attachments: string[];
+    createdAt?: string;
+    updatedAt?: string;
+  }
+
+  interface AssignmentSubmission {
+    studentId: string;
+    studentName: string;
+    submissionDate: string;
+    content: string;
+    grade?: number;
+    feedback?: string;
+    status: "submitted" | "graded";
+  }
+
+  interface Meeting {
+    meetingId: string;
+    teacherId: string;
+    teacherName: string;
+    title: string;
+    description?: string;
+    courseId?: string;
+    courseName?: string;
+    date: string;
+    startTime: string;
+    duration: number; // In minutes
+    type: "individual" | "group";
+    status: "scheduled" | "completed" | "cancelled" | "pending";
+    meetingLink?: string;
+    location?: string;
+    notes?: string;
+    participants: MeetingParticipant[];
+    recordings?: string[];
+    createdAt?: string;
+    updatedAt?: string;
+  }
+
+  interface MeetingParticipant {
+    studentId: string;
+    studentName: string;
+    studentEmail: string;
+    status: "confirmed" | "pending" | "cancelled";
+  }
 }
 
 export {};

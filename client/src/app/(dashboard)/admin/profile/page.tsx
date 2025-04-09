@@ -6,15 +6,15 @@ import { UserProfile } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import React from "react";
 
-const UserProfilePage = () => {
+const AdminProfilePage = () => {
   return (
     <>
-      <Header title="Profile" subtitle="View and update your profile information" />
+      <Header title="Profile" subtitle="View and update your admin profile" />
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <UserProfile
-            path="/teacher/profile"
+            path="/admin/profile"
             routing="path"
             appearance={{
               baseTheme: dark,
@@ -38,4 +38,4 @@ const UserProfilePage = () => {
   );
 };
 
-export default UserProfilePage;
+export default AdminProfilePage;

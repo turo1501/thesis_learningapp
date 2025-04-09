@@ -30,6 +30,14 @@ export interface BlogPostsResponse {
   count: number;
 }
 
+// Define the missing UpdateUserCourseProgressData interface
+export interface UpdateUserCourseProgressData {
+  courseId: string;
+  sectionId: string;
+  lessonId: string;
+  progress: number;
+}
+
 const customBaseQuery = async (
   args: string | FetchArgs,
   api: BaseQueryApi,
@@ -115,7 +123,7 @@ const customBaseQuery = async (
 export const api = createApi({
   baseQuery: customBaseQuery,
   reducerPath: "api",
-  tagTypes: ["Courses", "Users", "UserCourseProgress", "BlogPosts", "BlogPost"],
+  tagTypes: ["Courses", "Users", "UserCourseProgress", "BlogPosts", "BlogPost", "Assignments", "Meetings"],
   endpoints: (build) => ({
     /* 
     ===============
@@ -285,6 +293,15 @@ export const api = createApi({
       },
     }),
 
+    // Course Progress - use a different name to avoid duplication
+    updateLessonProgress: build.mutation<{ success: boolean }, UpdateUserCourseProgressData>({
+      query: ({ courseId, sectionId, lessonId, progress }) => ({
+        url: "/user-course-progress",
+        method: "PUT",
+        body: { courseId, sectionId, lessonId, progress },
+      }),
+    }),
+
     // Chat endpoints
     sendChatMessage: build.mutation<
       { response: string; id: string },
@@ -408,6 +425,243 @@ export const api = createApi({
         { type: 'BlogPosts', id: 'LIST' }
       ],
     }),
+
+    /* 
+    ===============
+    ASSIGNMENTS
+    =============== 
+    */
+    getCourseAssignments: build.query<Assignment[], string>({
+      query: (courseId) => `assignments/course/${courseId}`,
+      providesTags: (result, error, courseId) => [{ type: "Assignments", id: courseId }],
+    }),
+
+    getAssignment: build.query<Assignment, string>({
+      query: (assignmentId) => `assignments/${assignmentId}`,
+      providesTags: (result, error, id) => [{ type: "Assignments", id }],
+    }),
+
+    createAssignment: build.mutation<
+      Assignment,
+      {
+        courseId: string;
+        title: string;
+        description: string;
+        dueDate: string;
+        points: number;
+        attachments?: string[];
+      }
+    >({
+      query: (body) => ({
+        url: `assignments`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: (result, error, { courseId }) => [
+        { type: "Assignments", id: courseId },
+      ],
+    }),
+
+    updateAssignment: build.mutation<
+      Assignment,
+      {
+        assignmentId: string;
+        courseId: string;
+        title?: string;
+        description?: string;
+        dueDate?: string;
+        points?: number;
+        status?: string;
+        attachments?: string[];
+      }
+    >({
+      query: ({ assignmentId, ...body }) => ({
+        url: `assignments/${assignmentId}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: (result, error, { assignmentId, courseId }) => [
+        { type: "Assignments", id: assignmentId },
+        { type: "Assignments", id: courseId },
+      ],
+    }),
+
+    deleteAssignment: build.mutation<{ message: string }, string>({
+      query: (assignmentId) => ({
+        url: `assignments/${assignmentId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Assignments"],
+    }),
+
+    submitAssignment: build.mutation<
+      { message: string },
+      { assignmentId: string; content: string }
+    >({
+      query: ({ assignmentId, content }) => ({
+        url: `assignments/${assignmentId}/submit`,
+        method: "POST",
+        body: { content },
+      }),
+      invalidatesTags: (result, error, { assignmentId }) => [
+        { type: "Assignments", id: assignmentId },
+      ],
+    }),
+
+    gradeSubmission: build.mutation<
+      { message: string },
+      {
+        assignmentId: string;
+        studentId: string;
+        grade: number;
+        feedback: string;
+      }
+    >({
+      query: ({ assignmentId, studentId, ...body }) => ({
+        url: `assignments/${assignmentId}/submissions/${studentId}/grade`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: (result, error, { assignmentId }) => [
+        { type: "Assignments", id: assignmentId },
+      ],
+    }),
+
+    /* 
+    ===============
+    MEETINGS
+    =============== 
+    */
+    getTeacherMeetings: build.query<Meeting[], string>({
+      query: (teacherId) => `/meetings/teacher/${teacherId}`,
+    }),
+
+    getStudentMeetings: build.query<Meeting[], string>({
+      query: (studentId) => `/meetings/student/${studentId}`,
+    }),
+
+    getCourseMeetings: build.query<Meeting[], string>({
+      query: (courseId) => `meetings/course/${courseId}`,
+      providesTags: (result, error, courseId) => [{ type: "Meetings", id: courseId }],
+    }),
+
+    getMeeting: build.query<Meeting, string>({
+      query: (meetingId) => `meetings/${meetingId}`,
+      providesTags: (result, error, id) => [{ type: "Meetings", id }],
+    }),
+
+    createMeeting: build.mutation<
+      Meeting,
+      {
+        title: string;
+        description?: string;
+        courseId?: string;
+        courseName?: string;
+        date: string;
+        startTime: string;
+        duration: number;
+        type: "individual" | "group";
+        meetingLink?: string;
+        location?: string;
+        participants?: {
+          studentId: string;
+          studentName: string;
+          studentEmail: string;
+        }[];
+      }
+    >({
+      query: (body) => ({
+        url: `meetings`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Meetings"],
+    }),
+
+    updateMeeting: build.mutation<
+      Meeting,
+      {
+        meetingId: string;
+        title?: string;
+        description?: string;
+        courseId?: string;
+        courseName?: string;
+        date?: string;
+        startTime?: string;
+        duration?: number;
+        type?: "individual" | "group";
+        status?: "scheduled" | "completed" | "cancelled" | "pending";
+        meetingLink?: string;
+        location?: string;
+        participants?: {
+          studentId: string;
+          studentName: string;
+          studentEmail: string;
+          status?: "confirmed" | "pending" | "cancelled";
+        }[];
+      }
+    >({
+      query: ({ meetingId, ...body }) => ({
+        url: `meetings/${meetingId}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: (result, error, { meetingId }) => [
+        { type: "Meetings", id: meetingId },
+      ],
+    }),
+
+    deleteMeeting: build.mutation<{ message: string }, string>({
+      query: (meetingId) => ({
+        url: `meetings/${meetingId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Meetings"],
+    }),
+
+    respondToMeeting: build.mutation<
+      { message: string },
+      { meetingId: string; response: "confirmed" | "cancelled" }
+    >({
+      query: ({ meetingId, response }) => ({
+        url: `meetings/${meetingId}/respond`,
+        method: "POST",
+        body: { response },
+      }),
+      invalidatesTags: (result, error, { meetingId }) => [
+        { type: "Meetings", id: meetingId },
+      ],
+    }),
+
+    addMeetingNotes: build.mutation<
+      { message: string },
+      { meetingId: string; notes: string }
+    >({
+      query: ({ meetingId, notes }) => ({
+        url: `meetings/${meetingId}/notes`,
+        method: "POST",
+        body: { notes },
+      }),
+      invalidatesTags: (result, error, { meetingId }) => [
+        { type: "Meetings", id: meetingId },
+      ],
+    }),
+
+    // Meetings
+    getMeetingById: build.query<Meeting, string>({
+      query: (meetingId) => `/meetings/${meetingId}`,
+    }),
+
+    updateMeetingAttendance: build.mutation<
+      { success: boolean },
+      { meetingId: string; studentId: string; status: "accepted" | "declined" | "pending" }
+    >({
+      query: ({ meetingId, studentId, status }) => ({
+        url: `/meetings/${meetingId}/attendance`,
+        method: "PUT",
+        body: { studentId, status },
+      }),
+    }),
   }),
 });
 
@@ -433,4 +687,23 @@ export const {
   useUpdateBlogPostMutation,
   useDeleteBlogPostMutation,
   useModerateBlogPostMutation,
+  useGetCourseAssignmentsQuery,
+  useGetAssignmentQuery,
+  useCreateAssignmentMutation,
+  useUpdateAssignmentMutation,
+  useDeleteAssignmentMutation,
+  useSubmitAssignmentMutation,
+  useGradeSubmissionMutation,
+  useGetTeacherMeetingsQuery,
+  useGetStudentMeetingsQuery,
+  useGetCourseMeetingsQuery,
+  useGetMeetingQuery,
+  useCreateMeetingMutation,
+  useUpdateMeetingMutation,
+  useDeleteMeetingMutation,
+  useRespondToMeetingMutation,
+  useAddMeetingNotesMutation,
+  useUpdateLessonProgressMutation,
+  useGetMeetingByIdQuery,
+  useUpdateMeetingAttendanceMutation,
 } = api;
