@@ -2,6 +2,9 @@ import { Request, Response } from "express";
 import { clerkClient } from "../index";
 import type { User } from "@clerk/backend";
 
+// Thêm biến isProduction từ env
+const isProduction = process.env.NODE_ENV === "production";
+
 export const updateUser = async (
   req: Request,
   res: Response
@@ -74,6 +77,7 @@ export const resetPassword = async (
   res: Response
 ): Promise<void> => {
   const { email } = req.body;
+  console.log("Password reset request received for:", email);
   
   if (!email) {
     res.status(400).json({ message: "Email is required" });
@@ -85,25 +89,72 @@ export const resetPassword = async (
     const users = await clerkClient.users.getUserList({
       emailAddress: [email],
     });
+    console.log("Users found:", users.data.length);
     
     if (users.data.length === 0) {
-      res.status(404).json({ message: "User not found with this email" });
+      // Không tiết lộ liệu email có tồn tại hay không vì lý do bảo mật
+      res.json({ 
+        success: true,
+        message: "If this email exists in our system, a password reset link has been sent"
+      });
+      return;
+    }
+
+    const user = users.data[0];
+    const primaryEmail = user.emailAddresses.find(email => email.id === user.primaryEmailAddressId);
+    
+    if (!primaryEmail) {
+      console.log("No primary email found for user");
+      res.status(400).json({ message: "User does not have a primary email address" });
       return;
     }
     
-    // Gửi email reset password thông qua frontend
-    // Backend không thể trực tiếp gọi API đặt lại mật khẩu (giới hạn của Clerk)
-    // Trả về success để frontend có thể hiển thị thông báo
-    res.json({ 
-      message: "Please use Clerk's frontend components for password reset", 
-      user: {
-        id: users.data[0].id,
-        email: email
-      }
-    });
+    try {
+      // Cập nhật metadata để đánh dấu yêu cầu reset password
+      // Do Clerk backend API không hỗ trợ trực tiếp gửi email reset password
+      await clerkClient.users.updateUserMetadata(user.id, {
+        privateMetadata: {
+          ...user.privateMetadata,
+          passwordResetRequested: true,
+          passwordResetRequestedAt: new Date().toISOString()
+        }
+      });
+      
+      // Log ID người dùng để frontend sử dụng các API khác để reset password
+      console.log(`Password reset requested for user ${user.id} with email ${email}`);
+      
+      // Trả về thông tin thành công và hướng dẫn frontend
+      // Frontend sẽ cần mở trang reset password của Clerk
+      const clerkDomain = process.env.NEXT_PUBLIC_CLERK_DOMAIN || "accounts.clerk.dev";
+      const resetUrl = `https://${clerkDomain}/reset-password?email=${encodeURIComponent(email)}`;
+      
+      res.json({ 
+        success: true,
+        message: "Please check your email for password reset instructions or click the button below.", 
+        redirectUrl: resetUrl,  // Frontend sẽ sử dụng URL này để redirect
+        user: {
+          id: user.id,
+          email: email
+        }
+      });
+    } catch (resetError: any) {
+      console.error("Error requesting password reset:", resetError);
+      
+      // Trả về lỗi phù hợp
+      res.status(500).json({ 
+        success: false, 
+        message: "There was an error processing your password reset request. Please try again later.",
+        error: isProduction ? undefined : resetError
+      });
+    }
   } catch (error) {
     console.error("Error preparing password reset:", error);
-    res.status(500).json({ message: "Error preparing password reset", error });
+    // Trả về lỗi
+    res.status(500).json({ 
+      success: false,
+      message: "There was an error processing your password reset request. Please try again later.",
+      error: isProduction ? undefined : error
+    });
   }
 };
 

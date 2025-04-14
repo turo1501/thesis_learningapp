@@ -38,92 +38,54 @@ export interface UpdateUserCourseProgressData {
   progress: number;
 }
 
-const customBaseQuery = async (
-  args: string | FetchArgs,
-  api: BaseQueryApi,
-  extraOptions: any
-) => {
-  const baseQuery = fetchBaseQuery({
-    baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL,
-    prepareHeaders: async (headers) => {
-      try {
-        // Add cache control headers to prevent caching
-        headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        headers.set('Pragma', 'no-cache');
-        headers.set('Expires', '0');
-        
-        // Check if Clerk is available and authenticated
-        if (typeof window !== 'undefined' && window.Clerk) {
-          const session = await window.Clerk.session;
-          if (session) {
-            const token = await session.getToken();
-            if (token) {
-              headers.set("Authorization", `Bearer ${token}`);
-              console.log("Authorization header set with token");
-            } else {
-              console.warn("No token available from Clerk session");
-            }
-          } else {
-            console.warn("No Clerk session found");
-          }
-        } else {
-          console.warn("Clerk not available in window");
-        }
-      } catch (error) {
-        console.error("Error getting auth token:", error);
+// Sửa lỗi liên quan đến replace method
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+
+const customBaseQuery = fetchBaseQuery({
+  baseUrl: apiBaseUrl,
+  prepareHeaders: async (headers, { getState }) => {
+    // Add common headers
+    headers.set('Content-Type', 'application/json');
+   
+    try {
+      // Sử dụng Clerk API để lấy token đúng cách
+      const token = await window.Clerk?.session?.getToken();
+      if (token) {
+        console.log("Authorization header set with token");
+        headers.set('Authorization', `Bearer ${token}`);
       }
-      return headers;
-    },
-  });
-
-  // Log the request being made
-  const url = typeof args === 'string' ? args : args.url;
-  console.log(`API Request: ${url}`, args);
-
-  try {
-    const result = await baseQuery(args, api, extraOptions);
-
-    // Log the response
-    console.log(`API Response for ${url}:`, result);
-
-    // Handle errors
-    if (result.error) {
-      const errorData = result.error.data as { message?: string };
-      const errorMessage =
-        errorData?.message ||
-        result.error.status.toString() ||
-        "An error occurred";
-      toast.error(`Error: ${errorMessage}`);
-      return result;
+    } catch (error) {
+      console.error("Error getting auth token:", error);
     }
-
-    // Handle successful response
-    if (result.data) {
-      // For chat endpoints, return the raw response
-      if (typeof args === 'object' && args.url?.includes('/chat')) {
-        return result;
-      }
+ 
+    return headers;
+  },
+  // Add validation and error handling
+  async responseHandler(response) {
+    console.log(`API Request: ${response.url.replace(apiBaseUrl, '')}`);
+    
+    if (!response.ok) {
+      // Log error details
+      const errorText = await response.text();
+      console.error(`API Error (${response.status}): ${errorText}`);
       
-      // For other endpoints, extract data property if it exists
-      const data = result.data as { data?: unknown };
-      if (data && typeof data === 'object' && 'data' in data) {
-        result.data = data.data;
-      }
-    } else if (result.meta?.response?.status === 204) {
-      return { data: null };
+      // Rethrow as error for RTK Query to handle
+      throw {
+        status: response.status,
+        data: errorText,
+      };
     }
-
+    
+    const result = await response.json();
+    console.log(`API Response for ${response.url.replace(apiBaseUrl, '')}: `, result);
     return result;
-  } catch (error) {
-    toast.error(`Network error: ${error instanceof Error ? error.message : "Unknown error"}`);
-    return { error: { status: "FETCH_ERROR", error: String(error) } };
-  }
-};
+  },
+});
 
 export const api = createApi({
   baseQuery: customBaseQuery,
   reducerPath: "api",
-  tagTypes: ["Courses", "Users", "UserCourseProgress", "BlogPosts", "BlogPost", "Assignments", "Meetings"],
+  tagTypes: ["Courses", "Users", "UserCourseProgress", "BlogPosts", "BlogPost", "Assignments", "Meetings", "Analytics"],
   endpoints: (build) => ({
     /* 
     ===============
@@ -255,15 +217,13 @@ export const api = createApi({
       invalidatesTags: ["Users"],
     }),
 
-    resetUserPassword: build.mutation<
-      any,
-      { email: string }
-    >({
-      query: (data) => ({
-        url: "users/clerk/reset-password",
-        method: "POST",
-        body: data,
+    resetUserPassword: build.mutation<any, { email: string }>({
+      query: (body) => ({
+        url: '/users/password-reset',
+        method: 'POST',
+        body,
       }),
+      invalidatesTags: ['Users'],
     }),
 
     /* 
@@ -789,6 +749,61 @@ export const api = createApi({
         body: { studentId, status },
       }),
     }),
+
+    /* 
+    ===============
+    DASHBOARD
+    =============== 
+    */
+    getDashboardStats: build.query<any, void>({
+      query: () => `/dashboard/stats`,
+      providesTags: ["Analytics"],
+    }),
+
+    getPendingActions: build.query<any, void>({
+      query: () => `/dashboard/pending-actions`,
+      providesTags: ["Analytics"],
+    }),
+
+    getMonthlyRevenue: build.query<any, void>({
+      query: () => `/dashboard/monthly-revenue`,
+      providesTags: ["Analytics"],
+    }),
+
+    getRecentUserActivities: build.query<any, void>({
+      query: () => `/dashboard/user-activities`,
+      providesTags: ["Analytics"],
+    }),
+
+    /* 
+    ===============
+    ANALYTICS
+    =============== 
+    */
+    getAnalyticsSummary: build.query<any, string>({
+      query: (timeRange) => `/analytics/summary?timeRange=${timeRange}`,
+      providesTags: ["Analytics"],
+    }),
+
+    getUserAnalytics: build.query<any, string>({
+      query: (timeRange) => `/analytics/users?timeRange=${timeRange}`,
+      providesTags: ["Analytics"],
+    }),
+
+    getCourseAnalytics: build.query<any, string>({
+      query: (timeRange) => `/analytics/courses?timeRange=${timeRange}`,
+      providesTags: ["Analytics"],
+    }),
+
+    getRevenueAnalytics: build.query<any, string>({
+      query: (timeRange) => `/analytics/revenue?timeRange=${timeRange}`,
+      providesTags: ["Analytics"],
+    }),
+
+    getPlatformAnalytics: build.query<any, string>({
+      query: (timeRange) => `/analytics/platform?timeRange=${timeRange}`,
+      providesTags: ["Analytics"],
+    }),
   }),
 });
 
@@ -843,4 +858,13 @@ export const {
   useCreateUserMutation,
   useResetUserPasswordMutation,
   useGetUserByIdQuery,
+  useGetDashboardStatsQuery,
+  useGetPendingActionsQuery,
+  useGetMonthlyRevenueQuery,
+  useGetRecentUserActivitiesQuery,
+  useGetAnalyticsSummaryQuery,
+  useGetUserAnalyticsQuery,
+  useGetCourseAnalyticsQuery,
+  useGetRevenueAnalyticsQuery,
+  useGetPlatformAnalyticsQuery,
 } = api;

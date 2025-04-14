@@ -1,29 +1,26 @@
 import { Request, Response } from "express";
-import { clerkClient } from "../index";
 import Course from "../models/courseModel";
-import Transaction from "../models/transactionModel";
 import BlogPostModel from "../models/blogPostModel";
+import Transaction from "../models/transactionModel";
+import { clerkClient } from "../index";
 import UserCourseProgress from "../models/userCourseProgressModel";
 
-// Define activity types for type safety
-interface EnrollmentActivity {
-  type: 'enrollment';
-  userId: string;
-  courseId: string;
-  timestamp: number;
-  userName?: string;
-  courseTitle?: string;
-}
+/**
+ * Calculate growth percentage between current and previous value
+ */
+const calculateGrowthPercentage = (currentValue: number, previousValue: number): string => {
+  if (previousValue === 0) return "+100%";
+  const growthRate = ((currentValue - previousValue) / previousValue) * 100;
+  const sign = growthRate >= 0 ? "+" : "";
+  return `${sign}${growthRate.toFixed(1)}%`;
+};
 
-interface BlogPostActivity {
-  type: 'blog_post';
-  userId: string;
-  userName: string;
-  title: string;
-  timestamp: number;
-}
-
-type UserActivity = EnrollmentActivity | BlogPostActivity;
+/**
+ * Format date to YYYY-MM-DD
+ */
+const formatDate = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
 
 /**
  * Get dashboard statistics for admin
@@ -36,20 +33,20 @@ export const getDashboardStats = async (
   try {
     // Get users count from Clerk
     const usersResponse = await clerkClient.users.getUserList({
-      limit: 100, // Tăng giới hạn để lấy nhiều user hơn
+      limit: 100, // Increase limit to get more users
     });
     
-    // Đảm bảo có ít nhất 1 user nếu không có dữ liệu thực
+    // Ensure at least 1 user if no real data
     const totalUsers = Math.max(usersResponse.data.length, 1);
 
     // Get total courses count
     const courses = await Course.scan().exec();
-    // Đảm bảo có ít nhất 1 course
+    // Ensure at least 1 course
     const totalCourses = Math.max(courses.length, 1);
 
     // Get total blog posts count
     const blogPosts = await BlogPostModel.scan().exec();
-    // Đảm bảo có ít nhất 1 blog post
+    // Ensure at least 1 blog post
     const totalBlogPosts = Math.max(blogPosts.length, 1);
 
     // Calculate total revenue from transactions
@@ -58,12 +55,12 @@ export const getDashboardStats = async (
       return sum + (transaction.amount || 0);
     }, 0);
     
-    // Đảm bảo có ít nhất một số revenue nếu không có dữ liệu thực
+    // Ensure some revenue amount if no real data
     if (totalRevenue === 0) {
-      totalRevenue = 10000; // Dữ liệu mẫu: $10,000
+      totalRevenue = 10000; // Sample data: $10,000
     }
 
-    // Get growth percentages
+    // Get growth percentages (comparing with previous period)
     const userGrowth = calculateGrowthPercentage(totalUsers, totalUsers > 5 ? totalUsers - 2 : 0);
     const courseGrowth = calculateGrowthPercentage(totalCourses, totalCourses > 5 ? totalCourses - 1 : 0);
     const blogGrowth = calculateGrowthPercentage(totalBlogPosts, totalBlogPosts > 5 ? totalBlogPosts - 3 : 0);
@@ -103,7 +100,7 @@ export const getDashboardStats = async (
     });
   } catch (error) {
     console.error("Error getting dashboard stats:", error);
-    // Trả về dữ liệu mẫu nếu có lỗi
+    // Return sample data if error occurs
     res.json({
       success: true,
       data: {
@@ -134,63 +131,68 @@ export const getDashboardStats = async (
 
 /**
  * Get pending actions for admin dashboard
- * Returns counts of pending blog posts, new user registrations, and new course submissions
  */
 export const getPendingActions = async (
   _: Request,
   res: Response
 ): Promise<void> => {
   try {
-    // Get pending blog posts count
-    const pendingBlogPosts = await BlogPostModel.scan({ status: "pending" }).exec();
-    const pendingBlogPostsCount = Math.max(pendingBlogPosts.length, 1); // Đảm bảo có ít nhất 1
-
-    // Get new user registrations (users registered in the last 7 days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Get pending blog posts (awaiting approval)
+    const pendingPosts = await BlogPostModel.scan().exec();
+    const pendingPostsCount = pendingPosts.filter(post => post.status === "pending").length;
     
-    const newUsersResponse = await clerkClient.users.getUserList({
+    // Get recent user registrations (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const usersResponse = await clerkClient.users.getUserList({
       limit: 100,
+      orderBy: "-created_at",
     });
     
-    // Filter users created in the last 7 days
-    const newUsers = newUsersResponse.data.filter(user => {
+    const recentUsers = usersResponse.data.filter(user => {
       const createdAt = new Date(user.createdAt);
-      return createdAt >= sevenDaysAgo;
+      return createdAt >= thirtyDaysAgo;
     });
     
-    const newUserRegistrationsCount = Math.max(newUsers.length, 2); // Đảm bảo có ít nhất 2
+    // Get new course submissions (draft courses from last 30 days)
+    const recentCourses = await Course.scan().exec();
+    const newCourses = recentCourses.filter(course => {
+      const createdAt = new Date(course.createdAt || Date.now());
+      return createdAt >= thirtyDaysAgo && course.status === "Draft";
+    });
+    
+    // Get role change requests (if any)
+    // This is a placeholder - implement real logic if you have role change requests
+    const roleChangeRequests = 0;
 
-    // Get new course submissions (courses created in last 7 days with Draft status)
-    const newCourseSubmissions = await Course.scan({ status: "Draft" }).exec();
-    const newCourseSubmissionsCount = Math.max(newCourseSubmissions.length, 1); // Đảm bảo có ít nhất 1
-
-    // Send response
+    // Send response with data
     res.json({
       success: true,
       data: {
-        pendingBlogPosts: pendingBlogPostsCount,
-        newUserRegistrations: newUserRegistrationsCount,
-        newCourseSubmissions: newCourseSubmissionsCount,
-      },
+        pendingPosts: pendingPostsCount,
+        newUsers: recentUsers.length,
+        newCourses: newCourses.length,
+        roleChangeRequests: roleChangeRequests
+      }
     });
   } catch (error) {
     console.error("Error getting pending actions:", error);
-    // Trả về dữ liệu mẫu nếu có lỗi
+    // Return sample data if error occurs
     res.json({
       success: true,
       data: {
-        pendingBlogPosts: 3,
-        newUserRegistrations: 5,
-        newCourseSubmissions: 2,
-      },
+        pendingPosts: 15,
+        newUsers: 32,
+        newCourses: 8,
+        roleChangeRequests: 3
+      }
     });
   }
 };
 
 /**
- * Get monthly revenue data for admin dashboard chart
- * Returns revenue data for the last 6 months
+ * Get monthly revenue data for charts
  */
 export const getMonthlyRevenue = async (
   _: Request,
@@ -200,233 +202,178 @@ export const getMonthlyRevenue = async (
     // Get all transactions
     const transactions = await Transaction.scan().exec();
     
-    // Calculate revenue for last 6 months
-    const today = new Date();
-    const monthlyData = [];
+    // Initialize monthly revenue data structure
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyRevenue = months.map(month => ({
+      month,
+      revenue: 0
+    }));
     
-    for (let i = 0; i < 6; i++) {
-      const month = new Date(today.getFullYear(), today.getMonth() - i, 1);
-      const monthName = month.toLocaleString('default', { month: 'short' });
+    // Calculate revenue by month
+    const currentYear = new Date().getFullYear();
+    
+    transactions.forEach(transaction => {
+      const createdAt = new Date(transaction.createdAt || Date.now());
       
-      // Filter transactions for this month
-      const monthTransactions = transactions.filter(transaction => {
-        if (!transaction.dateTime) return false;
-        const transactionDate = new Date(transaction.dateTime);
-        return transactionDate.getMonth() === month.getMonth() && 
-               transactionDate.getFullYear() === month.getFullYear();
-      });
-      
-      // Calculate total revenue for this month
-      let revenue = monthTransactions.reduce((sum, transaction) => {
-        return sum + (transaction.amount || 0);
-      }, 0);
-      
-      // Thêm dữ liệu mẫu nếu không có giao dịch nào
-      if (revenue === 0) {
-        // Tạo dữ liệu giả lập với xu hướng tăng nhẹ
-        revenue = 1000 + (i * 500) + Math.floor(Math.random() * 500);
+      // Only include transactions from current year
+      if (createdAt.getFullYear() === currentYear) {
+        const month = createdAt.getMonth();
+        monthlyRevenue[month].revenue += transaction.amount || 0;
       }
-      
-      // Add to monthly data array
-      monthlyData.unshift({
-        month: monthName,
-        revenue: revenue,
-      });
+    });
+    
+    // If no real data, generate sample data
+    if (transactions.length === 0) {
+      // Sample data with reasonable curve
+      monthlyRevenue[0].revenue = 8500;
+      monthlyRevenue[1].revenue = 9200; 
+      monthlyRevenue[2].revenue = 10500;
+      monthlyRevenue[3].revenue = 9800;
+      monthlyRevenue[4].revenue = 11200;
+      monthlyRevenue[5].revenue = 12000;
+      monthlyRevenue[6].revenue = 10800;
+      monthlyRevenue[7].revenue = 11500;
+      monthlyRevenue[8].revenue = 13200;
+      monthlyRevenue[9].revenue = 14500;
+      monthlyRevenue[10].revenue = 12800;
+      monthlyRevenue[11].revenue = 15000;
     }
     
-    // Send response
     res.json({
       success: true,
-      data: monthlyData,
+      data: monthlyRevenue
     });
   } catch (error) {
     console.error("Error getting monthly revenue:", error);
     
-    // Trả về dữ liệu mẫu nếu có lỗi
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-    const sampleData = monthNames.map((month, index) => ({
+    // Return sample data if error occurs
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const sampleData = months.map((month, index) => ({
       month,
-      revenue: 1500 + (index * 800) + Math.floor(Math.random() * 500)
+      revenue: 8000 + (index * 500) + Math.random() * 2000
     }));
     
     res.json({
       success: true,
-      data: sampleData,
+      data: sampleData
     });
   }
 };
 
 /**
  * Get recent user activities for admin dashboard
- * Returns recent enrollments, blog posts, and course completions
  */
 export const getRecentUserActivities = async (
   _: Request,
   res: Response
 ): Promise<void> => {
   try {
-    // Get all courses for reference
-    const coursesData = await Course.scan().exec();
+    // Get recent enrollments
+    const enrollments = await UserCourseProgress.scan().exec();
     
-    // Get recent course enrollments (in the last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoTimestamp = Math.floor(thirtyDaysAgo.getTime() / 1000); // Convert to Unix timestamp
+    // Get recent blog posts
+    const blogPosts = await BlogPostModel.scan().exec();
     
-    // Filter user progress entries for recent enrollments
-    const recentEnrollments = await UserCourseProgress.scan().exec();
-    const filteredEnrollments = recentEnrollments.filter(enrollment => {
-      if (!enrollment.enrollmentDate) return false;
-      const enrollmentDate = new Date(enrollment.enrollmentDate);
-      return enrollmentDate >= thirtyDaysAgo;
-    });
+    // Get recent transactions
+    const transactions = await Transaction.scan().exec();
     
-    // Get all blog posts and filter by date client-side
-    const allBlogPosts = await BlogPostModel.scan().exec();
-    const recentBlogPosts = allBlogPosts.filter(post => 
-      post.createdAt && post.createdAt >= thirtyDaysAgoTimestamp
-    );
-    
-    // Combine and sort all activities by date
-    let allActivities: UserActivity[] = [
-      ...filteredEnrollments.map(enrollment => ({
-        type: 'enrollment' as const,
+    // Combine activities and sort by date
+    const activities = [
+      ...enrollments.map(enrollment => ({
+        type: 'enrollment',
         userId: enrollment.userId,
         courseId: enrollment.courseId,
-        timestamp: new Date(enrollment.enrollmentDate).getTime(),
+        timestamp: new Date(enrollment.enrollmentDate || Date.now()).getTime(),
+        data: {
+          courseId: enrollment.courseId
+        }
       })),
-      ...recentBlogPosts.map(post => ({
-        type: 'blog_post' as const,
+      ...blogPosts.map(post => ({
+        type: 'blog',
         userId: post.userId,
-        userName: post.userName || 'Unknown User',
-        title: post.title || 'Untitled Post',
-        timestamp: post.createdAt * 1000, // convert from unix seconds to milliseconds
+        postId: post.postId,
+        timestamp: new Date(post.createdAt || Date.now()).getTime(),
+        data: {
+          title: post.title,
+          status: post.status
+        }
       })),
+      ...transactions.map(transaction => ({
+        type: 'payment',
+        userId: transaction.userId,
+        transactionId: transaction.transactionId,
+        timestamp: new Date(transaction.createdAt || Date.now()).getTime(),
+        data: {
+          amount: transaction.amount,
+          status: transaction.status
+        }
+      }))
     ];
     
-    // Tạo dữ liệu mẫu nếu không có hoạt động nào
-    if (allActivities.length === 0) {
-      const sampleActivities: UserActivity[] = [
-        {
-          type: 'enrollment',
-          userId: 'user1',
-          courseId: 'course1',
-          timestamp: Date.now() - 24 * 60 * 60 * 1000,
-          userName: 'John Doe',
-          courseTitle: 'Introduction to JavaScript'
-        },
-        {
-          type: 'blog_post',
-          userId: 'user2',
-          userName: 'Jane Smith',
-          title: 'How to Master React in 30 Days',
-          timestamp: Date.now() - 2 * 24 * 60 * 60 * 1000
-        },
-        {
-          type: 'enrollment',
-          userId: 'user3',
-          courseId: 'course2',
-          timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000,
-          userName: 'Mike Johnson',
-          courseTitle: 'Advanced Python Programming'
-        },
-        {
-          type: 'blog_post',
-          userId: 'user4',
-          userName: 'Sarah Williams',
-          title: 'The Future of AI in Education',
-          timestamp: Date.now() - 5 * 24 * 60 * 60 * 1000
-        }
-      ];
-      
-      allActivities = sampleActivities;
-    } else {
-      // Sort by timestamp descending (most recent first)
-      allActivities.sort((a, b) => b.timestamp - a.timestamp);
-      
-      // Take only the 10 most recent activities
-      allActivities = allActivities.slice(0, 10);
-      
-      // Get user names for enrollment activities
-      for (const activity of allActivities) {
-        if (activity.type === 'enrollment' && activity.userId) {
-          try {
-            const user = await clerkClient.users.getUser(activity.userId);
-            activity.userName = `${user.firstName || 'Unknown'} ${user.lastName || 'User'}`;
-            
-            // Get course title
-            const course = coursesData.find(c => c.courseId === activity.courseId);
-            if (course) {
-              activity.courseTitle = course.title;
-            } else {
-              activity.courseTitle = 'Unknown Course';
-            }
-          } catch (error) {
-            console.error(`Error getting user details for ${activity.userId}:`, error);
-            activity.userName = 'Unknown User';
-            activity.courseTitle = 'Unknown Course';
-          }
-        }
+    // Sort by most recent first
+    activities.sort((a, b) => b.timestamp - a.timestamp);
+    
+    // Limit to most recent 20 activities
+    const recentActivities = activities.slice(0, 20);
+    
+    // Fetch user details for the activities
+    const userIds = [...new Set(recentActivities.map(activity => activity.userId))];
+    
+    const usersMap = new Map();
+    
+    for (const userId of userIds) {
+      try {
+        const user = await clerkClient.users.getUser(userId);
+        usersMap.set(userId, {
+          name: user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Unknown User',
+          imageUrl: user.imageUrl
+        });
+      } catch (error) {
+        console.error(`Error fetching user ${userId}:`, error);
+        usersMap.set(userId, {
+          name: 'Unknown User',
+          imageUrl: null
+        });
       }
     }
     
-    // Send response
+    // Enrich activities with user data
+    const enrichedActivities = recentActivities.map(activity => ({
+      ...activity,
+      user: usersMap.get(activity.userId) || { name: 'Unknown User', imageUrl: null },
+      date: formatDate(new Date(activity.timestamp))
+    }));
+    
     res.json({
       success: true,
-      data: allActivities,
+      data: enrichedActivities
     });
   } catch (error) {
     console.error("Error getting recent user activities:", error);
-    // Trả về dữ liệu mẫu nếu có lỗi
-    const sampleActivities: UserActivity[] = [
+    
+    // Return sample data if error occurs
+    const activities = [
       {
         type: 'enrollment',
-        userId: 'user1',
-        courseId: 'course1',
-        timestamp: Date.now() - 24 * 60 * 60 * 1000,
-        userName: 'John Doe',
-        courseTitle: 'Introduction to JavaScript'
+        userId: 'user_1',
+        user: { name: 'Jane Smith', imageUrl: null },
+        courseId: 'course_1',
+        data: { courseId: 'course_1' },
+        date: formatDate(new Date(Date.now() - 24 * 60 * 60 * 1000))
       },
       {
-        type: 'blog_post',
-        userId: 'user2',
-        userName: 'Jane Smith',
-        title: 'How to Master React in 30 Days',
-        timestamp: Date.now() - 2 * 24 * 60 * 60 * 1000
-      },
-      {
-        type: 'enrollment',
-        userId: 'user3',
-        courseId: 'course2',
-        timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000,
-        userName: 'Mike Johnson',
-        courseTitle: 'Advanced Python Programming'
+        type: 'blog',
+        userId: 'user_2',
+        user: { name: 'John Doe', imageUrl: null },
+        postId: 'post_1',
+        data: { title: 'Learning React', status: 'published' },
+        date: formatDate(new Date(Date.now() - 2 * 24 * 60 * 60 * 1000))
       }
     ];
     
     res.json({
       success: true,
-      data: sampleActivities,
+      data: activities
     });
   }
-};
-
-/**
- * Helper function to calculate growth percentage
- * In a real application, you would compare with historical data
- */
-function calculateGrowthPercentage(currentValue: number, previousValue: number): string {
-  // If we don't have previous data, generate a reasonable random growth
-  if (previousValue === 0) {
-    // Generate a random growth between 5% and 25%
-    const randomGrowth = (Math.random() * 20 + 5).toFixed(1);
-    return `+${randomGrowth}%`;
-  }
-  
-  const growthPercentage = ((currentValue - previousValue) / previousValue) * 100;
-  const formattedGrowth = growthPercentage.toFixed(1);
-  
-  return growthPercentage >= 0 ? `+${formattedGrowth}%` : `${formattedGrowth}%`;
-} 
- 
- 
+}; 

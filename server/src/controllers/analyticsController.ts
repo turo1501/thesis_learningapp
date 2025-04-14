@@ -1,526 +1,781 @@
 import { Request, Response } from "express";
-import { clerkClient } from "../index";
 import Course from "../models/courseModel";
+import BlogPostModel from "../models/blogPostModel";
 import Transaction from "../models/transactionModel";
+import { clerkClient } from "../index";
 import UserCourseProgress from "../models/userCourseProgressModel";
 
-// Helper functions
-const calculateGrowthPercentage = (current: number, previous: number): string => {
-  if (previous === 0) return "+100%";
-  const growth = ((current - previous) / previous) * 100;
-  return growth >= 0 ? `+${growth.toFixed(1)}%` : `${growth.toFixed(1)}%`;
+/**
+ * Calculate growth percentage between current and previous value
+ */
+const calculateGrowthPercentage = (currentValue: number, previousValue: number): string => {
+  if (previousValue === 0) return "+100%";
+  const growthRate = ((currentValue - previousValue) / previousValue) * 100;
+  const sign = growthRate >= 0 ? "+" : "";
+  return `${sign}${growthRate.toFixed(1)}%`;
 };
 
-// Parse timeRange to get start date
-const getStartDateFromTimeRange = (timeRange: string): Date => {
+/**
+ * Format date to YYYY-MM-DD
+ */
+const formatDate = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
+
+/**
+ * Get start date based on time range parameter
+ */
+const getStartDateFromRange = (timeRange: string): Date => {
   const now = new Date();
   
-  switch (timeRange) {
+  switch(timeRange) {
     case '7days':
-      const sevenDaysAgo = new Date(now);
-      sevenDaysAgo.setDate(now.getDate() - 7);
-      return sevenDaysAgo;
+      return new Date(now.setDate(now.getDate() - 7));
     case '30days':
-      const thirtyDaysAgo = new Date(now);
-      thirtyDaysAgo.setDate(now.getDate() - 30);
-      return thirtyDaysAgo;
+      return new Date(now.setDate(now.getDate() - 30));
     case '3months':
-      const threeMonthsAgo = new Date(now);
-      threeMonthsAgo.setMonth(now.getMonth() - 3);
-      return threeMonthsAgo;
-    case '1year':
-      const oneYearAgo = new Date(now);
-      oneYearAgo.setFullYear(now.getFullYear() - 1);
-      return oneYearAgo;
+      return new Date(now.setMonth(now.getMonth() - 3));
     case '6months':
+      return new Date(now.setMonth(now.getMonth() - 6));
+    case '1year':
+      return new Date(now.setFullYear(now.getFullYear() - 1));
     default:
-      const sixMonthsAgo = new Date(now);
-      sixMonthsAgo.setMonth(now.getMonth() - 6);
-      return sixMonthsAgo;
+      return new Date(now.setMonth(now.getMonth() - 6)); // Default to 6 months
   }
 };
 
-// Get analytics summary
+/**
+ * Generate date sequence between start and end dates
+ */
+const generateDateSequence = (start: Date, end: Date, format: 'daily' | 'monthly' = 'daily'): string[] => {
+  const dates: string[] = [];
+  const current = new Date(start);
+  
+  while (current <= end) {
+    if (format === 'monthly') {
+      dates.push(current.toLocaleString('default', { month: 'short', year: 'numeric' }));
+      current.setMonth(current.getMonth() + 1);
+    } else {
+      dates.push(formatDate(current));
+      current.setDate(current.getDate() + 1);
+    }
+  }
+  
+  return dates;
+};
+
+/**
+ * Get analytics summary data
+ */
 export const getAnalyticsSummary = async (req: Request, res: Response): Promise<void> => {
   try {
     const timeRange = req.query.timeRange as string || '6months';
-    const startDate = getStartDateFromTimeRange(timeRange);
+    const startDate = getStartDateFromRange(timeRange);
     
-    // Get total users
-    const usersResponse = await clerkClient.users.getUserList({
-      limit: 500,
-    });
-    
-    // Get users created after start date
-    const recentUsers = usersResponse.data.filter(user => {
-      const createdAt = new Date(user.createdAt);
-      return createdAt >= startDate;
-    });
-    
-    // Calculate total enrollments
-    const enrollments = await UserCourseProgress.scan().exec();
-    const recentEnrollments = enrollments.filter(enrollment => {
-      if (!enrollment.enrollmentDate) return false;
-      const enrollmentDate = new Date(enrollment.enrollmentDate);
+    // Get enrollment data within time range
+    const progressEntries = await UserCourseProgress.scan().exec();
+    const enrollmentsInRange = progressEntries.filter(progress => {
+      const enrollmentDate = new Date(progress.enrollmentDate || 0);
       return enrollmentDate >= startDate;
     });
     
-    // Calculate completion rates
-    const completedCourses = enrollments.filter(enrollment => enrollment.progress === 100);
-    const completionRate = enrollments.length > 0 
-      ? (completedCourses.length / enrollments.length) * 100 
+    // Calculate previous period for comparison
+    const previousPeriodStart = new Date(startDate);
+    const timeDiff = new Date().getTime() - startDate.getTime();
+    previousPeriodStart.setTime(previousPeriodStart.getTime() - timeDiff);
+    
+    const enrollmentsInPreviousPeriod = progressEntries.filter(progress => {
+      const enrollmentDate = new Date(progress.enrollmentDate || 0);
+      return enrollmentDate >= previousPeriodStart && enrollmentDate < startDate;
+    });
+    
+    // Calculate enrollment metrics
+    const totalEnrollments = enrollmentsInRange.length;
+    const previousEnrollments = enrollmentsInPreviousPeriod.length;
+    const enrollmentGrowth = calculateGrowthPercentage(totalEnrollments, previousEnrollments);
+    const enrollmentGrowthValue = parseFloat(enrollmentGrowth.replace(/%$/, ''));
+    
+    // Calculate course completion rate
+    const completedCourses = enrollmentsInRange.filter(progress => 
+      progress.overallProgress >= 100
+    ).length;
+    
+    const completionRate = totalEnrollments > 0 
+      ? (completedCourses / totalEnrollments) * 100 
       : 0;
     
-    // Calculate previous period statistics for growth rates
-    const prevPeriodStartDate = new Date(startDate);
-    const timeDiff = new Date().getTime() - startDate.getTime();
-    prevPeriodStartDate.setTime(prevPeriodStartDate.getTime() - timeDiff);
-    
-    // Users in previous period
-    const prevPeriodUsers = usersResponse.data.filter(user => {
-      const createdAt = new Date(user.createdAt);
-      return createdAt >= prevPeriodStartDate && createdAt < startDate;
-    });
-    
-    // Enrollments in previous period
-    const prevPeriodEnrollments = enrollments.filter(enrollment => {
-      if (!enrollment.enrollmentDate) return false;
-      const enrollmentDate = new Date(enrollment.enrollmentDate);
-      return enrollmentDate >= prevPeriodStartDate && enrollmentDate < startDate;
-    });
-    
-    // Calculate growth
-    const userGrowth = calculateGrowthPercentage(recentUsers.length, prevPeriodUsers.length);
-    const enrollmentGrowth = calculateGrowthPercentage(recentEnrollments.length, prevPeriodEnrollments.length);
-    const completionRateGrowth = "+5.2%"; // Placeholder, would need historical data
-    
+    // Generate sample data if no real data is available
+    if (totalEnrollments === 0) {
     res.json({
-      success: true,
-      data: {
-        newUsers: {
-          total: recentUsers.length,
-          growth: userGrowth,
-          growthValue: parseFloat(userGrowth.replace('%', ''))
-        },
         enrollments: {
-          total: recentEnrollments.length,
-          growth: enrollmentGrowth,
-          growthValue: parseFloat(enrollmentGrowth.replace('%', ''))
+          total: 0,
+          growth: "+0%",
+          growthValue: 0
         },
-        completionRate: {
-          rate: completionRate.toFixed(1),
-          growth: completionRateGrowth,
-          growthValue: 5.2
-        },
-        activeUsers: {
-          total: Math.ceil(usersResponse.data.length * 0.65), // Placeholder: 65% of total users
-          growth: "+8.7%",
-          growthValue: 8.7
-        }
-      }
+        completionRate: "0",
+        averageProgress: 0,
+        popularCategories: await getPopularCategories([])
+      });
+      return;
+    }
+    
+    // Return the summary data
+    res.json({
+      enrollments: {
+        total: totalEnrollments,
+        growth: enrollmentGrowth,
+        growthValue: enrollmentGrowthValue
+      },
+      completionRate: completionRate.toFixed(1),
+      averageProgress: calculateAverageProgress(enrollmentsInRange),
+      popularCategories: await getPopularCategories(enrollmentsInRange)
     });
   } catch (error) {
     console.error("Error getting analytics summary:", error);
     res.status(500).json({
-      success: false,
-      error: "Failed to fetch analytics summary"
+      message: "Failed to get analytics summary",
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 };
 
-// Get user analytics
+/**
+ * Get user analytics data
+ */
 export const getUserAnalytics = async (req: Request, res: Response): Promise<void> => {
   try {
     const timeRange = req.query.timeRange as string || '6months';
+    const startDate = getStartDateFromRange(timeRange);
+    const endDate = new Date();
     
-    // Get users from Clerk
+    // Get all users from Clerk
     const usersResponse = await clerkClient.users.getUserList({
-      limit: 500,
+      limit: 100,
     });
     
-    // Calculate user growth data
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    // Filter users by creation date within time range
+    const usersInRange = usersResponse.data.filter(user => {
+      const createdAt = new Date(user.createdAt);
+      return createdAt >= startDate && createdAt <= endDate;
+    });
     
-    const userGrowthData = [];
-    for (let i = 0; i < 6; i++) {
-      const month = new Date();
-      month.setMonth(month.getMonth() - i);
-      const monthStr = month.toLocaleString('default', { month: 'short' });
-      
-      // Count users created in this month
-      const studentsInMonth = usersResponse.data.filter(user => {
+    // Calculate user growth by month
+    const usersByMonth = new Map<string, { students: number, teachers: number }>();
+    
+    // Initialize all months
+    const months = generateDateSequence(startDate, endDate, 'monthly');
+    months.forEach(month => {
+      usersByMonth.set(month, { students: 0, teachers: 0 });
+    });
+    
+    // Count users by month and role
+    usersInRange.forEach(user => {
         const createdAt = new Date(user.createdAt);
-        return createdAt.getMonth() === month.getMonth() && 
-               createdAt.getFullYear() === month.getFullYear() &&
-               user.publicMetadata?.role === 'student';
-      }).length;
+      const monthYear = createdAt.toLocaleString('default', { month: 'short', year: 'numeric' });
       
-      const teachersInMonth = usersResponse.data.filter(user => {
-        const createdAt = new Date(user.createdAt);
-        return createdAt.getMonth() === month.getMonth() && 
-               createdAt.getFullYear() === month.getFullYear() &&
-               user.publicMetadata?.role === 'teacher';
-      }).length;
-      
-      // Add data point
-      userGrowthData.unshift({
-        month: monthStr,
-        students: studentsInMonth,
-        teachers: teachersInMonth
-      });
-    }
-    
-    // Calculate role distribution
-    const students = usersResponse.data.filter(user => 
-      user.publicMetadata?.role === 'student'
-    ).length;
-    
-    const teachers = usersResponse.data.filter(user => 
-      user.publicMetadata?.role === 'teacher'
-    ).length;
-    
-    const admins = usersResponse.data.filter(user => 
-      user.publicMetadata?.role === 'admin'
-    ).length;
-    
-    const roleDistribution = [
-      { name: 'Students', value: students },
-      { name: 'Teachers', value: teachers },
-      { name: 'Admins', value: admins }
-    ];
-    
-    // Generate registration trend data
-    const registrationTrend = [];
-    const daysCount = timeRange === '7days' ? 7 : 30;
-    
-    for (let i = 0; i < daysCount; i++) {
-      const day = new Date();
-      day.setDate(day.getDate() - i);
-      day.setHours(0, 0, 0, 0);
-      
-      const nextDay = new Date(day);
-      nextDay.setDate(nextDay.getDate() + 1);
-      
-      const usersOnDay = usersResponse.data.filter(user => {
-        const createdAt = new Date(user.createdAt);
-        return createdAt >= day && createdAt < nextDay;
-      }).length;
-      
-      registrationTrend.unshift({
-        date: day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        count: usersOnDay
-      });
-    }
-    
-    res.json({
-      success: true,
-      data: {
-        userGrowth: userGrowthData,
-        roleDistribution,
-        registrationTrend,
-        demographics: {
-          age: [
-            { range: '18-24', value: 30 },
-            { range: '25-34', value: 45 },
-            { range: '35-44', value: 15 },
-            { range: '45+', value: 10 }
-          ],
-          location: [
-            { country: 'United States', value: 40 },
-            { country: 'India', value: 12 },
-            { country: 'UK', value: 8 },
-            { country: 'Canada', value: 7 },
-            { country: 'Other', value: 33 }
-          ]
+      if (usersByMonth.has(monthYear)) {
+        const entry = usersByMonth.get(monthYear)!;
+        const userType = (user.publicMetadata?.userType as string) || 'student';
+        
+        if (userType === 'teacher') {
+          entry.teachers += 1;
+        } else {
+          entry.students += 1;
         }
+        
+        usersByMonth.set(monthYear, entry);
       }
+    });
+    
+    // Convert map to array for response
+    const userGrowth = Array.from(usersByMonth.entries()).map(([month, data]) => ({
+      month,
+      students: data.students,
+      teachers: data.teachers
+    }));
+    
+    // Create registration trend
+    const registrationTrend = createRegistrationTrend(usersInRange, startDate, endDate);
+    
+    // Calculate user activity
+    const userActivity = await calculateUserActivity(timeRange);
+    
+    // Calculate user retention
+    const userRetention = await calculateUserRetention(timeRange);
+    
+    // Return the user analytics data
+    res.json({
+      userGrowth,
+        registrationTrend,
+      userActivity,
+      userRetention,
+      usersByRole: calculateUsersByRole(usersResponse.data)
     });
   } catch (error) {
     console.error("Error getting user analytics:", error);
     res.status(500).json({
-      success: false,
-      error: "Failed to fetch user analytics"
+      message: "Failed to get user analytics",
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 };
 
-// Get course analytics
+/**
+ * Get course analytics data
+ */
 export const getCourseAnalytics = async (req: Request, res: Response): Promise<void> => {
   try {
     const timeRange = req.query.timeRange as string || '6months';
+    const startDate = getStartDateFromRange(timeRange);
+    const endDate = new Date();
     
     // Get all courses
     const courses = await Course.scan().exec();
     
-    // Get enrollment data
-    const enrollments = await UserCourseProgress.scan().exec();
+    // Get all user progress entries
+    const progressEntries = await UserCourseProgress.scan().exec();
     
     // Calculate enrollment by category
-    const categoryMap = new Map<string, number>();
-    
-    for (const enrollment of enrollments) {
-      const course = courses.find(c => c.id === enrollment.courseId);
-      if (course) {
-        const category = course.category || 'Uncategorized';
-        categoryMap.set(category, (categoryMap.get(category) || 0) + 1);
-      }
-    }
-    
-    const enrollmentByCategory = Array.from(categoryMap.entries()).map(([name, value]) => ({
-      name,
-      value
-    }));
+    const enrollmentsByCategory = await calculateEnrollmentsByCategory(progressEntries, courses);
     
     // Calculate course creation trend
-    const creationTrend = [];
-    const daysCount = timeRange === '7days' ? 7 : 30;
+    const creationTrend = createCourseCreationTrend(courses, startDate, endDate);
     
-    for (let i = 0; i < daysCount; i++) {
-      const day = new Date();
-      day.setDate(day.getDate() - i);
-      day.setHours(0, 0, 0, 0);
-      
-      const nextDay = new Date(day);
-      nextDay.setDate(nextDay.getDate() + 1);
-      
-      const coursesOnDay = courses.filter(course => {
-        if (!course.createdAt) return false;
-        const createdAt = new Date(course.createdAt);
-        return createdAt >= day && createdAt < nextDay;
-      }).length;
-      
-      creationTrend.unshift({
-        date: day.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        count: coursesOnDay
-      });
-    }
+    // Calculate course completion rates
+    const completionRates = calculateCourseCompletionRates(progressEntries, courses);
     
-    // Calculate completion rates by category
-    const completionRates = [];
-    for (const [category, _] of categoryMap.entries()) {
-      // Find all enrollments for courses in this category
-      const categoryEnrollments = enrollments.filter(enrollment => {
-        const course = courses.find(c => c.id === enrollment.courseId);
-        return course && course.category === category;
-      });
-      
-      // Calculate completion rate
-      const completed = categoryEnrollments.filter(e => e.progress === 100).length;
-      const rate = categoryEnrollments.length > 0 
-        ? (completed / categoryEnrollments.length) * 100 
-        : 0;
-      
-      completionRates.push({
-        category,
-        rate: Math.round(rate)
-      });
-    }
+    // Calculate average course ratings
+    // Note: This would require a ratings model, using placeholder data for now
+    const courseRatings = calculateCourseRatings(courses);
     
-    // Sort by rate descending
-    completionRates.sort((a, b) => b.rate - a.rate);
-    
+    // Return the course analytics data
     res.json({
-      success: true,
-      data: {
-        enrollmentByCategory,
+      enrollmentByCategory: enrollmentsByCategory,
         creationTrend,
         completionRates,
-        popularCourses: courses
-          .sort((a, b) => {
-            const aEnrollments = enrollments.filter(e => e.courseId === a.id).length;
-            const bEnrollments = enrollments.filter(e => e.courseId === b.id).length;
-            return bEnrollments - aEnrollments;
-          })
-          .slice(0, 5)
-          .map(course => ({
-            id: course.id,
-            title: course.title,
-            enrollments: enrollments.filter(e => e.courseId === course.id).length
-          }))
-      }
+      courseRatings
     });
   } catch (error) {
     console.error("Error getting course analytics:", error);
     res.status(500).json({
-      success: false,
-      error: "Failed to fetch course analytics"
+      message: "Failed to get course analytics",
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 };
 
-// Get revenue analytics
+/**
+ * Get revenue analytics data
+ */
 export const getRevenueAnalytics = async (req: Request, res: Response): Promise<void> => {
   try {
     const timeRange = req.query.timeRange as string || '6months';
-    // Log time range for debugging
-    console.log(`Getting revenue analytics for time range: ${timeRange}`);
+    const startDate = getStartDateFromRange(timeRange);
+    const endDate = new Date();
     
     // Get all transactions
     const transactions = await Transaction.scan().exec();
     
-    // Get all courses for category information
+    // Filter transactions within time range
+    const transactionsInRange = transactions.filter(transaction => {
+      const createdAt = new Date(transaction.createdAt || Date.now());
+      return createdAt >= startDate && createdAt <= endDate;
+    });
+    
+    // Get all courses for reference
     const courses = await Course.scan().exec();
     
     // Calculate revenue by category
-    const revenueByCategory = [];
-    const categoryMap = new Map<string, number>();
+    const revenueByCategory = calculateRevenueByCategory(transactionsInRange, courses);
     
-    for (const transaction of transactions) {
-      if (!transaction.courseId) continue;
-      
-      const course = courses.find(c => c.id === transaction.courseId);
-      if (course) {
-        const category = course.category || 'Uncategorized';
-        categoryMap.set(
-          category, 
-          (categoryMap.get(category) || 0) + (transaction.amount || 0)
-        );
-      }
-    }
+    // Calculate revenue trend
+    const revenueTrend = createRevenueTrend(transactionsInRange, startDate, endDate);
     
-    for (const [category, revenue] of categoryMap.entries()) {
-      revenueByCategory.push({ category, revenue });
-    }
+    // Calculate average transaction value
+    const avgTransactionValue = calculateAverageTransactionValue(transactionsInRange);
     
-    // Sort by revenue descending
-    revenueByCategory.sort((a, b) => b.revenue - a.revenue);
+    // Calculate revenue per user
+    const revenuePerUser = await calculateRevenuePerUser(transactionsInRange);
     
-    // Generate revenue forecast data
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    const revenueForecast = [];
-    
-    for (let i = 0; i < 12; i++) {
-      const month = new Date(currentYear, currentMonth - 11 + i, 1);
-      const monthName = month.toLocaleString('default', { month: 'short' });
-      
-      // Get actual revenue for past months
-      let actual = 0;
-      if (month < new Date()) {
-        const monthTransactions = transactions.filter(transaction => {
-          if (!transaction.dateTime) return false;
-          const transactionDate = new Date(transaction.dateTime);
-          return transactionDate.getMonth() === month.getMonth() && 
-                 transactionDate.getFullYear() === month.getFullYear();
-        });
-        
-        actual = monthTransactions.reduce((sum, transaction) => 
-          sum + (transaction.amount || 0), 0);
-      }
-      
-      // Generate forecast for future months
-      let forecast = 0;
-      if (month <= new Date()) {
-        forecast = actual;
-      } else {
-        // Simple forecast based on average growth
-        const lastMonth = revenueForecast.length > 0 ? revenueForecast[revenueForecast.length - 1].actual : 0;
-        forecast = Math.round(lastMonth * (1 + (Math.random() * 0.2 + 0.05))); // 5-25% growth
-      }
-      
-      revenueForecast.push({
-        month: monthName,
-        actual: actual,
-        forecast: forecast
-      });
-    }
-    
+    // Return the revenue analytics data
     res.json({
-      success: true,
-      data: {
         revenueByCategory,
-        revenueForecast,
-        topCoursesByRevenue: courses
-          .map(course => {
-            const courseTransactions = transactions.filter(t => t.courseId === course.id);
-            const revenue = courseTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-            return {
-              id: course.id,
-              title: course.title,
-              revenue
-            };
-          })
-          .sort((a, b) => b.revenue - a.revenue)
-          .slice(0, 5)
-      }
+      revenueTrend,
+      avgTransactionValue,
+      revenuePerUser
     });
   } catch (error) {
     console.error("Error getting revenue analytics:", error);
     res.status(500).json({
-      success: false,
-      error: "Failed to fetch revenue analytics"
+      message: "Failed to get revenue analytics",
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 };
 
-// Get platform analytics
+/**
+ * Get platform analytics data
+ */
 export const getPlatformAnalytics = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Use the timeRange query parameter for future dynamic data generation
     const timeRange = req.query.timeRange as string || '6months';
-    console.log(`Generating platform analytics for time range: ${timeRange}`);
     
-    // Generate daily active users data
-    const dailyActiveUsers = [
-      { day: 'Mon', activeUsers: Math.floor(Math.random() * 50) + 100 },
-      { day: 'Tue', activeUsers: Math.floor(Math.random() * 50) + 120 },
-      { day: 'Wed', activeUsers: Math.floor(Math.random() * 50) + 140 },
-      { day: 'Thu', activeUsers: Math.floor(Math.random() * 50) + 150 },
-      { day: 'Fri', activeUsers: Math.floor(Math.random() * 50) + 130 },
-      { day: 'Sat', activeUsers: Math.floor(Math.random() * 50) + 90 },
-      { day: 'Sun', activeUsers: Math.floor(Math.random() * 50) + 80 }
-    ];
+    // Get daily active users (simulated data)
+    // In a real app, this would come from user session/activity logs
+    const dailyActiveUsers = simulateDailyActiveUsers();
     
-    // Generate engagement metrics
-    const courseCompletionTime = {
-      average: Math.floor(Math.random() * 10) + 15, // Average days to complete a course
-      byCategory: [
-        { category: 'Web Development', days: Math.floor(Math.random() * 10) + 20 },
-        { category: 'Data Science', days: Math.floor(Math.random() * 10) + 25 },
-        { category: 'Mobile App Dev', days: Math.floor(Math.random() * 10) + 18 },
-        { category: 'AI & ML', days: Math.floor(Math.random() * 10) + 30 }
-      ]
-    };
+    // Get session duration by device (simulated data)
+    const sessionByDevice = simulateSessionByDevice();
     
-    // Generate retention data
-    const retentionData = {
-      overall: Math.floor(Math.random() * 20) + 70, // Overall retention rate (%)
-      byMonth: [
-        { month: 'Jan', rate: Math.floor(Math.random() * 20) + 65 },
-        { month: 'Feb', rate: Math.floor(Math.random() * 20) + 68 },
-        { month: 'Mar', rate: Math.floor(Math.random() * 20) + 70 },
-        { month: 'Apr', rate: Math.floor(Math.random() * 20) + 72 },
-        { month: 'May', rate: Math.floor(Math.random() * 20) + 75 },
-        { month: 'Jun', rate: Math.floor(Math.random() * 20) + 78 }
-      ]
-    };
+    // Get engagement metrics (simulated data)
+    const engagementMetrics = simulateEngagementMetrics(timeRange);
     
+    // Return the platform analytics data
     res.json({
-      success: true,
-      data: {
         dailyActiveUsers,
-        courseCompletionTime,
-        retentionData,
-        deviceUsage: [
-          { device: 'Desktop', percentage: 65 },
-          { device: 'Mobile', percentage: 28 },
-          { device: 'Tablet', percentage: 7 }
-        ],
-        browserUsage: [
-          { browser: 'Chrome', percentage: 55 },
-          { browser: 'Firefox', percentage: 15 },
-          { browser: 'Safari', percentage: 20 },
-          { browser: 'Edge', percentage: 8 },
-          { browser: 'Others', percentage: 2 }
-        ]
-      }
+      sessionByDevice,
+      engagementMetrics
     });
   } catch (error) {
     console.error("Error getting platform analytics:", error);
     res.status(500).json({
-      success: false,
-      error: "Failed to fetch platform analytics"
+      message: "Failed to get platform analytics",
+      error: error instanceof Error ? error.message : String(error)
     });
   }
+};
+
+// Helper Functions
+
+/**
+ * Calculate average progress across all enrollments
+ */
+const calculateAverageProgress = (enrollments: any[]): number => {
+  if (enrollments.length === 0) return 0;
+  
+  const totalProgress = enrollments.reduce((sum, enrollment) => 
+    sum + (enrollment.overallProgress || 0), 0);
+  
+  return Math.round((totalProgress / enrollments.length) * 10) / 10;
+};
+
+/**
+ * Get popular course categories based on enrollments
+ */
+const getPopularCategories = async (enrollments: any[]): Promise<{ name: string, count: number }[]> => {
+  if (enrollments.length === 0) {
+    // Check if we have any blog post categories to use
+    const blogPosts = await BlogPostModel.scan().exec();
+    const categories = [...new Set(blogPosts.map(post => post.category).filter(Boolean))];
+    
+    if (categories.length > 0) {
+      return categories.slice(0, 4).map(name => ({ name, count: 0 }));
+    }
+    
+    return [
+      { name: "Web Development", count: 0 },
+      { name: "Data Science", count: 0 },
+      { name: "Mobile Development", count: 0 },
+      { name: "Design", count: 0 }
+    ];
+  }
+  
+  const courses = await Course.scan().exec();
+  const categoryCounts = new Map<string, number>();
+  
+  enrollments.forEach(enrollment => {
+    const course = courses.find(c => c.courseId === enrollment.courseId);
+    if (course && course.category) {
+      const count = categoryCounts.get(course.category) || 0;
+      categoryCounts.set(course.category, count + 1);
+    }
+  });
+  
+  // Convert to array and sort by count
+  const categories = Array.from(categoryCounts.entries())
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+  
+  // Return top categories
+  return categories.slice(0, 5);
+};
+
+/**
+ * Create registration trend data for visualization
+ */
+const createRegistrationTrend = (users: any[], startDate: Date, endDate: Date): any[] => {
+  const dateMap = new Map<string, number>();
+  
+  // Initialize all dates with 0
+  const dates = generateDateSequence(startDate, endDate);
+  dates.forEach(date => dateMap.set(date, 0));
+  
+  // Count users per date
+  users.forEach(user => {
+    const createdAt = new Date(user.createdAt);
+    const dateStr = formatDate(createdAt);
+    
+    if (dateMap.has(dateStr)) {
+      dateMap.set(dateStr, dateMap.get(dateStr)! + 1);
+    }
+  });
+  
+  // Convert to array for response
+  return Array.from(dateMap.entries())
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+};
+
+/**
+ * Calculate user activity (simulated)
+ */
+const calculateUserActivity = async (timeRange: string): Promise<any[]> => {
+  // In a real application, this would be based on actual user activity logs
+  // For demo purposes, we'll return simulated data that varies based on timeRange
+  
+  let baseValue = 100;
+  
+  // Adjust base value based on time range
+  if (timeRange === '30days') {
+    baseValue = 120;
+  } else if (timeRange === '3months') {
+    baseValue = 140;
+  } else if (timeRange === '6months') {
+    baseValue = 160;
+  } else if (timeRange === '1year') {
+    baseValue = 180;
+  }
+  
+  return [
+    { day: "Mon", activeUsers: baseValue + 20 },
+    { day: "Tue", activeUsers: baseValue + 45 },
+    { day: "Wed", activeUsers: baseValue + 60 },
+    { day: "Thu", activeUsers: baseValue + 70 },
+    { day: "Fri", activeUsers: baseValue + 55 },
+    { day: "Sat", activeUsers: baseValue + 90 },
+    { day: "Sun", activeUsers: baseValue + 110 }
+  ];
+};
+
+/**
+ * Calculate user retention (simulated)
+ */
+const calculateUserRetention = async (timeRange: string): Promise<any[]> => {
+  // In a real application, this would analyze user return rates
+  // For demo purposes, we'll return simulated data with some variation based on timeRange
+  
+  // Different retention curves based on time period
+  const retentionStart = timeRange === '1year' ? 95 : 100;
+  const retentionDrop = timeRange === '30days' ? 8 : 
+                        timeRange === '3months' ? 10 : 
+                        timeRange === '6months' ? 12 : 15;
+  
+  return [
+    { week: "Week 1", retention: retentionStart },
+    { week: "Week 2", retention: retentionStart - retentionDrop },
+    { week: "Week 3", retention: retentionStart - (retentionDrop * 2) },
+    { week: "Week 4", retention: retentionStart - (retentionDrop * 2.5) },
+    { week: "Week 5", retention: retentionStart - (retentionDrop * 3) },
+    { week: "Week 6", retention: retentionStart - (retentionDrop * 3.3) },
+    { week: "Week 7", retention: retentionStart - (retentionDrop * 3.5) },
+    { week: "Week 8", retention: retentionStart - (retentionDrop * 3.8) }
+  ];
+};
+
+/**
+ * Calculate percentage of users by role
+ */
+const calculateUsersByRole = (users: any[]): any[] => {
+  const roles = new Map<string, number>();
+  
+  // Count users by role
+  users.forEach(user => {
+    const role = (user.publicMetadata?.userType as string) || 'student';
+    const count = roles.get(role) || 0;
+    roles.set(role, count + 1);
+  });
+  
+  // Convert to array for chart data
+  return Array.from(roles.entries()).map(([name, value]) => ({ name, value }));
+};
+
+/**
+ * Calculate enrollments by course category
+ */
+const calculateEnrollmentsByCategory = async (
+  progressEntries: any[],
+  courses: any[]
+): Promise<{ name: string, value: number }[]> => {
+  const categoryCounts = new Map<string, number>();
+  
+  // Calculate enrollments per category
+  progressEntries.forEach(progress => {
+    const course = courses.find(c => c.courseId === progress.courseId);
+    if (course && course.category) {
+      const count = categoryCounts.get(course.category) || 0;
+      categoryCounts.set(course.category, count + 1);
+    }
+  });
+  
+  // If no enrollments or categories, provide sample data
+  if (categoryCounts.size === 0) {
+    return [
+      { name: "Web Development", value: 35 },
+      { name: "Data Science", value: 25 },
+      { name: "Mobile Development", value: 15 },
+      { name: "Design", value: 10 },
+      { name: "Other", value: 15 }
+    ];
+  }
+  
+  // Convert to array for pie chart
+  return Array.from(categoryCounts.entries())
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+};
+
+/**
+ * Create course creation trend data for visualization
+ */
+const createCourseCreationTrend = (courses: any[], startDate: Date, endDate: Date): any[] => {
+  const dateMap = new Map<string, number>();
+  
+  // Initialize all dates with 0
+  const dates = generateDateSequence(startDate, endDate);
+  dates.forEach(date => dateMap.set(date, 0));
+  
+  // Count courses per date
+  courses.forEach(course => {
+    const createdAt = new Date(course.createdAt || Date.now());
+    const dateStr = formatDate(createdAt);
+    
+    if (dateMap.has(dateStr)) {
+      dateMap.set(dateStr, dateMap.get(dateStr)! + 1);
+    }
+  });
+  
+  // Convert to array for response
+  return Array.from(dateMap.entries())
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+};
+
+/**
+ * Calculate course completion rates
+ */
+const calculateCourseCompletionRates = (progressEntries: any[], courses: any[]): any[] => {
+  const results: { courseId: string, title: string, completionRate: number }[] = [];
+  
+  // Calculate completion rate for each course
+  courses.forEach(course => {
+    const enrollments = progressEntries.filter(p => p.courseId === course.courseId);
+    const completedEnrollments = enrollments.filter(p => p.overallProgress >= 100);
+    
+    const completionRate = enrollments.length > 0
+      ? (completedEnrollments.length / enrollments.length) * 100
+      : 0;
+    
+    results.push({
+      courseId: course.courseId,
+      title: course.title,
+      completionRate: Math.round(completionRate * 10) / 10
+    });
+  });
+  
+  // Sort by completion rate descending
+  return results.sort((a, b) => b.completionRate - a.completionRate).slice(0, 10);
+};
+
+/**
+ * Calculate course ratings (simulated)
+ */
+const calculateCourseRatings = (courses: any[]): any[] => {
+  // In a real application, this would be based on actual course ratings
+  // For demo purposes, we'll generate random ratings
+  
+  return courses.slice(0, 10).map(course => ({
+    courseId: course.courseId,
+    title: course.title,
+    rating: (3.5 + Math.random() * 1.5).toFixed(1)
+  }));
+};
+
+/**
+ * Calculate revenue by course category
+ */
+const calculateRevenueByCategory = (transactions: any[], courses: any[]): any[] => {
+  const categoryRevenue = new Map<string, number>();
+  
+  // Calculate revenue per category
+  transactions.forEach(transaction => {
+    if (!transaction.courseId) return;
+    
+    const course = courses.find(c => c.courseId === transaction.courseId);
+    if (course && course.category) {
+      const revenue = categoryRevenue.get(course.category) || 0;
+      categoryRevenue.set(course.category, revenue + (transaction.amount || 0));
+    }
+  });
+  
+  // If no revenue data, provide sample
+  if (categoryRevenue.size === 0) {
+    return [
+      { category: "Web Development", revenue: 12500 },
+      { category: "Data Science", revenue: 9800 },
+      { category: "Mobile Development", revenue: 7600 },
+      { category: "Design", revenue: 5200 },
+      { category: "Other", revenue: 3900 }
+    ];
+  }
+  
+  // Convert to array for chart
+  return Array.from(categoryRevenue.entries())
+    .map(([category, revenue]) => ({ category, revenue }))
+    .sort((a, b) => b.revenue - a.revenue);
+};
+
+/**
+ * Create revenue trend data for visualization
+ */
+const createRevenueTrend = (transactions: any[], startDate: Date, endDate: Date): any[] => {
+  const monthMap = new Map<string, number>();
+  
+  // Initialize all months with 0
+  const months = generateDateSequence(startDate, endDate, 'monthly');
+  months.forEach(month => monthMap.set(month, 0));
+  
+  // Calculate revenue per month
+  transactions.forEach(transaction => {
+    const createdAt = new Date(transaction.createdAt || Date.now());
+    const monthStr = createdAt.toLocaleString('default', { month: 'short', year: 'numeric' });
+    
+    if (monthMap.has(monthStr)) {
+      monthMap.set(monthStr, monthMap.get(monthStr)! + (transaction.amount || 0));
+    }
+  });
+  
+  // If no revenue data, provide sample
+  if (transactions.length === 0) {
+    const baseAmount = 8000;
+    let i = 0;
+    
+    for (const [month, _] of monthMap.entries()) {
+      const randomVariation = Math.random() * 2000 - 1000;
+      const trend = i * 500; // Slight upward trend
+      monthMap.set(month, baseAmount + trend + randomVariation);
+      i++;
+    }
+  }
+  
+  // Convert to array for chart
+  return Array.from(monthMap.entries())
+    .map(([month, revenue]) => ({ month, revenue }))
+    .sort((a, b) => {
+      const [aMonth, aYear] = a.month.split(' ');
+      const [bMonth, bYear] = b.month.split(' ');
+      
+      if (aYear !== bYear) return parseInt(aYear) - parseInt(bYear);
+      
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return months.indexOf(aMonth) - months.indexOf(bMonth);
+    });
+};
+
+/**
+ * Calculate average transaction value
+ */
+const calculateAverageTransactionValue = (transactions: any[]): number => {
+  if (transactions.length === 0) return 0;
+  
+  const totalValue = transactions.reduce((sum, transaction) => 
+    sum + (transaction.amount || 0), 0);
+  
+  return Math.round((totalValue / transactions.length) * 100) / 100;
+};
+
+/**
+ * Calculate revenue per user
+ */
+const calculateRevenuePerUser = async (transactions: any[]): Promise<number> => {
+  try {
+    const usersResponse = await clerkClient.users.getUserList({
+      limit: 100,
+    });
+    
+    const totalUsers = usersResponse.data.length;
+    
+    if (totalUsers === 0) return 0;
+    
+    const totalRevenue = transactions.reduce((sum, transaction) => 
+      sum + (transaction.amount || 0), 0);
+    
+    return Math.round((totalRevenue / totalUsers) * 100) / 100;
+  } catch (error) {
+    console.error("Error calculating revenue per user:", error);
+    return 0;
+  }
+};
+
+/**
+ * Simulate daily active users data for platform analytics
+ */
+const simulateDailyActiveUsers = (): any[] => {
+  // In a real application, this would come from user analytics data
+  return [
+    { day: "Mon", activeUsers: 120 },
+    { day: "Tue", activeUsers: 145 },
+    { day: "Wed", activeUsers: 160 },
+    { day: "Thu", activeUsers: 170 },
+    { day: "Fri", activeUsers: 155 },
+    { day: "Sat", activeUsers: 190 },
+    { day: "Sun", activeUsers: 210 }
+  ];
+};
+
+/**
+ * Simulate session duration by device data for platform analytics
+ */
+const simulateSessionByDevice = (): any[] => {
+  // In a real application, this would come from user analytics data
+  return [
+    { device: "Desktop", duration: 42 },
+    { device: "Mobile", duration: 23 },
+    { device: "Tablet", duration: 38 }
+  ];
+};
+
+/**
+ * Simulate engagement metrics data for platform analytics
+ */
+const simulateEngagementMetrics = (timeRange: string): any => {
+  // In a real application, this would be calculated from user activity data
+  // Create variation based on timeRange
+  
+  let baseMultiplier;
+  switch(timeRange) {
+    case '7days':
+      baseMultiplier = 0.9;
+      break;
+    case '30days':
+      baseMultiplier = 0.95;
+      break;
+    case '3months':
+      baseMultiplier = 1.0;
+      break;
+    case '6months':
+      baseMultiplier = 1.05;
+      break;
+    case '1year':
+      baseMultiplier = 1.1;
+      break;
+    default:
+      baseMultiplier = 1.0;
+  }
+  
+  return {
+    avgSessionDuration: Math.round(baseMultiplier * 35.2 * 10) / 10,
+    courseCompletionRate: Math.round(baseMultiplier * 68.7 * 10) / 10,
+    videoWatchRate: Math.round(baseMultiplier * 79.5 * 10) / 10,
+    quizCompletionRate: Math.round(baseMultiplier * 82.3 * 10) / 10
+  };
 }; 
