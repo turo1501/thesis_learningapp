@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { useUser } from "@clerk/nextjs";
 import { toast } from "sonner";
 import { CheckCircle, User, GraduationCap, UserCog, Info } from "lucide-react";
+import { api, useRequestRoleChangeMutation } from "@/state/api";
 
 const RequestRoleChange = () => {
   const { user, isLoaded } = useUser();
@@ -22,6 +23,9 @@ const RequestRoleChange = () => {
   const [reason, setReason] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [requestSent, setRequestSent] = useState<boolean>(false);
+
+  // API mutation hook
+  const [requestRoleChange] = useRequestRoleChangeMutation();
 
   if (!isLoaded || !user) return null;
 
@@ -32,19 +36,12 @@ const RequestRoleChange = () => {
     setIsSubmitting(true);
 
     try {
-      // In a real application, this would send a request to your backend
-      // which would then store the request and potentially notify administrators
-      console.log("Role change request", {
+      // Call the actual API endpoint
+      await requestRoleChange({
         userId: user.id,
-        userName: user.fullName,
-        email: user.primaryEmailAddress?.emailAddress,
-        currentRole: currentUserType,
         requestedRole: selectedRole,
         reason,
-      });
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      }).unwrap();
       
       setRequestSent(true);
       toast.success("Role change request submitted successfully");

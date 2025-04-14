@@ -1,128 +1,171 @@
-# Learning Management System (LMS)
+# Learning Management System (LMS) Platform
 
-A modern, full-stack learning management system built with Next.js, TypeScript, and Node.js. This project implements a comprehensive platform for online education with features for students, teachers, and administrators.
+A modern, full-stack learning management system built with Next.js, TypeScript, and Node.js. This robust platform implements a comprehensive solution for online education with role-based access control and distinct features for students, teachers, and administrators.
 
 ## 📑 Table of Contents
 
-- [Features](#-features)
+- [Overview](#-overview)
+- [Key Features](#-key-features)
 - [Tech Stack](#-tech-stack)
-- [Project Structure](#-project-structure)
-- [Key Components](#-key-components)
-- [Code Examples](#-code-examples)
-- [API Documentation](#-api-documentation)
+- [Project Architecture](#-project-architecture)
+- [Directory Structure](#-directory-structure)
+- [Role-Based Access Control](#-role-based-access-control)
+- [Core Components](#-core-components)
+- [Authentication & Authorization](#-authentication--authorization)
+- [API Implementation](#-api-implementation)
+- [Data Models](#-data-models)
+- [State Management](#-state-management)
 - [Getting Started](#-getting-started)
-- [Contributing](#-contributing)
-- [License](#-license)
 
-## 🚀 Features
+## 📋 Overview
+
+This learning management system provides a complete solution for online education with multi-tenant architecture supporting distinct roles (student, teacher, admin) each with specific permissions and interfaces. The application features a responsive design, modern UI components, and an intuitive user experience across different devices and screen sizes.
+
+## 🚀 Key Features
 
 ### For Students
-- Course browsing and enrollment
-- Interactive course content viewing
-- Progress tracking
-- Course recommendations
-- Chat support with AI
-- Payment processing
-- Profile management
+- Course discovery and enrollment
+- Interactive course content consumption
+- Personal learning dashboard
+- Progress tracking and analytics
+- Assignment submission
+- Blog access and creation
+- Account and profile management
+- Billing and payment history
 
 ### For Teachers
 - Course creation and management
+- Content publishing with rich media support
 - Student progress monitoring
-- Analytics dashboard
-- Meeting scheduling
-- Assignment management
+- Assignment creation and grading
+- Meeting scheduling and management
+- Blog post publishing
+- Revenue tracking and analytics
 - Profile management
 
 ### For Administrators
-- User management
-- Blog post management
-- System analytics
-- Content moderation
+- Comprehensive system dashboard
+- User management and role assignments
+- Blog post moderation and approval
+- Platform analytics and reporting
+- Content oversight and moderation
+- Role change requests management
 
 ## 🛠️ Tech Stack
 
 ### Frontend
-- **Next.js 14** (App Router): For modern React application architecture with server components
-- **TypeScript**: For type-safe code
-- **Tailwind CSS**: For utility-first styling
-- **Clerk Authentication**: For secure user authentication and management
-- **Redux Toolkit & RTK Query**: For state management and API data fetching
-- **React Query**: For additional data fetching capabilities
-- **Lucide Icons**: For modern UI icons
+- **Next.js 14** with App Router architecture
+- **TypeScript** for type safety
+- **Tailwind CSS** for utility-first styling
+- **Clerk Authentication** for secure user authentication and management
+- **Redux Toolkit & RTK Query** for state management and data fetching
+- **Lucide Icons** for modern UI iconography
+- **Shadcn UI** for reusable UI components
+- **date-fns** for date manipulation
+- **React Hook Form** for form handling
+- **Zod** for schema validation
 
 ### Backend
-- **Node.js**: JavaScript runtime for server-side code
-- **Express.js**: Web framework for the backend API
-- **TypeScript**: For type-safe backend code
-- **DynamoDB**: For NoSQL database storage
-- **AWS Services**: For cloud infrastructure
-- **Socket.IO**: For real-time communication
+- **Node.js** runtime environment
+- **Express.js** for API development
+- **TypeScript** for type safety
+- **DynamoDB** for NoSQL database storage
+- **AWS S3** for file storage
+- **AWS CloudFront** for content delivery
+- **JWT** for token-based authentication
+- **Clerk** for user management and authentication
 
-## 📁 Project Structure
+## 🏛️ Project Architecture
+
+The application follows a modern architecture with:
+
+1. **Client-Side** Next.js App Router for hybrid rendering
+2. **Server-Side** Express.js RESTful API
+3. **Authentication Layer** with Clerk for identity management
+4. **Data Layer** with DynamoDB and S3 for storage
+5. **State Management** with Redux Toolkit
+6. **API Integration** with RTK Query for data fetching
+
+## 📁 Directory Structure
 
 ```
 thesis_learningapp/
-├── client/                         # Frontend application
+├── client/                           # Frontend application
 │   ├── src/
-│   │   ├── app/                   # Next.js app router pages
-│   │   │   ├── (auth)/           # Authentication routes
-│   │   │   │   ├── signin/       # Sign in page
-│   │   │   │   └── signup/       # Sign up page
-│   │   │   ├── (dashboard)/      # Dashboard routes
-    # User management
-│   │   │   │   ├── admin/     
-│   │   │   │   │   ├── analytics/  
-│   │   │   │   │   ├── blog-approval/ 
-│   │   │   │   │   ├── courses/  
-│   │   │   │   │   ├── dahsboard/  
-│   │   │   │   │   └── profile/
-│   │   │   │   │   └── user-management/
-
-│   │   │   │   ├── teacher/      # Teacher dashboard
-│   │   │   │   │   ├── assignment/  
-│   │   │   │   │   ├── billing/ 
-│   │   │   │   │   ├── blog/ 
-│   │   │   │   │   ├── meetings/  
-│   │   │   │   │   ├── courses/ 
-│   │   │   │   │   ├── moderation/  
-│   │   │   │   │   ├── profile/  
-│   │   │   │   │   └── settings/ # Settings
-│   │   │   │   └── user/         # Student dashboard
-│   │   │   │       ├── courses/  # Enrolled courses
-│   │   │   │       ├── blog/ 
-│   │   │   │       ├── profile/  # Student profile
-│   │   │   │       ├── billing/  # Billing information
-│   │   │   │       └── settings/ # Settings
-│   │   │   └── (nondashboard)/   # Public pages
-│   │   │       ├── landing/      # Landing page
-│   │   │       ├── search/       # Course search
-│   │   │       └── checkout/     # Checkout process
-│   │   ├── components/           # Reusable components
-│   │   │   ├── blog/            # Blog-related components
-│   │   │   └── ui/              # UI components
-│   │   ├── hooks/               # Custom React hooks
-│   │   ├── lib/                 # Utility functions
-│   │   ├── state/               # Redux store and API
-│   │   ├── styles/              # Global styles
-│   │   └── types/               # TypeScript types
-│   └── public/                  # Static assets
+│   │   ├── app/                      # Next.js app router pages
+│   │   │   ├── (auth)/               # Authentication routes
+│   │   │   ├── (dashboard)/          # Dashboard routes
+│   │   │   │   ├── admin/            # Admin-specific pages
+│   │   │   │   │   ├── analytics/    # Analytics dashboard
+│   │   │   │   │   ├── blog-approval/# Blog moderation
+│   │   │   │   │   ├── courses/      # Course management
+│   │   │   │   │   ├── dashboard/    # Admin dashboard
+│   │   │   │   │   ├── profile/      # Admin profile
+│   │   │   │   │   └── user-management/  # User management
+│   │   │   │   ├── teacher/          # Teacher-specific pages
+│   │   │   │   │   ├── assignments/   # Assignment management
+│   │   │   │   │   ├── billing/      # Revenue tracking
+│   │   │   │   │   ├── blog/         # Blog management
+│   │   │   │   │   ├── courses/      # Course management
+│   │   │   │   │   ├── meetings/     # Meeting scheduling
+│   │   │   │   │   ├── profile/      # Teacher profile
+│   │   │   │   │   └── settings/     # Settings
+│   │   │   │   └── user/             # Student-specific pages
+│   │   │   │       ├── courses/      # Enrolled courses
+│   │   │   │       ├── blog/         # Student blog
+│   │   │   │       ├── profile/      # Student profile
+│   │   │   │       ├── billing/      # Billing information
+│   │   │   │       └── settings/     # Settings
+│   │   │   └── (nondashboard)/       # Public pages
+│   │   ├── components/               # Reusable components
+│   │   │   ├── ui/                  # UI components
+│   │   │   └── [feature]/           # Feature-specific components
+│   │   ├── hooks/                   # Custom React hooks
+│   │   ├── lib/                     # Utility functions
+│   │   ├── state/                   # Redux store and API
+│   │   ├── middleware.ts            # Auth middleware
+│   │   └── types/                   # TypeScript types
+│   ├── public/                      # Static assets
 │
-└── server/                      # Backend application
+└── server/                          # Backend application
     ├── src/
-    │   ├── controllers/         # Route controllers
-    │   ├── models/              # Data models
-    │   ├── routes/              # API routes
-    │   ├── middleware/          # Express middleware
-    │   ├── types/               # TypeScript types
-    │   ├── utils/               # Utility functions
-    │   ├── seed/                # Database seed data
-    │   │   └── data/           # Sample data for seeding
-    │   └── index.ts            # Main server entry point
-    └── dist/                    # Compiled JavaScript
+    │   ├── controllers/             # Route controllers
+    │   ├── models/                  # Data models
+    │   ├── routes/                  # API routes
+    │   ├── middleware/              # Express middleware
+    │   ├── types/                   # TypeScript types
+    │   ├── utils/                   # Utility functions
+    │   ├── seed/                    # Database seed data
+    │   └── index.ts                 # Main server entry point
 ```
 
-## 🔑 Key Components
+## 🔐 Role-Based Access Control
 
+The system implements a comprehensive role-based access control system:
+
+1. **Student Role**
+   - Access to enrolled courses
+   - Limited to student-specific pages
+   - Can create blog posts (require approval)
+   - Can request role change
+
+2. **Teacher Role**
+   - All student capabilities
+   - Course creation and management
+   - Assignment and meeting management
+   - Blog post creation with approval rights
+   - Revenue tracking
+
+3. **Admin Role**
+   - All teacher capabilities
+   - User management
+   - Blog post moderation
+   - Platform analytics access
+   - System configuration
+
+The middleware.ts file handles role-based routing, redirecting users to their appropriate dashboard based on their role stored in session claims.
+
+## 💻 Core Components
 ### Frontend Components
 
 #### Navigation
@@ -2955,3 +2998,908 @@ const UserProfilePage = () => {
 };
 
 export default UserProfilePage;
+import NonDashboardNavbar from "../components/NonDashboardNavbar"
+import Landing from "../app/(nondashboard)/landing/page"
+
+export default function Home() {
+  return <div className="nondashboard-layout">
+    <NonDashboardNavbar/> 
+    <main className="nondashboard-layout__main">
+      <Landing/>
+    </main>
+  </div>;
+}
+import type { Metadata } from "next";
+import { DM_Sans } from "next/font/google";
+import "./globals.css";
+import Providers from "./providers";
+import { ClerkProvider } from "@clerk/nextjs";
+import { Toaster } from "sonner";
+import { Suspense } from "react";
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-dm-sans",
+});
+
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <ClerkProvider>
+      <html lang="en" className="mdl-js" >
+        <body className={`${dmSans.className}`}>
+          <Providers>
+            <Suspense fallback={null}>
+              <div className="root-layout">{children}</div>
+            </Suspense>
+            <Toaster richColors closeButton />
+          </Providers>
+        </body>
+      </html>
+    </ClerkProvider>
+  );
+}import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import chatReducer from "./chatSlice";
+
+interface InitialStateTypes {
+  courseEditor: {
+    sections: Section[];
+    isChapterModalOpen: boolean;
+    isSectionModalOpen: boolean;
+    selectedSectionIndex: number | null;
+    selectedChapterIndex: number | null;
+  };
+}
+
+const initialState: InitialStateTypes = {
+  courseEditor: {
+    sections: [],
+    isChapterModalOpen: false,
+    isSectionModalOpen: false,
+    selectedSectionIndex: null,
+    selectedChapterIndex: null,
+  },
+};
+
+export const globalSlice = createSlice({
+  name: "global",
+  initialState,
+  reducers: {
+    setSections: (state, action: PayloadAction<Section[]>) => {
+      state.courseEditor.sections = action.payload;
+    },
+    openChapterModal: (
+      state,
+      action: PayloadAction<{
+        sectionIndex: number | null;
+        chapterIndex: number | null;
+      }>
+    ) => {
+      state.courseEditor.isChapterModalOpen = true;
+      state.courseEditor.selectedSectionIndex = action.payload.sectionIndex;
+      state.courseEditor.selectedChapterIndex = action.payload.chapterIndex;
+    },
+    closeChapterModal: (state) => {
+      state.courseEditor.isChapterModalOpen = false;
+      state.courseEditor.selectedSectionIndex = null;
+      state.courseEditor.selectedChapterIndex = null;
+    },
+
+    openSectionModal: (
+      state,
+      action: PayloadAction<{ sectionIndex: number | null }>
+    ) => {
+      state.courseEditor.isSectionModalOpen = true;
+      state.courseEditor.selectedSectionIndex = action.payload.sectionIndex;
+    },
+    closeSectionModal: (state) => {
+      state.courseEditor.isSectionModalOpen = false;
+      state.courseEditor.selectedSectionIndex = null;
+    },
+
+    addSection: (state, action: PayloadAction<Section>) => {
+      state.courseEditor.sections.push(action.payload);
+    },
+    editSection: (
+      state,
+      action: PayloadAction<{ index: number; section: Section }>
+    ) => {
+      state.courseEditor.sections[action.payload.index] =
+        action.payload.section;
+    },
+    deleteSection: (state, action: PayloadAction<number>) => {
+      state.courseEditor.sections.splice(action.payload, 1);
+    },
+
+    addChapter: (
+      state,
+      action: PayloadAction<{ sectionIndex: number; chapter: Chapter }>
+    ) => {
+      state.courseEditor.sections[action.payload.sectionIndex].chapters.push(
+        action.payload.chapter
+      );
+    },
+    editChapter: (
+      state,
+      action: PayloadAction<{
+        sectionIndex: number;
+        chapterIndex: number;
+        chapter: Chapter;
+      }>
+    ) => {
+      state.courseEditor.sections[action.payload.sectionIndex].chapters[
+        action.payload.chapterIndex
+      ] = action.payload.chapter;
+    },
+    deleteChapter: (
+      state,
+      action: PayloadAction<{ sectionIndex: number; chapterIndex: number }>
+    ) => {
+      state.courseEditor.sections[action.payload.sectionIndex].chapters.splice(
+        action.payload.chapterIndex,
+        1
+      );
+    },
+  },
+});
+
+export const {
+  setSections,
+  openChapterModal,
+  closeChapterModal,
+  openSectionModal,
+  closeSectionModal,
+  addSection,
+  editSection,
+  deleteSection,
+  addChapter,
+  editChapter,
+  deleteChapter,
+} = globalSlice.actions;
+
+export default globalSlice.reducer;
+import {
+  DynamoDBClient,
+  DeleteTableCommand,
+  ListTablesCommand,
+} from "@aws-sdk/client-dynamodb";
+import fs from "fs";
+import path from "path";
+import dynamoose from "dynamoose";
+import pluralize from "pluralize";
+import Transaction from "../models/transactionModel";
+import Course from "../models/courseModel";
+import UserCourseProgress from "../models/userCourseProgressModel";
+import dotenv from "dotenv";
+
+dotenv.config();
+let client: DynamoDBClient;
+
+/* DynamoDB Configuration */
+const isProduction = process.env.NODE_ENV === "production";
+
+if (!isProduction) {
+  dynamoose.aws.ddb.local();
+  client = new DynamoDBClient({
+    endpoint: "http://localhost:8000",
+    region: "us-east-2",
+    credentials: {
+      accessKeyId: "dummyKey123",
+      secretAccessKey: "dummyKey123",
+    },
+  });
+} else {
+  client = new DynamoDBClient({
+    region: process.env.AWS_REGION || "us-east-2",
+  });
+}
+
+/* DynamoDB Suppress Tag Warnings */
+const originalWarn = console.warn.bind(console);
+console.warn = (message, ...args) => {
+  if (
+    !message.includes("Tagging is not currently supported in DynamoDB Local")
+  ) {
+    originalWarn(message, ...args);
+  }
+};
+
+async function createTables() {
+  const models = [Transaction, UserCourseProgress, Course];
+
+  for (const model of models) {
+    const tableName = model.name;
+    const table = new dynamoose.Table(tableName, [model], {
+      create: true,
+      update: true,
+      waitForActive: true,
+      throughput: { read: 5, write: 5 },
+    });
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await table.initialize();
+      console.log(`Table created and initialized: ${tableName}`);
+    } catch (error: any) {
+      console.error(
+        `Error creating table ${tableName}:`,
+        error.message,
+        error.stack
+      );
+    }
+  }
+}
+
+async function seedData(tableName: string, filePath: string) {
+  const data: { [key: string]: any }[] = JSON.parse(
+    fs.readFileSync(filePath, "utf8")
+  );
+
+  const formattedTableName = pluralize.singular(
+    tableName.charAt(0).toUpperCase() + tableName.slice(1)
+  );
+
+  console.log(`Seeding data to table: ${formattedTableName}`);
+
+  for (const item of data) {
+    try {
+      await dynamoose.model(formattedTableName).create(item);
+    } catch (err) {
+      console.error(
+        `Unable to add item to ${formattedTableName}. Error:`,
+        JSON.stringify(err, null, 2)
+      );
+    }
+  }
+
+  console.log(
+    "\x1b[32m%s\x1b[0m",
+    `Successfully seeded data to table: ${formattedTableName}`
+  );
+}
+
+async function deleteTable(baseTableName: string) {
+  let deleteCommand = new DeleteTableCommand({ TableName: baseTableName });
+  try {
+    await client.send(deleteCommand);
+    console.log(`Table deleted: ${baseTableName}`);
+  } catch (err: any) {
+    if (err.name === "ResourceNotFoundException") {
+      console.log(`Table does not exist: ${baseTableName}`);
+    } else {
+      console.error(`Error deleting table ${baseTableName}:`, err);
+    }
+  }
+}
+
+async function deleteAllTables() {
+  const listTablesCommand = new ListTablesCommand({});
+  const { TableNames } = await client.send(listTablesCommand);
+
+  if (TableNames && TableNames.length > 0) {
+    for (const tableName of TableNames) {
+      await deleteTable(tableName);
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    }
+  }
+}
+
+export default async function seed() {
+  await deleteAllTables();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await createTables();
+
+  const seedDataPath = path.join(__dirname, "./data");
+  const files = fs
+    .readdirSync(seedDataPath)
+    .filter((file) => file.endsWith(".json"));
+
+  for (const file of files) {
+    const tableName = path.basename(file, ".json");
+    const filePath = path.join(seedDataPath, file);
+    await seedData(tableName, filePath);
+  }
+}
+
+if (require.main === module) {
+  seed().catch((error) => {
+    console.error("Failed to run seed script:", error);
+  });
+}
+import axios from 'axios';
+import { generateSimpleResponse } from './simpleAI';
+import { getRecommendations } from './courseRecommender';
+
+interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+// Simplified pattern to detect course recommendation requests
+// Now matches simpler queries like "học về AI" or "tôi muốn học web"
+const courseRequestPattern = /(khóa học|course|learn|học|recommend|đề xuất|gợi ý|suggest|tìm kiếm|search|find|về|về về|muốn học|want to learn).*(AI|artificial intelligence|trí tuệ nhân tạo|machine learning|học máy|deep learning|web|design|thiết kế|business|kinh doanh|software|phần mềm|lập trình|development|code|programming)/i;
+
+/**
+ * Generates AI response using DeepSeek API
+ * @param message User message
+ * @param history Previous conversation history
+ * @returns AI response as string
+ */
+export const generateAIResponse = async (
+  message: string,
+  history: ChatMessage[] = []
+): Promise<string> => {
+  try {
+    // Check if this is a course recommendation request
+    if (courseRequestPattern.test(message)) {
+      console.log('Detected course recommendation request, using course recommender');
+      return await getRecommendations(message);
+    }
+
+    // Check if DeepSeek API key is set
+    if (!process.env.DEEPSEEK_API_KEY || process.env.DEEPSEEK_API_KEY.trim() === '') {
+      console.warn('DeepSeek API key not set, using simple AI fallback');
+      return generateSimpleResponse(message);
+    }
+
+    // Format conversation history for the model
+    const formattedMessages = formatConversationHistory(history, message);
+    
+    try {
+      // Call DeepSeek API
+      const response = await axios.post(
+        'https://api.deepseek.com/v1/chat/completions',
+        {
+          model: 'deepseek-chat',
+          messages: formattedMessages,
+          temperature: 0.7,
+          max_tokens: 500,
+          top_p: 0.95
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      // Extract response from DeepSeek
+      const aiResponse = response.data.choices[0]?.message?.content || '';
+      return aiResponse || 'Sorry, I couldn\'t generate a response.';
+      
+    } catch (error: any) {
+      console.error('Error calling DeepSeek API:', error.message || 'No error message');
+      if (error.response) {
+        console.error('API response error:', error.response.data || 'No response data');
+      }
+      // For API errors, fall back to simpleAI
+      return generateSimpleResponse(message);
+    }
+  } catch (error: any) {
+    console.error('Error generating AI response:', error);
+    // Use simple AI when DeepSeek API fails
+    console.log('Falling back to simple AI response system');
+    return generateSimpleResponse(message);
+  }
+};
+
+/**
+ * Format conversation history for DeepSeek API format
+ */
+function formatConversationHistory(history: ChatMessage[], currentMessage: string): any[] {
+  const messages = [];
+  
+  // Add system prompt
+  messages.push({
+    role: 'system',
+    content: "You are an educational assistant helping students with their courses. Provide helpful, concise, and accurate information about academic subjects. If asked about coding or programming, provide code examples when appropriate. Focus on being educational and supportive."
+  });
+  
+  // Add conversation history
+  for (const msg of history) {
+    messages.push({
+      role: msg.role,
+      content: msg.content
+    });
+  }
+  
+  // Add current message
+  messages.push({
+    role: 'user',
+    content: currentMessage
+  });
+  
+  return messages;
+} import { useState } from "react";
+import { useParams } from "next/navigation";
+import {
+  useGetCourseQuery,
+  useGetUserCourseProgressQuery,
+  useUpdateUserCourseProgressMutation,
+} from "@/state/api";
+import { useUser } from "@clerk/nextjs";
+
+export const useCourseProgressData = () => {
+  const { courseId, chapterId } = useParams();
+  const { user, isLoaded } = useUser();
+  const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
+  const [updateProgress] = useUpdateUserCourseProgressMutation();
+
+  const { data: course, isLoading: courseLoading } = useGetCourseQuery(
+    (courseId as string) ?? "",
+    {
+      skip: !courseId,
+    }
+  );
+
+  const { data: userProgress, isLoading: progressLoading } =
+    useGetUserCourseProgressQuery(
+      {
+        userId: user?.id ?? "",
+        courseId: (courseId as string) ?? "",
+      },
+      {
+        skip: !isLoaded || !user || !courseId,
+      }
+    );
+
+  const isLoading = !isLoaded || courseLoading || progressLoading;
+
+  const currentSection = course?.sections.find((s) =>
+    s.chapters.some((c) => c.chapterId === chapterId)
+  );
+
+  const currentChapter = currentSection?.chapters.find(
+    (c) => c.chapterId === chapterId
+  );
+
+  const isChapterCompleted = () => {
+    if (!currentSection || !currentChapter || !userProgress?.sections)
+      return false;
+
+    const section = userProgress.sections.find(
+      (s) => s.sectionId === currentSection.sectionId
+    );
+    return (
+      section?.chapters.some(
+        (c) => c.chapterId === currentChapter.chapterId && c.completed
+      ) ?? false
+    );
+  };
+
+  const updateChapterProgress = (
+    sectionId: string,
+    chapterId: string,
+    completed: boolean
+  ) => {
+    if (!user) return;
+
+    const updatedSections = [
+      {
+        sectionId,
+        chapters: [
+          {
+            chapterId,
+            completed,
+          },
+        ],
+      },
+    ];
+
+    updateProgress({
+      userId: user.id,
+      courseId: (courseId as string) ?? "",
+      progressData: {
+        sections: updatedSections,
+      },
+    });
+  };
+
+  return {
+    user,
+    courseId,
+    chapterId,
+    course,
+    userProgress,
+    currentSection,
+    currentChapter,
+    isLoading,
+    isChapterCompleted,
+    updateChapterProgress,
+    hasMarkedComplete,
+    setHasMarkedComplete,
+  };
+};"use client";
+
+import React, { useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { useUser } from '@clerk/nextjs';
+import { useCreateBlogPostMutation, useUpdateBlogPostMutation, BlogPost } from '@/state/api';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { toast } from 'sonner';
+
+const categories = [
+  { value: 'programming', label: 'Programming' },
+  { value: 'design', label: 'Design' },
+  { value: 'data-science', label: 'Data Science' },
+  { value: 'ai', label: 'Artificial Intelligence' },
+  { value: 'web-development', label: 'Web Development' },
+  { value: 'mobile-development', label: 'Mobile Development' },
+  { value: 'devops', label: 'DevOps' },
+  { value: 'career', label: 'Career Advice' },
+];
+
+const formSchema = z.object({
+  title: z.string().min(5, { message: 'Title must be at least 5 characters' }).max(100),
+  content: z.string().min(50, { message: 'Content must be at least 50 characters' }),
+  category: z.string({ required_error: 'Please select a category' }),
+  tags: z.string().optional(),
+  featuredImage: z.string()
+    .url({ message: 'Please enter a valid URL' })
+    .refine(url => {
+      // Allow empty string
+      if (!url) return true;
+      
+      // Check if URL is from allowed domains
+      try {
+        const urlObj = new URL(url);
+        const allowedDomains = [
+          'images.pexels.com',
+          'localhost',
+          '127.0.0.1',
+          'img.clerk.com',
+          'images.clerk.dev',
+          'picsum.photos',
+          'via.placeholder.com',
+          'placehold.co',
+          'placekitten.com',
+          'unsplash.com',
+          'images.unsplash.com'
+        ];
+        return allowedDomains.some(domain => urlObj.hostname.includes(domain));
+      } catch (e) {
+        return false;
+      }
+    }, { message: 'Image URL must be from an allowed domain' })
+    .optional()
+    .or(z.literal('')),
+  status: z.enum(['draft', 'pending']),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+interface CreateEditPostDialogProps {
+  open: boolean;
+  onClose: () => void;
+  post?: BlogPost | null;
+}
+
+export default function CreateEditPostDialog({ 
+  open, 
+  onClose,
+  post 
+}: CreateEditPostDialogProps) {
+  const { user } = useUser();
+  const isEditing = !!post;
+  
+  const [createPost, { isLoading: isCreating }] = useCreateBlogPostMutation();
+  const [updatePost, { isLoading: isUpdating }] = useUpdateBlogPostMutation();
+  
+  const isLoading = isCreating || isUpdating;
+  
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      title: '',
+      content: '',
+      category: '',
+      tags: '',
+      featuredImage: '',
+      status: 'draft',
+    },
+  });
+  
+  // Update form when post changes
+  useEffect(() => {
+    if (post) {
+      form.reset({
+        title: post.title,
+        content: post.content,
+        category: post.category,
+        tags: post.tags?.join(', ') || '',
+        featuredImage: post.featuredImage || '',
+        status: post.status === 'published' || post.status === 'rejected' ? 'draft' : post.status,
+      });
+    } else {
+      form.reset({
+        title: '',
+        content: '',
+        category: '',
+        tags: '',
+        featuredImage: '',
+        status: 'draft',
+      });
+    }
+  }, [post, form]);
+
+  const onSubmit = async (values: FormValues) => {
+    // Format tags
+    const tags = values.tags ? values.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [];
+    
+    try {
+      if (isEditing && post) {
+        // Update existing post
+        await updatePost({
+          postId: post.postId,
+          post: {
+            ...values,
+            tags,
+          }
+        }).unwrap();
+        
+        toast.success('Post updated successfully');
+      } else {
+        // Create new post
+        await createPost({
+          title: values.title,
+          content: values.content,
+          category: values.category,
+          tags,
+          status: values.status,
+          featuredImage: values.featuredImage || undefined,
+        }).unwrap();
+        
+        toast.success('Post created successfully');
+      }
+      
+      onClose();
+    } catch (error) {
+      toast.error(isEditing ? 'Failed to update post' : 'Failed to create post');
+    }
+  };
+  
+  const handleSaveAsDraft = () => {
+    form.setValue('status', 'draft');
+    form.handleSubmit(onSubmit)();
+  };
+  
+  const handleSubmitForReview = () => {
+    form.setValue('status', 'pending');
+    form.handleSubmit(onSubmit)();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {isEditing ? 'Edit Blog Post' : 'Create New Blog Post'}
+          </DialogTitle>
+          <DialogDescription>
+            Share your knowledge and experiences with the community. Posts will be reviewed by teachers before publication.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <Form {...form}>
+          <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Title</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="Enter a descriptive title" 
+                      {...field} 
+                      className="text-lg"
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Make it specific and eye-catching
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      defaultValue={field.value}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem 
+                            key={category.value} 
+                            value={category.value}
+                          >
+                            {category.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      What topic does your post relate to?
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="tags"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tags</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="react, javascript, beginner" 
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Comma-separated tags to help with search
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            
+            <FormField
+              control={form.control}
+              name="content"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Content</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Write your post content here..."
+                      rows={12}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Share your experience, code examples, tips, or lessons learned
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="featuredImage"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Featured Image URL</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="https://example.com/image.jpg" 
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Optional: Add a URL to an image from allowed sources like Unsplash, Pexels, or Picsum Photos.
+                    Example: https://images.unsplash.com/photo-xxx or https://picsum.photos/800/600
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </form>
+        </Form>
+        
+        <Separator />
+        
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleSaveAsDraft}
+            disabled={isLoading}
+          >
+            Save as Draft
+          </Button>
+          
+          <Button
+            onClick={handleSubmitForReview}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Saving...' : 'Submit for Review'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+} 
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { Check } from "lucide-react";
+import Link from "next/link";
+import React from "react";
+
+const CompletionPage = () => {
+  return (
+    <div className="completion">
+      <div className="completion__content">
+        <div className="completion__icon">
+          <Check className="w-16 h-16" />
+        </div>
+        <h1 className="completion__title">COMPLETED</h1>
+        <p className="completion__message">
+          🎉 You have made a course purchase successfully! 🎉
+        </p>
+      </div>
+      <div className="completion__support">
+        <p>
+          Need help? Contact our{" "}
+          <Button variant="link" asChild className="p-0 m-0 text-primary-700">
+            <a href="mailto:support@example.com">customer support</a>
+          </Button>
+          .
+        </p>
+      </div>
+      <div className="completion__action">
+        <Link href="user/courses" scroll={false}>
+          Go to Courses
+        </Link>
+      </div>
+    </div>
+  );
+};
+
+export default CompletionPage;

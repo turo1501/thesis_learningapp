@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { format as dateFormat } from "date-fns";
 import {
   CheckCircle,
   Calendar,
@@ -259,7 +259,7 @@ const renderAssignmentsList = (
                 className="bg-slate-900 text-slate-300 border-slate-700"
               >
                 <Calendar className="h-3 w-3 mr-1" />
-                Due: {format(new Date(assignment.dueDate), "MMM dd, yyyy")}
+                Due: {dateFormat(new Date(assignment.dueDate), "MMM dd, yyyy")}
               </Badge>
               {isSubmitted && (
                 <Badge 
@@ -284,7 +284,7 @@ const renderAssignmentsList = (
                   <div className="flex items-center text-yellow-500">
                     <Clock className="h-4 w-4 mr-1" />
                     <span>
-                      Submitted: {format(new Date(submissionDate), "MMM dd, yyyy")}
+                      Submitted: {dateFormat(new Date(submissionDate), "MMM dd, yyyy")}
                     </span>
                   </div>
                   

@@ -1,250 +1,244 @@
 "use client";
 
-import Header from "@/components/Header";
-import Loading from "@/components/Loading";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  CheckCircle,
-  XCircle,
-  Clock,
-  Eye,
-  Filter,
-  MessageSquare,
-  ThumbsUp,
-} from "lucide-react";
-import React, { useState } from "react";
+import React, { useState, useEffect } from 'react';
+import { useGetBlogPostsQuery, useModerateBlogPostMutation } from '@/state/api';
+import { Button } from '@/components/ui/button';
+import { Heading, Text } from '@/components/ui/typography';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Loader2, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
+import Header from '@/components/Header';
 
-type BlogPost = {
-  id: string;
-  title: string;
-  author: string;
-  authorId: string;
-  date: string;
-  status: "pending" | "approved" | "rejected";
-  excerpt: string;
-  likes: number;
-  comments: number;
-  tags: string[];
-};
-
-const BlogApproval = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [filter, setFilter] = useState("all");
-
-  // Mock data - would be fetched from API
-  const blogPosts: BlogPost[] = [
-    {
-      id: "1",
-      title: "The Future of AI in Education",
-      author: "John Doe",
-      authorId: "user_123",
-      date: "2023-04-01",
-      status: "pending",
-      excerpt: "Exploring how artificial intelligence is reshaping modern education systems and learning methodologies.",
-      likes: 45,
-      comments: 12,
-      tags: ["AI", "Education", "Technology"],
-    },
-    {
-      id: "2",
-      title: "10 Tips for Online Course Creation",
-      author: "Jane Smith",
-      authorId: "user_456",
-      date: "2023-04-02",
-      status: "pending",
-      excerpt: "A comprehensive guide for teachers looking to create engaging online courses.",
-      likes: 23,
-      comments: 8,
-      tags: ["Teaching", "Online Learning", "Course Design"],
-    },
-    {
-      id: "3",
-      title: "The Psychology of Remote Learning",
-      author: "Michael Brown",
-      authorId: "user_789",
-      date: "2023-04-03",
-      status: "pending",
-      excerpt: "Understanding the psychological impacts and benefits of remote educational environments.",
-      likes: 67,
-      comments: 21,
-      tags: ["Psychology", "Remote Learning", "Study"],
-    },
-    {
-      id: "4",
-      title: "Blockchain for Educational Certifications",
-      author: "Lisa Johnson",
-      authorId: "user_321",
-      date: "2023-04-03",
-      status: "approved",
-      excerpt: "How blockchain technology can revolutionize the way educational achievements are certified and verified.",
-      likes: 32,
-      comments: 15,
-      tags: ["Blockchain", "Certification", "Technology"],
-    },
-    {
-      id: "5",
-      title: "Gamification in the Virtual Classroom",
-      author: "David Wilson",
-      authorId: "user_654",
-      date: "2023-04-04",
-      status: "rejected",
-      excerpt: "Implementing game mechanics in virtual learning environments to boost student engagement.",
-      likes: 12,
-      comments: 7,
-      tags: ["Gamification", "Education", "Engagement"],
-    },
-  ];
-
-  const filteredPosts = blogPosts.filter((post) => {
-    if (filter === "all") return true;
-    return post.status === filter;
-  });
-
-  const handleApprove = (postId: string) => {
-    // Here you would call an API to approve the post
-    console.log(`Approving post ${postId}`);
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 500); // Simulate API call
+export default function ModerationPage() {
+  const [moderationComment, setModerationComment] = useState('');
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [moderationAction, setModerationAction] = useState<'publish' | 'reject' | null>(null);
+  
+  // Fetch posts with "pending" status with cache disabled
+  const { data, isLoading, refetch } = useGetBlogPostsQuery(
+    { status: 'pending' },
+    { 
+      refetchOnMountOrArgChange: true,
+      refetchOnFocus: true,
+      refetchOnReconnect: true
+    }
+  );
+  
+  const [moderatePost, { isLoading: isModerateLoading }] = useModerateBlogPostMutation();
+  
+  // Log data whenever it changes
+  useEffect(() => {
+    console.log("Moderation data:", data);
+  }, [data]);
+  
+  // Force refresh on mount
+  useEffect(() => {
+    console.log("Moderation page mounted, fetching data");
+    refetch();
+  }, [refetch]);
+  
+  const handleRefresh = () => {
+    console.log("Manual refresh triggered");
+    refetch();
+    toast.info("Refreshing post list...");
   };
-
-  const handleReject = (postId: string) => {
-    // Here you would call an API to reject the post
-    console.log(`Rejecting post ${postId}`);
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 500); // Simulate API call
-  };
-
-  const renderStatusBadge = (status: string) => {
-    switch (status) {
-      case "pending":
-        return (
-          <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">
-            <Clock className="h-3 w-3 mr-1" />
-            Pending
-          </Badge>
-        );
-      case "approved":
-        return (
-          <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Approved
-          </Badge>
-        );
-      case "rejected":
-        return (
-          <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20">
-            <XCircle className="h-3 w-3 mr-1" />
-            Rejected
-          </Badge>
-        );
-      default:
-        return null;
+  
+  const handleModeratePost = async () => {
+    if (!selectedPostId || !moderationAction) return;
+    
+    try {
+      await moderatePost({
+        postId: selectedPostId,
+        status: moderationAction === 'publish' ? 'published' : 'rejected',
+        moderationComment: moderationComment,
+      }).unwrap();
+      
+      toast.success(
+        moderationAction === 'publish' 
+          ? 'Post has been published successfully' 
+          : 'Post has been rejected'
+      );
+      
+      // Reset state
+      setSelectedPostId(null);
+      setModerationComment('');
+      setModerationAction(null);
+      
+      // Refresh the list
+      refetch();
+    } catch (error) {
+      toast.error('Failed to moderate post');
     }
   };
-
-  if (isLoading) return <Loading />;
-
+  
   return (
-    <div className="blog-approval">
-      <Header
-        title="Blog Post Approval"
-        subtitle="Review and manage blog post submissions"
+    <div className="container py-8">
+      <Header 
+        title="Blog Post Moderation"
+        subtitle="Review and approve student blog posts before they are published"
         rightElement={
-          <div className="flex items-center gap-3">
-            <div className="bg-slate-800 p-2 rounded-md flex items-center gap-2">
-              <Filter size={14} className="text-slate-400" />
-              <select
-                className="bg-transparent text-sm border-none focus:outline-none text-white"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              >
-                <option value="all">All Posts</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
-            </div>
-          </div>
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh}
+            className="flex items-center"
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
         }
       />
-
-      <div className="blog-approval__content mt-6 space-y-4">
-        {filteredPosts.length === 0 ? (
-          <Card className="p-8 text-center text-slate-400">
-            <p>No blog posts found matching the selected filter.</p>
-          </Card>
-        ) : (
-          filteredPosts.map((post) => (
-            <Card key={post.id} className="p-6 bg-slate-900 border-slate-700">
-              <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex flex-wrap items-center gap-3 mb-2">
-                    {renderStatusBadge(post.status)}
-                    {post.tags.map((tag, index) => (
-                      <Badge
-                        key={index}
-                        variant="outline"
-                        className="bg-blue-500/10 text-blue-400 border-blue-500/20"
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                  <h2 className="text-xl font-semibold text-white mb-2">{post.title}</h2>
-                  <p className="text-slate-400 mb-3">{post.excerpt}</p>
-                  <div className="flex items-center text-xs text-slate-500 mb-4">
-                    <span className="mr-3">By {post.author}</span>
-                    <span>{new Date(post.date).toLocaleDateString()}</span>
-                    <div className="flex items-center ml-auto">
-                      <ThumbsUp className="h-3 w-3 mr-1" />
-                      <span className="mr-3">{post.likes}</span>
-                      <MessageSquare className="h-3 w-3 mr-1" />
-                      <span>{post.comments}</span>
+      
+      {isLoading ? (
+        <div className="flex justify-center my-10">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <div className="grid gap-6 mt-6">
+          {!data || !data.posts || data.posts.length === 0 ? (
+            <Card className="p-6 text-center">
+              <Text className="text-customgreys-dirtyGrey">No pending posts to moderate</Text>
+            </Card>
+          ) : (
+            data.posts.map((post) => (
+              <Card key={post.postId} className="overflow-hidden">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-xl mb-1">{post.title}</CardTitle>
+                      <Text className="text-sm text-customgreys-dirtyGrey">
+                        By {post.userName} • {format(new Date(post.createdAt), 'MMM d, yyyy')}
+                      </Text>
+                    </div>
+                    <div className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">
+                      Pending
                     </div>
                   </div>
-                </div>
-                <div className="flex flex-row md:flex-col gap-2 self-end md:self-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700"
-                  >
-                    <Eye className="h-4 w-4 mr-1" />
-                    Preview
-                  </Button>
-                  
-                  {post.status === "pending" && (
-                    <>
-                      <Button
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        onClick={() => handleApprove(post.id)}
+                </CardHeader>
+                <CardContent>
+                  <div className="mb-3">
+                    <div className="flex gap-2 mb-2">
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                        {post.category}
+                      </span>
+                      {post.tags?.map((tag, i) => (
+                        <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="prose prose-sm max-w-none mb-4">
+                    {/* Show a preview of the content */}
+                    <Text>
+                      {post.content.length > 300 
+                        ? `${post.content.substring(0, 300)}...` 
+                        : post.content}
+                    </Text>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-end gap-2 border-t pt-4">
+                  {/* Reject Dialog */}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        className="text-red-500 border-red-200 hover:bg-red-50"
+                        onClick={() => {
+                          setSelectedPostId(post.postId);
+                          setModerationAction('reject');
+                        }}
                       >
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        Approve
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="bg-red-600/10 text-red-500 border-red-600/20 hover:bg-red-600/20"
-                        onClick={() => handleReject(post.id)}
-                      >
-                        <XCircle className="h-4 w-4 mr-1" />
+                        <XCircle className="mr-2 h-4 w-4" />
                         Reject
                       </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </Card>
-          ))
-        )}
-      </div>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Reject this post?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will prevent the post from being published. Please provide feedback to the student.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <Textarea
+                        placeholder="Reason for rejection (optional)"
+                        className="mt-2" 
+                        value={moderationComment}
+                        onChange={(e) => setModerationComment(e.target.value)}
+                      />
+                      <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => {
+                          setSelectedPostId(null);
+                          setModerationComment('');
+                          setModerationAction(null);
+                        }}>
+                          Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-red-600 hover:bg-red-700 text-white"
+                          onClick={handleModeratePost}
+                          disabled={isModerateLoading}
+                        >
+                          {isModerateLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Reject Post
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  
+                  {/* Approve Dialog */}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button 
+                        className="text-white"
+                        onClick={() => {
+                          setSelectedPostId(post.postId);
+                          setModerationAction('publish');
+                        }}
+                      >
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Publish
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Publish this post?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will make the post visible to all users. You can provide additional feedback to the student.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <Textarea
+                        placeholder="Feedback comments (optional)"
+                        className="mt-2" 
+                        value={moderationComment}
+                        onChange={(e) => setModerationComment(e.target.value)}
+                      />
+                      <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => {
+                          setSelectedPostId(null);
+                          setModerationComment('');
+                          setModerationAction(null);
+                        }}>
+                          Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleModeratePost}
+                          disabled={isModerateLoading}
+                        >
+                          {isModerateLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Publish Post
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </CardFooter>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
-};
-
-export default BlogApproval;
+}

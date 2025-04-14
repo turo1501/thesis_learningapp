@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format as dateFormat } from 'date-fns';
 
 export default function ModerationPage() {
   const [moderationComment, setModerationComment] = useState('');
@@ -111,7 +111,7 @@ export default function ModerationPage() {
                     <div>
                       <CardTitle className="text-xl mb-1">{post.title}</CardTitle>
                       <Text className="text-sm text-customgreys-dirtyGrey">
-                        By {post.userName} • {format(new Date(post.createdAt), 'MMM d, yyyy')}
+                        By {post.userName} • {dateFormat(new Date(post.createdAt), 'MMM d, yyyy')}
                       </Text>
                     </div>
                     <div className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">

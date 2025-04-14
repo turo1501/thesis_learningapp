@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { format } from "date-fns";
+import { format as dateFormat } from "date-fns";
 import { 
   useGetAssignmentQuery, 
   useSubmitAssignmentMutation 
@@ -126,7 +126,7 @@ export default function AssignmentDetailPage() {
             )}
             <Badge variant="outline" className="bg-slate-900 border-slate-700">
               <Calendar className="h-3 w-3 mr-1" />
-              Due: {format(new Date(assignment.dueDate), "MMM dd, yyyy")}
+              Due: {dateFormat(new Date(assignment.dueDate), "MMM dd, yyyy")}
             </Badge>
             {isSubmitted && (
               <Badge className={isGraded ? "bg-green-600" : "bg-yellow-600"}>
@@ -190,7 +190,7 @@ export default function AssignmentDetailPage() {
                         <div>
                           <h5 className="font-medium">{user?.fullName || 'You'}</h5>
                           <p className="text-sm text-slate-400">
-                            Submitted: {format(new Date(userSubmission.submissionDate), "MMM dd, yyyy h:mm a")}
+                            Submitted: {dateFormat(new Date(userSubmission.submissionDate), "MMM dd, yyyy h:mm a")}
                           </p>
                         </div>
                       </div>

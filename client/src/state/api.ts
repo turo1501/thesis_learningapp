@@ -139,6 +139,133 @@ export const api = createApi({
       invalidatesTags: ["Users"],
     }),
 
+    getUsers: build.query<any[], { role?: string; status?: string; search?: string }>({
+      query: (params) => {
+        // Create query string from parameters
+        const queryParams = new URLSearchParams();
+        if (params.role) queryParams.append('role', params.role);
+        if (params.status) queryParams.append('status', params.status);
+        if (params.search) queryParams.append('search', params.search);
+        
+        return {
+          url: `users/clerk?${queryParams.toString()}`,
+          method: "GET",
+        };
+      },
+      providesTags: ["Users"],
+    }),
+
+    getUserById: build.query<any, string>({
+      query: (userId) => ({
+        url: `users/clerk/${userId}`,
+        method: "GET",
+      }),
+      providesTags: (result, error, userId) => [{ type: "Users", id: userId }],
+    }),
+
+    updateUserRole: build.mutation<
+      any, 
+      { userId: string; role: "student" | "teacher" | "admin" }
+    >({
+      query: ({ userId, role }) => ({
+        url: `users/clerk/${userId}/role`,
+        method: "PUT",
+        body: { role },
+      }),
+      invalidatesTags: ["Users"],
+    }),
+
+    updateUserStatus: build.mutation<
+      any, 
+      { userId: string; status: "active" | "suspended" }
+    >({
+      query: ({ userId, status }) => ({
+        url: `users/clerk/${userId}/status`,
+        method: "PUT",
+        body: { status },
+      }),
+      invalidatesTags: ["Users"],
+    }),
+
+    requestRoleChange: build.mutation<
+      any,
+      { userId: string; requestedRole: string; reason: string }
+    >({
+      query: (data) => ({
+        url: "role-change/request",
+        method: "POST",
+        body: data,
+      }),
+    }),
+
+    getPendingRoleChangeRequests: build.query<
+      {
+        userId: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        imageUrl?: string;
+        currentRole: string;
+        requestedRole: string;
+        reason: string;
+        requestedAt: string;
+      }[],
+      void
+    >({
+      query: () => ({
+        url: "role-change/pending",
+        method: "GET",
+      }),
+      providesTags: ["Users"],
+    }),
+
+    approveRoleChange: build.mutation<any, string>({
+      query: (userId) => ({
+        url: `role-change/${userId}/approve`,
+        method: "PUT",
+      }),
+      invalidatesTags: ["Users"],
+    }),
+
+    rejectRoleChange: build.mutation<any, { userId: string; rejectionReason: string }>({
+      query: ({ userId, rejectionReason }) => ({
+        url: `role-change/${userId}/reject`,
+        method: "PUT",
+        body: { rejectionReason },
+      }),
+      invalidatesTags: ["Users"],
+    }),
+
+    createUser: build.mutation<
+      any,
+      {
+        email: string;
+        firstName: string;
+        lastName: string;
+        role: "student" | "teacher" | "admin";
+        password?: string;
+        sendInvite?: boolean;
+      }
+    >({
+      query: (userData) => ({
+        url: "users/clerk",
+        method: "POST",
+        body: userData,
+      }),
+      invalidatesTags: ["Users"],
+    }),
+
+    resetUserPassword: build.mutation<
+      any,
+      { email: string }
+    >({
+      query: (data) => ({
+        url: "users/clerk/reset-password",
+        method: "POST",
+        body: data,
+      }),
+    }),
+
     /* 
     ===============
     COURSES
@@ -706,4 +833,14 @@ export const {
   useUpdateLessonProgressMutation,
   useGetMeetingByIdQuery,
   useUpdateMeetingAttendanceMutation,
+  useGetUsersQuery,
+  useUpdateUserRoleMutation,
+  useUpdateUserStatusMutation,
+  useRequestRoleChangeMutation,
+  useGetPendingRoleChangeRequestsQuery,
+  useApproveRoleChangeMutation,
+  useRejectRoleChangeMutation,
+  useCreateUserMutation,
+  useResetUserPasswordMutation,
+  useGetUserByIdQuery,
 } = api;
