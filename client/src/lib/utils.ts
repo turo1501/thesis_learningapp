@@ -437,3 +437,39 @@ async function uploadVideo(
     throw error;
   }
 }
+
+/**
+ * Uploads an assignment file to S3 using a presigned URL
+ */
+export const uploadAssignmentFile = async (
+  file: File,
+  getUploadFileUrl: any
+) => {
+  try {
+    // Get the presigned URL
+    const { data } = await getUploadFileUrl({
+      fileName: file.name,
+      fileType: file.type,
+    }).unwrap();
+
+    // Use the presigned URL to upload the file directly to S3
+    await fetch(data.uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": file.type,
+      },
+      body: file,
+    });
+
+    // Return the file URL
+    return {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      url: data.fileUrl,
+    };
+  } catch (error) {
+    console.error(`Failed to upload file ${file.name}:`, error);
+    throw error;
+  }
+};

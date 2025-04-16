@@ -1,29 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { useUser } from "@clerk/nextjs";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { useGetCoursesQuery, useCreateAssignmentMutation } from "@/state/api";
-import { format } from "date-fns";
-import { CalendarIcon, ArrowLeft } from "lucide-react";
-
+import { useGetCoursesQuery, useCreateAssignmentMutation, useGetUploadAssignmentFileUrlMutation } from "@/state/api";
+import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
+import { 
   Select,
   SelectContent,
   SelectItem,
@@ -31,86 +17,254 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Loader2,
+  AlertCircle,
+  ArrowLeft,
+  Calendar,
+  Upload,
+  Trash2,
+  FilePlus,
+  Save
+} from "lucide-react";
+import { toast } from "sonner";
+import { 
+  Form, 
+  FormControl, 
+  FormDescription, 
+  FormField, 
+  FormItem, 
+  FormLabel, 
+  FormMessage 
+} from "@/components/ui/form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import * as z from "zod";
+import { useUser, useAuth } from "@clerk/nextjs";
+import { uploadAssignmentFile } from "@/lib/utils";
+import { format } from "date-fns";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import Header from "@/components/Header";
-import { toast } from "sonner";
 
-const formSchema = z.object({
-  title: z.string().min(5, { message: "Title must be at least 5 characters" }),
-  description: z.string().min(10, { message: "Description must be at least 10 characters" }),
-  courseId: z.string().min(1, { message: "Course is required" }),
-  dueDate: z.date({ required_error: "Due date is required" }),
-  points: z.number().min(1, { message: "Points must be at least 1" }),
+// Define validation schema
+const assignmentSchema = z.object({
+  title: z.string().min(5, "Title must be at least 5 characters"),
+  description: z.string().min(10, "Description must be at least 10 characters"),
+  courseId: z.string().min(1, "Please select a course"),
+  dueDate: z.string().min(1, "Due date is required"),
+  points: z.number().min(0, "Points must be a positive number"),
+  status: z.enum(["draft", "published"]),
 });
 
-export default function CreateAssignmentPage() {
-  const router = useRouter();
-  const { user } = useUser();
-  const { data: courses = [], isLoading: isLoadingCourses } = useGetCoursesQuery({ category: "" });
-  const [createAssignment, { isLoading }] = useCreateAssignmentMutation();
-  
-  // Filter courses where the teacher is the owner
-  const teacherCourses = courses.filter(course => course.teacherId === user?.id);
+type AssignmentFormValues = z.infer<typeof assignmentSchema>;
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+interface Course {
+  courseId: string;
+  title: string;
+  description?: string;
+  teacherId: string;
+  category: string;
+  courseCode?: string;
+  status: string;
+  level: string;
+}
+
+interface ApiResponse<T> {
+  data: T;
+  message?: string;
+  success?: boolean;
+}
+
+const CreateAssignmentPage = () => {
+  const router = useRouter();
+  const [files, setFiles] = useState<File[]>([]);
+  const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const { user } = useUser();
+  const { userId } = useAuth();
+  
+  // Fetch courses for the dropdown
+  const { data: coursesData, isLoading: isLoadingCourses, error: coursesError } = useGetCoursesQuery({
+    teacherId: user?.id || "",
+  });
+  
+  // For file upload
+  const [getUploadUrl] = useGetUploadAssignmentFileUrlMutation();
+  
+  // Extract courses from API response
+  const courses = useMemo(() => {
+    if (!coursesData) return [] as Course[];
+    
+    // Handle both array responses and object responses with data property
+    if (Array.isArray(coursesData)) {
+      return coursesData as Course[];
+    } else if (typeof coursesData === 'object' && coursesData !== null) {
+      // For object responses that might have a data property
+      const data = (coursesData as unknown as ApiResponse<Course[]>).data;
+      return Array.isArray(data) ? data : [] as Course[];
+    }
+    
+    return [] as Course[];
+  }, [coursesData]);
+
+  // Filter courses where the current user is the teacher
+  const teacherCourses = useMemo(() => {
+    if (!user) return [] as Course[];
+    return courses.filter(course => course.teacherId === user.id);
+  }, [courses, user]);
+  
+  // Create assignment mutation
+  const [createAssignment, { isLoading: isCreating }] = useCreateAssignmentMutation();
+
+  // Set up form with validation
+  const form = useForm<AssignmentFormValues>({
+    resolver: zodResolver(assignmentSchema),
     defaultValues: {
       title: "",
       description: "",
       courseId: "",
+      dueDate: "",
       points: 10,
+      status: "draft",
     },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    try {
-      await createAssignment({
-        courseId: values.courseId,
-        title: values.title,
-        description: values.description,
-        dueDate: values.dueDate.toISOString(),
-        points: values.points,
-      }).unwrap();
-      
-      toast.success("Assignment created successfully");
-      router.push("/teacher/assignments");
-    } catch (error) {
-      console.error("Failed to create assignment:", error);
-      toast.error("Failed to create assignment");
+  // Set minimum date for due date (today)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const minDate = today.toISOString().slice(0, 16);
+  
+  // Handle file selection
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files);
+      setFiles(prev => [...prev, ...newFiles]);
     }
-  }
-
-  // Function to check if a date is in the past
-  const isPastDate = (date: Date): boolean => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return date < today;
+  };
+  
+  // Remove file
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  };
+  
+  // Upload all files and get their URLs
+  const uploadAllFiles = async () => {
+    if (files.length === 0) {
+      return [];
+    }
+    
+    setIsUploading(true);
+    const uploadedAttachments = [];
+    
+    try {
+      for (const file of files) {
+        // Get pre-signed URL from the server
+        const response = await getUploadUrl({
+          fileName: file.name,
+          fileType: file.type,
+        }).unwrap();
+        
+        // Upload file directly to S3
+        await fetch(response.uploadUrl, {
+          method: "PUT",
+          body: file,
+          headers: {
+            "Content-Type": file.type,
+          },
+        });
+        
+        // Add file info to attachments
+        uploadedAttachments.push({
+          name: file.name,
+          url: response.fileUrl,
+        });
+      }
+      
+      setAttachments(uploadedAttachments);
+      return uploadedAttachments;
+    } catch (error) {
+      console.error("Error uploading files:", error);
+      toast.error("Failed to upload one or more files");
+      throw error;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+  
+  // Handle form submission
+  const onSubmit = async (data: AssignmentFormValues) => {
+    try {
+      if (!user) {
+        toast.error("User authentication required");
+        return;
+      }
+      
+      // First upload all files to S3
+      const uploadedAttachments = await uploadAllFiles();
+      
+      const assignmentData = {
+        ...data,
+        teacherId: user.id,
+        dueDate: format(new Date(data.dueDate), "yyyy-MM-dd"),
+        attachments: uploadedAttachments,
+      };
+      
+      console.log("Creating assignment with data:", assignmentData);
+      
+      // Submit to API
+      await createAssignment(assignmentData).unwrap();
+      
+      toast.success(
+        data.status === "published" 
+          ? "Assignment published successfully" 
+          : "Assignment saved as draft"
+      );
+      
+      // Navigate to the assignments list after a slight delay
+      // to allow the cache to invalidate
+      setTimeout(() => {
+        router.push("/teacher/assignments");
+      }, 500);
+      
+    } catch (err: any) {
+      toast.error(`Failed to create assignment: ${err.message || "Unknown error"}`);
+      console.error("Assignment creation error:", err);
+    }
   };
 
-  return (
-    <div className="create-assignment">
-      <div className="flex items-center gap-5 mb-5">
-        <button
-          className="flex items-center border border-slate-700 rounded-lg p-2 gap-2 cursor-pointer hover:bg-slate-800 text-slate-300"
-          onClick={() => router.push("/teacher/assignments")}
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Assignments</span>
-        </button>
+  if (isLoadingCourses) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
       </div>
+    );
+  }
 
-      <Header 
-        title="Create Assignment" 
-        subtitle="Create a new assignment for your students" 
-      />
+  if (coursesError) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <p className="text-red-500 mb-2">Failed to load courses</p>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
 
-      <Card className="mt-6 bg-slate-800 border-slate-700">
-        <CardContent className="pt-6">
+  return (
+    <div className="container mx-auto py-10">
+      <Card className="max-w-5xl mx-auto">
+        <CardHeader>
+          <CardTitle>Create Assignment</CardTitle>
+          <CardDescription>
+            Create a new assignment for your students
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
@@ -118,82 +272,82 @@ export default function CreateAssignmentPage() {
                 name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-200">Assignment Title</FormLabel>
+                    <FormLabel>Title</FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="Enter a title for your assignment" 
-                        {...field} 
-                        className="bg-slate-900 border-slate-700 text-slate-200"
-                      />
+                      <Input placeholder="Enter assignment title" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
+              
               <FormField
                 control={form.control}
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-slate-200">Assignment Description</FormLabel>
+                    <FormLabel>Description</FormLabel>
                     <FormControl>
                       <Textarea 
-                        placeholder="Provide detailed instructions for your students" 
+                        placeholder="Enter assignment details, requirements, etc." 
+                        className="min-h-32" 
                         {...field} 
-                        rows={5}
-                        className="bg-slate-900 border-slate-700 text-slate-200 resize-none"
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
                   name="courseId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-slate-200">Course</FormLabel>
+                      <FormLabel>Course</FormLabel>
                       <Select 
-                        disabled={isLoadingCourses} 
                         onValueChange={field.onChange} 
                         defaultValue={field.value}
                       >
                         <FormControl>
-                          <SelectTrigger className="bg-slate-900 border-slate-700 text-slate-200">
+                          <SelectTrigger>
                             <SelectValue placeholder="Select a course" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
-                          {teacherCourses.map(course => (
-                            <SelectItem key={course.courseId} value={course.courseId} className="cursor-pointer">
-                              {course.title}
+                        <SelectContent>
+                          {teacherCourses.length === 0 ? (
+                            <SelectItem value="no-courses" disabled>
+                              No courses available
                             </SelectItem>
-                          ))}
+                          ) : (
+                            teacherCourses.map((course) => (
+                              <SelectItem key={course.courseId} value={course.courseId}>
+                                {course.title}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
+                
                 <FormField
                   control={form.control}
                   name="dueDate"
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
-                      <FormLabel className="text-slate-200">Due Date</FormLabel>
+                      <FormLabel>Due Date</FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
                               variant={"outline"}
                               className={cn(
-                                "pl-3 text-left font-normal bg-slate-900 border-slate-700 text-slate-200",
-                                !field.value && "text-slate-500"
+                                "w-full pl-3 text-left font-normal",
+                                !field.value && "text-muted-foreground"
                               )}
                             >
                               {field.value ? (
@@ -205,14 +359,13 @@ export default function CreateAssignmentPage() {
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 bg-slate-900 border-slate-700" align="start">
+                        <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
                             selected={field.value}
                             onSelect={field.onChange}
+                            disabled={(date) => date < new Date()}
                             initialFocus
-                            disabled={[{ before: new Date() }]}
-                            className="bg-slate-900 text-slate-200"
                           />
                         </PopoverContent>
                       </Popover>
@@ -220,46 +373,122 @@ export default function CreateAssignmentPage() {
                     </FormItem>
                   )}
                 />
-
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
                   name="points"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-slate-200">Points</FormLabel>
+                      <FormLabel>Points</FormLabel>
                       <FormControl>
-                        <Input
-                          type="number"
-                          min={1}
+                        <Input 
+                          type="number" 
+                          placeholder="100" 
                           {...field}
-                          onChange={e => field.onChange(parseInt(e.target.value))}
-                          className="bg-slate-900 border-slate-700 text-slate-200"
+                          onChange={(e) => field.onChange(Number(e.target.value))}
                         />
                       </FormControl>
-                      <FormDescription className="text-slate-400">
-                        Maximum points for this assignment
-                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select 
+                        onValueChange={field.onChange} 
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="draft">Draft</SelectItem>
+                          <SelectItem value="published">Published</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
 
-              <div className="flex justify-end gap-4">
-                <Button
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="files">Attachments</Label>
+                <div className="mt-2">
+                  <div className="flex items-center">
+                    <Label 
+                      htmlFor="file-upload" 
+                      className="cursor-pointer bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-4 py-2 rounded-md flex items-center"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Add Files
+                    </Label>
+                    <Input 
+                      id="file-upload" 
+                      type="file" 
+                      multiple 
+                      onChange={handleFileChange} 
+                      className="hidden"
+                    />
+                  </div>
+                </div>
+                
+                {files.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {files.map((file, index) => (
+                      <div 
+                        key={index}
+                        className="p-3 rounded-md bg-slate-800 border border-slate-700 flex items-center justify-between"
+                      >
+                        <div className="flex items-center">
+                          <FilePlus className="h-5 w-5 text-blue-400 mr-2" />
+                          <span className="truncate max-w-[200px] md:max-w-md">{file.name}</span>
+                          <span className="text-xs text-slate-400 ml-2">
+                            {(file.size / 1024).toFixed(0)} KB
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(index)}
+                          className="text-red-400 hover:text-red-300 hover:bg-transparent"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+              
+              <div className="flex justify-end space-x-4 pt-4">
+                <Button 
                   type="button"
                   variant="outline"
                   onClick={() => router.push("/teacher/assignments")}
-                  className="border-slate-700 text-slate-300 hover:bg-slate-700"
                 >
                   Cancel
                 </Button>
                 <Button 
-                  type="submit" 
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={isLoading}
+                  type="submit"
+                  disabled={isCreating || isUploading}
                 >
-                  {isLoading ? "Creating..." : "Create Assignment"}
+                  {(isCreating || isUploading) && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  {isUploading ? "Uploading Files..." : isCreating ? "Creating..." : "Create Assignment"}
                 </Button>
               </div>
             </form>
@@ -268,4 +497,6 @@ export default function CreateAssignmentPage() {
       </Card>
     </div>
   );
-} 
+};
+
+export default CreateAssignmentPage; 

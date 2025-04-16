@@ -45,9 +45,15 @@ const StudentAssignments = () => {
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
 
   // Use separate queries for each course and combine the results
-  const courseQueries = enrolledCourses.map(course => {
+  const courseQueries = useMemo(() => {
+    return enrolledCourses.map(course => {
+      // Skip if course ID is invalid
+      if (!course.courseId || course.courseId === "undefined") {
+        return { data: [], isLoading: false, isError: false };
+      }
     return useGetCourseAssignmentsQuery(course.courseId);
   });
+  }, [enrolledCourses]);
 
   // Combine assignments from all courses when enrolledCourses or queries change
   useEffect(() => {
@@ -319,6 +325,12 @@ const renderAssignmentsList = (
             </Button>
           </div>
         </div>
+      </Card>
+    );
+  });
+};
+
+export default StudentAssignments; 
       </Card>
     );
   });

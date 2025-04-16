@@ -20,18 +20,33 @@ import { useAppDispatch, useAppSelector } from "@/state/redux";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, Plus } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import DroppableComponent from "./Droppable";
 import ChapterModal from "./ChapterModal";
 import SectionModal from "./SectionModal";
+import Loading from "@/components/Loading";
+import { toast } from "sonner";
 
 const CourseEditor = () => {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
-  const { data: course, isLoading, refetch } = useGetCourseQuery(id);
-  const [updateCourse] = useUpdateCourseMutation();
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Redirect to courses page if ID is missing or invalid
+  useEffect(() => {
+    if (!id || id === "undefined") {
+      router.push("/teacher/courses");
+      return;
+    }
+  }, [id, router]);
+  
+  // Skip the query if ID is invalid
+  const { data: course, isLoading, refetch, error } = useGetCourseQuery(id, {
+    skip: !id || id === "undefined",
+  });
+  const [updateCourse, { isLoading: isUpdating }] = useUpdateCourseMutation();
   const [getUploadVideoUrl] = useGetUploadVideoUrlMutation();
 
   const dispatch = useAppDispatch();
@@ -48,21 +63,29 @@ const CourseEditor = () => {
     },
   });
 
+  // Initialize form values with course data when available
   useEffect(() => {
-    if (course) {
+    if (course && !isInitialized) {
+      console.log("Setting form values from course data:", course);
       methods.reset({
-        courseTitle: course.title,
-        courseDescription: course.description,
-        courseCategory: course.category,
-        coursePrice: centsToDollars(course.price),
+        courseTitle: course.title || "",
+        courseDescription: course.description || "",
+        courseCategory: course.category || "",
+        coursePrice: centsToDollars(course.price) || "0",
         courseStatus: course.status === "Published",
       });
       dispatch(setSections(course.sections || []));
+      setIsInitialized(true);
     }
-  }, [course, methods]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [course, methods, dispatch, isInitialized]);
 
   const onSubmit = async (data: CourseFormData) => {
     try {
+      if (!id || id === "undefined") {
+        toast.error("Invalid course ID");
+        return;
+      }
+
       const updatedSections = await uploadAllVideos(
         sections,
         id,
@@ -76,11 +99,30 @@ const CourseEditor = () => {
         formData,
       }).unwrap();
 
-      refetch();
+      toast.success("Course updated successfully");
+      await refetch(); // Refresh data after update
     } catch (error) {
       console.error("Failed to update course:", error);
+      toast.error("Failed to update course. Please try again.");
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loading />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen">
+        <p className="text-red-500 mb-4">Error loading course data</p>
+        <Button onClick={() => refetch()}>Try Again</Button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -116,10 +158,13 @@ const CourseEditor = () => {
                 <Button
                   type="submit"
                   className="bg-primary-700 hover:bg-primary-600"
+                  disabled={isUpdating}
                 >
-                  {methods.watch("courseStatus")
+                  {isUpdating ? "Saving..." : 
+                    methods.watch("courseStatus")
                     ? "Update Published Course"
-                    : "Save Draft"}
+                      : "Save Draft"
+                  }
                 </Button>
               </div>
             }
@@ -134,7 +179,6 @@ const CourseEditor = () => {
                   type="text"
                   placeholder="Write course title here"
                   className="border-none"
-                  initialValue={course?.title}
                 />
 
                 <CustomFormField
@@ -142,7 +186,6 @@ const CourseEditor = () => {
                   label="Course Description"
                   type="textarea"
                   placeholder="Write course description here"
-                  initialValue={course?.description}
                 />
 
                 <CustomFormField
@@ -159,7 +202,6 @@ const CourseEditor = () => {
                       label: "Artificial Intelligence",
                     },
                   ]}
-                  initialValue={course?.category}
                 />
 
                 <CustomFormField
@@ -167,7 +209,6 @@ const CourseEditor = () => {
                   label="Course Price"
                   type="number"
                   placeholder="0"
-                  initialValue={course?.price}
                 />
               </div>
             </div>

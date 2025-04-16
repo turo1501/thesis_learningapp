@@ -7,7 +7,8 @@ import {
   getCourseAssignments, 
   gradeSubmission, 
   submitAssignment, 
-  updateAssignment
+  updateAssignment,
+  getUploadAssignmentFileUrl
 } from "../controllers/assignmentController";
 import { authenticate } from "../middleware/authMiddleware";
 import { requireRole } from "../middleware/roleMiddleware";
@@ -45,6 +46,15 @@ router.delete(
   authenticate, 
   requireRole(["teacher", "admin"]), 
   deleteAssignment
+);
+
+// Generate upload URL for assignment files
+router.post(
+  "/get-upload-file-url",
+  requireAuth(),
+  authenticate,
+  requireRole(["teacher", "admin"]),
+  getUploadAssignmentFileUrl
 );
 
 // Submit an assignment (student only)

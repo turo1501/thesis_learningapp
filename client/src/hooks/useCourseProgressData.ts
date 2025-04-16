@@ -16,7 +16,7 @@ export const useCourseProgressData = () => {
   const { data: course, isLoading: courseLoading } = useGetCourseQuery(
     (courseId as string) ?? "",
     {
-      skip: !courseId,
+      skip: !courseId || courseId === "undefined",
     }
   );
 

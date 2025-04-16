@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -47,6 +47,33 @@ import { cn } from "@/lib/utils";
 import Header from "@/components/Header";
 import { toast } from "sonner";
 
+// Define Course type locally instead of importing
+type Course = {
+  courseId: string;
+  teacherId: string;
+  teacherName: string;
+  title: string;
+  description?: string;
+  category: string;
+  image?: string;
+  price?: number;
+  level: "Beginner" | "Intermediate" | "Advanced";
+  status: "Draft" | "Published";
+  sections: any[];
+  enrollments?: Array<{
+    userId: string;
+    userName?: string;
+    userEmail?: string;
+  }>;
+};
+
+// Define API response type
+interface ApiResponse<T> {
+  data: T;
+  status: number;
+  message?: string;
+}
+
 const formSchema = z.object({
   title: z.string().min(5, { message: "Title must be at least 5 characters" }),
   description: z.string().optional(),
@@ -63,22 +90,38 @@ type Participant = {
   studentId: string;
   studentName: string;
   studentEmail: string;
+  status?: "confirmed" | "pending" | "cancelled";
 };
 
 export default function CreateMeetingPage() {
   const router = useRouter();
   const { user } = useUser();
-  const { data: courses = [], isLoading: isLoadingCourses } = useGetCoursesQuery({ category: "" });
+  const { data: coursesData = [], isLoading: isLoadingCourses } = useGetCoursesQuery({ category: "" });
   const [createMeeting, { isLoading }] = useCreateMeetingMutation();
   
+  // Handle courses data properly
+  const courses = useMemo(() => {
+    // Handle different response formats
+    if (Array.isArray(coursesData)) {
+      return coursesData as Course[];
+    } else if (typeof coursesData === 'object' && coursesData !== null) {
+      // For object responses that might have a data property
+      const data = (coursesData as unknown as ApiResponse<Course[]>).data;
+      return Array.isArray(data) ? data : [] as Course[];
+    }
+    return [] as Course[];
+  }, [coursesData]);
+  
   // Filter courses where the teacher is the owner
-  const teacherCourses = courses.filter(course => course.teacherId === user?.id);
+  const teacherCourses = useMemo(() => {
+    return courses.filter(course => course.teacherId === user?.id);
+  }, [courses, user?.id]);
   
   // State for participants
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [studentName, setStudentName] = useState("");
   const [studentEmail, setStudentEmail] = useState("");
-  const [selectedCourseStudents, setSelectedCourseStudents] = useState<any[]>([]);
+  const [selectedCourseStudents, setSelectedCourseStudents] = useState<Participant[]>([]);
   const [isClient, setIsClient] = useState(false);
 
   // Use useEffect to handle client-side only code
@@ -110,10 +153,10 @@ export default function CreateMeetingPage() {
     
     // Get students enrolled in this course
     const course = teacherCourses.find(c => c.courseId === courseId);
-    if (course && course.enrollments) {
-      const students = course.enrollments.map((enrollment: any) => ({
+    if (course && course.enrollments && course.enrollments.length > 0) {
+      const students = course.enrollments.map((enrollment) => ({
         studentId: enrollment.userId,
-        studentName: enrollment.userName,
+        studentName: enrollment.userName || 'Unknown Student',
         studentEmail: enrollment.userEmail || 'unknown@example.com',
       }));
       setSelectedCourseStudents(students);
@@ -133,6 +176,7 @@ export default function CreateMeetingPage() {
       studentId: `manual-${Date.now()}`, // Generate a temporary ID
       studentName,
       studentEmail,
+      status: "pending" as const,
     };
     
     setParticipants([...participants, newParticipant]);
@@ -148,7 +192,13 @@ export default function CreateMeetingPage() {
       return;
     }
     
-    setParticipants([...participants, student]);
+    // Add status field to the participant
+    const newParticipant = {
+      ...student,
+      status: "pending" as const
+    };
+    
+    setParticipants([...participants, newParticipant]);
   };
   
   // Remove a participant
@@ -158,17 +208,30 @@ export default function CreateMeetingPage() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
+      if (participants.length === 0) {
+        toast.error("Please add at least one participant to the meeting");
+        return;
+      }
+
       // Find course name for reference
       const course = teacherCourses.find(c => c.courseId === values.courseId);
       
       // Extract values and prepare payload with correct types
       const { date, ...otherValues } = values;
       
+      // Format the participants to match the expected format
+      const formattedParticipants = participants.map(p => ({
+        studentId: p.studentId,
+        studentName: p.studentName,
+        studentEmail: p.studentEmail,
+        status: p.status || "pending"
+      }));
+      
       await createMeeting({
         ...otherValues,
         date: date.toISOString(), // Convert Date to string
         courseName: course?.title || "",
-        participants
+        participants: formattedParticipants
       }).unwrap();
       
       toast.success("Meeting created successfully");
@@ -487,6 +550,69 @@ export default function CreateMeetingPage() {
                   <div className="flex items-end">
                     <Button 
                       type="button"
+                      onClick={addParticipant}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add Participant
+                    </Button>
+                  </div>
+                </div>
+                
+                {participants.length > 0 ? (
+                  <div className="space-y-2 mb-4">
+                    <h4 className="text-sm font-medium text-slate-300 mb-2">Added Participants</h4>
+                    {participants.map((participant, index) => (
+                      <div 
+                        key={index}
+                        className="flex justify-between items-center bg-slate-900 p-3 rounded-md"
+                      >
+                        <div>
+                          <p className="text-slate-200">{participant.studentName}</p>
+                          <p className="text-xs text-slate-400">{participant.studentEmail}</p>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={() => removeParticipant(index)}
+                          className="text-red-400 hover:text-red-300 hover:bg-red-950/30"
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center p-4 bg-slate-900 rounded-md mb-4">
+                    <p className="text-slate-400">No participants added yet</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push("/teacher/meetings")}
+                  className="border-slate-700 text-slate-300 hover:bg-slate-700"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={isLoading || participants.length === 0}
+                >
+                  {isLoading ? "Creating..." : "Create Meeting"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+} 
                       onClick={addParticipant}
                       className="bg-blue-600 hover:bg-blue-700"
                     >
