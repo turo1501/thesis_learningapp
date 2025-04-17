@@ -27,6 +27,12 @@ const ChaptersSidebar = () => {
     updateChapterProgress,
   } = useCourseProgressData();
 
+  // Debug logging
+  if (process.env.NODE_ENV !== "production") {
+    console.log("ChaptersSidebar - course:", course);
+    console.log("ChaptersSidebar - userProgress:", userProgress);
+  }
+
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,7 +41,11 @@ const ChaptersSidebar = () => {
 
   if (isLoading) return <Loading />;
   if (!user) return <div>Please sign in to view course progress.</div>;
-  if (!course || !userProgress) return <div>Error loading course content</div>;
+  if (!course) return <div>Error loading course content</div>;
+  if (!userProgress) return <div>Error loading progress data</div>;
+  if (!course.sections || !Array.isArray(course.sections)) {
+    return <div>No course sections available</div>;
+  }
 
   const toggleSection = (sectionTitle: string) => {
     setExpandedSections((prevSections) =>
@@ -54,15 +64,15 @@ const ChaptersSidebar = () => {
   return (
     <div ref={sidebarRef} className="chapters-sidebar">
       <div className="chapters-sidebar__header">
-        <h2 className="chapters-sidebar__title">{course.title}</h2>
+        <h2 className="chapters-sidebar__title">{course.title || "Course"}</h2>
         <hr className="chapters-sidebar__divider" />
       </div>
       {course.sections.map((section, index) => (
         <Section
-          key={section.sectionId}
+          key={section.sectionId || `section-${index}`}
           section={section}
           index={index}
-          sectionProgress={userProgress.sections.find(
+          sectionProgress={userProgress.sections?.find(
             (s) => s.sectionId === section.sectionId
           )}
           chapterId={chapterId as string}
@@ -102,15 +112,22 @@ const Section = ({
     completed: boolean
   ) => void;
 }) => {
+  // Handle potentially missing section data
+  if (!section) return null;
+  
+  // Safety checks for missing data
+  const sectionTitle = section.sectionTitle || `Section ${index + 1}`;
+  const chapters = section.chapters || [];
+  
   const completedChapters =
-    sectionProgress?.chapters.filter((c: any) => c.completed).length || 0;
-  const totalChapters = section.chapters.length;
-  const isExpanded = expandedSections.includes(section.sectionTitle);
+    sectionProgress?.chapters?.filter((c: any) => c.completed)?.length || 0;
+  const totalChapters = chapters.length;
+  const isExpanded = expandedSections.includes(sectionTitle);
 
   return (
     <div className="chapters-sidebar__section">
       <div
-        onClick={() => toggleSection(section.sectionTitle)}
+        onClick={() => toggleSection(sectionTitle)}
         className="chapters-sidebar__section-header"
       >
         <div className="chapters-sidebar__section-title-wrapper">
@@ -124,12 +141,12 @@ const Section = ({
           )}
         </div>
         <h3 className="chapters-sidebar__section-title">
-          {section.sectionTitle}
+          {sectionTitle}
         </h3>
       </div>
       <hr className="chapters-sidebar__divider" />
 
-      {isExpanded && (
+      {isExpanded && chapters.length > 0 && (
         <div className="chapters-sidebar__section-content">
           <ProgressVisuals
             section={section}
@@ -145,6 +162,11 @@ const Section = ({
             handleChapterClick={handleChapterClick}
             updateChapterProgress={updateChapterProgress}
           />
+        </div>
+      )}
+      {isExpanded && chapters.length === 0 && (
+        <div className="chapters-sidebar__empty-section">
+          No chapters available in this section
         </div>
       )}
       <hr className="chapters-sidebar__divider" />
@@ -163,17 +185,21 @@ const ProgressVisuals = ({
   completedChapters: number;
   totalChapters: number;
 }) => {
+  // Safety check
+  const chapters = section?.chapters || [];
+  
   return (
     <>
       <div className="chapters-sidebar__progress">
         <div className="chapters-sidebar__progress-bars">
-          {section.chapters.map((chapter: any) => {
-            const isCompleted = sectionProgress?.chapters.find(
+          {chapters.map((chapter: any) => {
+            const isCompleted = sectionProgress?.chapters?.find(
               (c: any) => c.chapterId === chapter.chapterId
-            )?.completed;
+            )?.completed || false;
+            
             return (
               <div
-                key={chapter.chapterId}
+                key={chapter.chapterId || Math.random().toString()}
                 className={cn(
                   "chapters-sidebar__progress-bar",
                   isCompleted && "chapters-sidebar__progress-bar--completed"
@@ -212,21 +238,31 @@ const ChaptersList = ({
     completed: boolean
   ) => void;
 }) => {
+  // Safety check for missing data
+  if (!section || !section.chapters) {
+    return <p>No chapters available</p>;
+  }
+  
   return (
     <ul className="chapters-sidebar__chapters">
-      {section.chapters.map((chapter: any, index: number) => (
-        <Chapter
-          key={chapter.chapterId}
-          chapter={chapter}
-          index={index}
-          sectionId={section.sectionId}
-          sectionProgress={sectionProgress}
-          chapterId={chapterId}
-          courseId={courseId}
-          handleChapterClick={handleChapterClick}
-          updateChapterProgress={updateChapterProgress}
-        />
-      ))}
+      {section.chapters.map((chapter: any, index: number) => {
+        // Skip invalid chapters
+        if (!chapter) return null;
+        
+        return (
+          <Chapter
+            key={chapter.chapterId || `chapter-${index}`}
+            chapter={chapter}
+            index={index}
+            sectionId={section.sectionId || ''}
+            sectionProgress={sectionProgress}
+            chapterId={chapterId}
+            courseId={courseId}
+            handleChapterClick={handleChapterClick}
+            updateChapterProgress={updateChapterProgress}
+          />
+        );
+      })}
     </ul>
   );
 };
@@ -254,53 +290,50 @@ const Chapter = ({
     completed: boolean
   ) => void;
 }) => {
-  const chapterProgress = sectionProgress?.chapters.find(
-    (c: any) => c.chapterId === chapter.chapterId
-  );
-  const isCompleted = chapterProgress?.completed;
-  const isCurrentChapter = chapterId === chapter.chapterId;
+  // Safety checks for missing data
+  if (!chapter || !sectionId) return null;
+  
+  const chapterTitle = chapter.title || `Chapter ${index + 1}`;
+  const currentChapterId = chapter.chapterId || '';
+  
+  // Check if chapter is completed
+  const isCompleted = sectionProgress?.chapters?.some(
+    (c: any) => c.chapterId === currentChapterId && c.completed
+  ) || false;
+  
+  // Check if chapter is currently selected
+  const isActive = currentChapterId === chapterId;
 
   const handleToggleComplete = (e: React.MouseEvent) => {
     e.stopPropagation();
-
-    updateChapterProgress(sectionId, chapter.chapterId, !isCompleted);
+    updateChapterProgress(sectionId, currentChapterId, !isCompleted);
   };
 
   return (
     <li
-      className={cn("chapters-sidebar__chapter", {
-        "chapters-sidebar__chapter--current": isCurrentChapter,
-      })}
-      onClick={() => handleChapterClick(sectionId, chapter.chapterId)}
+      className={cn(
+        "chapters-sidebar__chapter",
+        isActive && "chapters-sidebar__chapter--active"
+      )}
+      onClick={() => handleChapterClick(sectionId, currentChapterId)}
     >
-      {isCompleted ? (
-        <div
-          className="chapters-sidebar__chapter-check"
-          onClick={handleToggleComplete}
-          title="Toggle completion status"
-        >
-          <CheckCircle className="chapters-sidebar__check-icon" />
+      <div className="chapters-sidebar__chapter-content">
+        <div className="chapters-sidebar__chapter-icon">
+          <FileText className="chapters-sidebar__chapter-file-icon" />
         </div>
-      ) : (
-        <div
-          className={cn("chapters-sidebar__chapter-number", {
-            "chapters-sidebar__chapter-number--current": isCurrentChapter,
-          })}
-        >
-          {index + 1}
-        </div>
-      )}
-      <span
-        className={cn("chapters-sidebar__chapter-title", {
-          "chapters-sidebar__chapter-title--completed": isCompleted,
-          "chapters-sidebar__chapter-title--current": isCurrentChapter,
-        })}
+        <span className="chapters-sidebar__chapter-title">{chapterTitle}</span>
+      </div>
+      <button
+        onClick={handleToggleComplete}
+        className="chapters-sidebar__chapter-complete-button"
       >
-        {chapter.title}
-      </span>
-      {chapter.type === "Text" && (
-        <FileText className="chapters-sidebar__text-icon" />
-      )}
+        <CheckCircle
+          className={cn(
+            "chapters-sidebar__chapter-check",
+            isCompleted && "chapters-sidebar__chapter-check--completed"
+          )}
+        />
+      </button>
     </li>
   );
 };

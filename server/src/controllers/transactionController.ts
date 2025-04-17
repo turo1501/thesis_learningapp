@@ -41,8 +41,24 @@ export const createStripePaymentIntent = async (
 ): Promise<void> => {
   let { amount } = req.body;
 
-  if (!amount || amount <= 0) {
-    amount = 50;
+  // Validate amount
+  if (!amount || isNaN(amount) || amount <= 0) {
+    amount = 50; // Default fallback amount (50 cents)
+  }
+
+  // Convert amount to integer if it's not already
+  amount = Math.floor(Number(amount));
+
+  // Ensure amount is within Stripe limits
+  const MAX_AMOUNT = 99999999; // $999,999.99 in cents
+  const MIN_AMOUNT = 50; // 50 cents minimum for Stripe
+  
+  if (amount > MAX_AMOUNT) {
+    amount = MAX_AMOUNT;
+  }
+  
+  if (amount < MIN_AMOUNT) {
+    amount = MIN_AMOUNT;
   }
 
   try {
@@ -56,12 +72,10 @@ export const createStripePaymentIntent = async (
     });
 
     res.json({
-      message: "",
-      data: {
-        clientSecret: paymentIntent.client_secret,
-      },
+      clientSecret: paymentIntent.client_secret,
     });
   } catch (error) {
+    console.error("Stripe payment intent error:", error);
     res
       .status(500)
       .json({ message: "Error creating stripe payment intent", error });

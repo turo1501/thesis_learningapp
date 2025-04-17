@@ -98,7 +98,7 @@ app.use("/courses", courseRoutes_1.default);
 app.use("/users/clerk", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, userClerkRoutes_1.default);
 app.post("/users/password-reset", userClerkController_1.resetPassword);
 app.use("/role-change", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, roleChangeRoutes_1.default);
-app.use("/transactions", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, transactionRoutes_1.default);
+app.use("/transactions", transactionRoutes_1.default);
 app.use("/users/course-progress", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, userCourseProgessRoutes_1.default);
 app.use("/chat", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, chatRoutes_1.default);
 app.use("/blog-posts", blogPostRoutes_1.default);

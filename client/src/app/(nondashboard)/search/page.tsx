@@ -53,24 +53,19 @@ const Search = () => {
   if (isLoading) return <Loading />;
   if (isError || !courses) return <div>Failed to fetch courses</div>;
 
-  const handleCourseSelect = (course: Course) => {
-    setSelectedCourse(course);
-    router.push(`/search?id=${course.courseId}`, {
-      scroll: false,
-    });
+  const handleCourseSelect = (courseId: string) => {
+    console.log("Selected course ID:", courseId);
+    setSelectedCourse(courses.find((c) => c.courseId === courseId) || null);
   };
 
   const handleEnrollNow = (courseId: string) => {
-    // Wait for authentication state to be loaded
-    if (!isLoaded) return;
-
-    // Force step=2 for authenticated users, otherwise step=1
-    const step = isSignedIn ? "2" : "1";
-    
-    // Always set showSignUp to false for consistent behavior
-    router.push(`/checkout?step=${step}&id=${courseId}&showSignUp=false`, {
-      scroll: false,
-    });
+    console.log("Enrolling in course with ID:", courseId);
+    // Add the course ID to localStorage as a fallback
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('selectedCourseId', courseId);
+    }
+    // Navigate to checkout with course ID
+    router.push(`/checkout?step=1&id=${courseId}`, { scroll: false });
   };
 
   return (
@@ -95,7 +90,7 @@ const Search = () => {
               key={course.courseId}
               course={course}
               isSelected={selectedCourse?.courseId === course.courseId}
-              onClick={() => handleCourseSelect(course)}
+              onClick={() => handleCourseSelect(course.courseId)}
             />
             ))
           ) : (

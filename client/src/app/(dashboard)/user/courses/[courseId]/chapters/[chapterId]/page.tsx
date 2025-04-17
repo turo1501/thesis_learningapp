@@ -21,7 +21,13 @@ const Course = () => {
     hasMarkedComplete,
     setHasMarkedComplete,
   } = useCourseProgressData();
-  console.log("currentChapter.video:", currentChapter);
+  
+  // Add debug logging to help diagnose issues
+  if (process.env.NODE_ENV !== "production") {
+    console.log("Course component - course:", course);
+    console.log("Course component - currentSection:", currentSection);
+    console.log("Course component - currentChapter:", currentChapter);
+  }
 
   const playerRef = useRef<ReactPlayer>(null);
 
@@ -45,7 +51,22 @@ const Course = () => {
 
   if (isLoading) return <Loading />;
   if (!user) return <div>Please sign in to view this course.</div>;
-  if (!course || !userProgress) return <div>Error loading course</div>;
+  if (!course) return <div>Error loading course data. The course may not exist or you don't have access.</div>;
+  if (!userProgress) return <div>Error loading your progress data. Please try again.</div>;
+  if (!currentSection || !currentChapter) {
+    return (
+      <div className="course__error">
+        <h2>Chapter Not Found</h2>
+        <p>This chapter doesn't exist or you don't have access to it.</p>
+        <button 
+          className="course__error-button"
+          onClick={() => window.location.href = `/user/courses`}
+        >
+          Return to Courses
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="course">

@@ -59,7 +59,7 @@ app.use("/courses", courseRoutes);
 app.use("/users/clerk", requireAuth(), authenticate, userClerkRoutes);
 app.post("/users/password-reset", resetPassword);
 app.use("/role-change", requireAuth(), authenticate, roleChangeRoutes);
-app.use("/transactions", requireAuth(), authenticate, transactionRoutes);
+app.use("/transactions", transactionRoutes);
 app.use("/users/course-progress", requireAuth(), authenticate, userCourseProgressRoutes);
 app.use("/chat", requireAuth(), authenticate, chatRoutes);
 app.use("/blog-posts", blogPostRoutes);
