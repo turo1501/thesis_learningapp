@@ -32,75 +32,42 @@ export default clerkMiddleware(async (auth, req) => {
   console.log("Full session claims:", sessionClaims);
   console.log("Metadata:", metadata);
 
-  // Nếu người dùng đang truy cập vào route dành cho student mà role không khớp, chuyển hướng về route teacher
+  // Handle routing based on role
   if (isStudentRoute(req) && userRole !== "student") {
-    // Redirect based on role
-    if (userRole === "admin") {
-      console.log("Redirecting admin to /admin/dashboard");
-      const url = new URL("/admin/dashboard", req.url);
-      return NextResponse.redirect(url);
-    } else {
+    if (userRole === "teacher") {
       console.log("Redirecting teacher to /teacher/courses");
       const url = new URL("/teacher/courses", req.url);
       return NextResponse.redirect(url);
+    } else if (userRole === "admin") {
+      console.log("Redirecting admin to /admin/dashboard");
+      const url = new URL("/admin/dashboard", req.url);
+      return NextResponse.redirect(url);
+
     }
   }
 
-  // Nếu người dùng đang truy cập vào route dành cho teacher mà role không khớp, chuyển hướng về route student
   if (isTeacherRoute(req) && userRole !== "teacher") {
-    // Redirect based on role
-    if (userRole === "admin") {
+    if (userRole === "student") {
+      console.log("Redirecting student to /user/courses");
+      const url = new URL("/user/courses", req.url);
+      return NextResponse.redirect(url);
+    } else if (userRole === "admin") {
       console.log("Redirecting admin to /admin/dashboard");
       const url = new URL("/admin/dashboard", req.url);
       return NextResponse.redirect(url);
-    } else {
-      console.log("Redirecting student to /user/courses");
-      const url = new URL("/user/courses", req.url);
-      return NextResponse.redirect(url);
     }
   }
 
-  // Check for admin routes
   if (isAdminRoute(req) && userRole !== "admin") {
-    // Redirect based on role
-    if (userRole === "teacher") {
+    if (userRole === "student") {
+      console.log("Redirecting student to /user/courses");
+      const url = new URL("/user/courses", req.url);
+      return NextResponse.redirect(url);
+    } else if (userRole === "teacher") {
       console.log("Redirecting teacher to /teacher/courses");
       const url = new URL("/teacher/courses", req.url);
       return NextResponse.redirect(url);
-    } else {
-      console.log("Redirecting student to /user/courses");
-      const url = new URL("/user/courses", req.url);
-      return NextResponse.redirect(url);
-    }
-  }
 
-  return NextResponse.next();
-});
-
-export const config = {
-  matcher: [
-    // Loại trừ các route của Next.js và các file tĩnh
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Luôn chạy đối với API routes
-    "/(api|trpc)(.*)",
-  ],
-};
-      const url = new URL("/user/courses", req.url);
-      return NextResponse.redirect(url);
-    }
-  }
-
-  // Check for admin routes
-  if (isAdminRoute(req) && userRole !== "admin") {
-    // Redirect based on role
-    if (userRole === "teacher") {
-      console.log("Redirecting teacher to /teacher/courses");
-      const url = new URL("/teacher/courses", req.url);
-      return NextResponse.redirect(url);
-    } else {
-      console.log("Redirecting student to /user/courses");
-      const url = new URL("/user/courses", req.url);
-      return NextResponse.redirect(url);
     }
   }
 

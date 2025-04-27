@@ -11,16 +11,19 @@ const NonDashboardNavbar = () => {
   const { user } = useUser();
   const userRole = user?.publicMetadata?.userType as "student" | "teacher" | "admin";
   const pathname = usePathname();
-  console.log(user?.publicMetadata?.userType);
   
   // Determine dashboard URL based on user role
-  const dashboardUrl = 
-    userRole === "teacher" ? "/teacher/courses" : 
-    userRole === "admin" ? "/admin/dashboard" : 
-    "/user/courses";
+  const getDashboardUrl = () => {
+    if (userRole === "teacher") return "/teacher/courses";
+    if (userRole === "admin") return "/admin/dashboard";
+    return "/user/courses"; // Default for student
+  };
   
   // Check if current path is the dashboard path
-  const isDashboardActive = pathname.includes("/teacher/") || pathname.includes("/user/");
+  const isDashboardActive = pathname.includes("/teacher/") || 
+                           pathname.includes("/user/") || 
+                           pathname.includes("/admin/");
+
 
   return (
     <nav className="nondashboard-navbar">
@@ -42,8 +45,9 @@ const NonDashboardNavbar = () => {
             {/* Dashboard button - only visible when signed in */}
             <SignedIn>
               <Link
-                href={dashboardUrl}
-                className={`nondashboard-navbar__dashboard-link ${isDashboardActive ? 'active' : ''}`}
+                href={getDashboardUrl()}
+                className={`flex items-center gap-2 ${isDashboardActive ? 'text-white-100' : 'text-customgreys-dirtyGrey hover:text-white-100'} transition-colors`}
+
                 scroll={false}
               >
                 <LayoutDashboard size={18} />
@@ -85,9 +89,12 @@ const NonDashboardNavbar = () => {
               showName={true}
               userProfileMode="navigation"
               userProfileUrl={
-                userRole === "teacher" ? "/teacher/profile" : 
-                userRole === "admin" ? "/admin/settings" :
-                "/user/profile"
+                userRole === "teacher" 
+                  ? "/teacher/profile" 
+                  : userRole === "admin"
+                    ? "/admin/profile"
+                    : "/user/profile"
+
               }
             />
           </SignedIn>

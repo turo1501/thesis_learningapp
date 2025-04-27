@@ -1,505 +1,154 @@
 "use client";
 
-import React from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-} from "recharts";
-import { Users, BookOpen, DollarSign, ArrowUpRight } from "lucide-react";
 import Header from "@/components/Header";
-
-// Sample data for demonstration
-const userActivityData = [
-  { name: "Jan", students: 400, teachers: 240 },
-  { name: "Feb", students: 300, teachers: 139 },
-  { name: "Mar", students: 200, teachers: 980 },
-  { name: "Apr", students: 278, teachers: 390 },
-  { name: "May", students: 189, teachers: 480 },
-  { name: "Jun", students: 239, teachers: 380 },
-  { name: "Jul", students: 349, teachers: 430 },
-];
-
-const revenueData = [
-  { name: "Jan", amount: 4000 },
-  { name: "Feb", amount: 3000 },
-  { name: "Mar", amount: 5000 },
-  { name: "Apr", amount: 2780 },
-  { name: "May", amount: 1890 },
-  { name: "Jun", amount: 2390 },
-  { name: "Jul", amount: 3490 },
-];
+import { Card } from "@/components/ui/card";
+import {
+  CircleUser,
+  BookOpen,
+  FileText,
+  ShieldCheck,
+  TrendingUp,
+  DollarSign,
+} from "lucide-react";
+import Link from "next/link";
+import React from "react";
 
 const AdminDashboard = () => {
+  const stats = [
+    {
+      title: "Total Users",
+      value: "4,235",
+      icon: <CircleUser className="h-8 w-8" />,
+      change: "+12%",
+      link: "/admin/user-management",
+    },
+    {
+      title: "Total Courses",
+      value: "845",
+      icon: <BookOpen className="h-8 w-8" />,
+      change: "+7.2%",
+      link: "/admin/courses",
+    },
+    {
+      title: "Blog Posts",
+      value: "325",
+      icon: <FileText className="h-8 w-8" />,
+      change: "+14.6%",
+      link: "/admin/blog-approval",
+    },
+    {
+      title: "Revenue",
+      value: "$41,282",
+      icon: <DollarSign className="h-8 w-8" />,
+      change: "+22.5%",
+      link: "/admin/analytics",
+    },
+  ];
+
+  const pendingActions = [
+    {
+      title: "Blog Posts Awaiting Approval",
+      count: 15,
+      link: "/admin/blog-approval",
+    },
+    {
+      title: "New User Registrations",
+      count: 32,
+      link: "/admin/user-management",
+    },
+    {
+      title: "New Courses Submissions",
+      count: 8,
+      link: "/admin/courses",
+    },
+  ];
+
   return (
-    <div className="space-y-6">
-      <Header 
-        title="Admin Dashboard" 
-        subtitle="Overview of your learning platform"
+    <div className="admin-dashboard">
+      <Header
+        title="Admin Dashboard"
+        subtitle="Manage platform operations and monitor key metrics"
+        rightElement={
+          <Link href="/admin/analytics">
+            <button className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+              <TrendingUp size={16} />
+              <span>Detailed Analytics</span>
+            </button>
+          </Link>
+        }
       />
 
-      {/* Key Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-customgreys-secondarybg border-none shadow-md">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-customgreys-dirtyGrey">
-              Total Users
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">1,284</div>
-              <div className="p-2 bg-green-500/20 rounded-full">
-                <Users className="h-5 w-5 text-green-500" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {stats.map((stat, index) => (
+          <Link href={stat.link} key={index} className="block">
+            <Card className="p-6 hover:shadow-md transition-shadow bg-gradient-to-br from-slate-800 to-slate-900 text-white border-slate-700">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-sm font-medium text-slate-400">{stat.title}</p>
+                  <h3 className="text-2xl font-bold mt-1">{stat.value}</h3>
+                  <span className="text-xs font-medium bg-green-900/40 text-green-400 px-2 py-1 rounded-full mt-2 inline-block">
+                    {stat.change}
+                  </span>
+                </div>
+                <div className="p-3 bg-slate-700/50 rounded-lg">
+                  {stat.icon}
+                </div>
               </div>
-            </div>
-            <div className="flex items-center mt-4 text-green-500 text-sm">
-              <ArrowUpRight className="h-4 w-4 mr-1" />
-              <span>12% from last month</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-customgreys-secondarybg border-none shadow-md">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-customgreys-dirtyGrey">
-              Total Courses
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">346</div>
-              <div className="p-2 bg-blue-500/20 rounded-full">
-                <BookOpen className="h-5 w-5 text-blue-500" />
-              </div>
-            </div>
-            <div className="flex items-center mt-4 text-green-500 text-sm">
-              <ArrowUpRight className="h-4 w-4 mr-1" />
-              <span>8% from last month</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-customgreys-secondarybg border-none shadow-md">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-customgreys-dirtyGrey">
-              Total Revenue
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">$143,289</div>
-              <div className="p-2 bg-indigo-500/20 rounded-full">
-                <DollarSign className="h-5 w-5 text-indigo-500" />
-              </div>
-            </div>
-            <div className="flex items-center mt-4 text-green-500 text-sm">
-              <ArrowUpRight className="h-4 w-4 mr-1" />
-              <span>23% from last month</span>
-            </div>
-          </CardContent>
-        </Card>
+            </Card>
+          </Link>
+        ))}
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="bg-customgreys-secondarybg border-none shadow-md">
-          <CardHeader>
-            <CardTitle>User Activity</CardTitle>
-            <CardDescription>
-              Monthly user activity by role
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={userActivityData}
-                  margin={{
-                    top: 5,
-                    right: 30,
-                    left: 20,
-                    bottom: 5,
-                  }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis dataKey="name" stroke="#888" />
-                  <YAxis stroke="#888" />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#333', border: 'none' }} 
-                  />
-                  <Legend />
-                  <Bar dataKey="students" fill="#8884d8" name="Students" />
-                  <Bar dataKey="teachers" fill="#82ca9d" name="Teachers" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-customgreys-secondarybg border-none shadow-md">
-          <CardHeader>
-            <CardTitle>Revenue Overview</CardTitle>
-            <CardDescription>
-              Monthly revenue in USD
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={revenueData}
-                  margin={{
-                    top: 5,
-                    right: 30,
-                    left: 20,
-                    bottom: 5,
-                  }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis dataKey="name" stroke="#888" />
-                  <YAxis stroke="#888" />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#333', border: 'none' }}
-                  />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="amount"
-                    name="Revenue"
-                    stroke="#8884d8"
-                    activeDot={{ r: 8 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Activity Table */}
-      <Card className="bg-customgreys-secondarybg border-none shadow-md">
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>
-            Latest actions across the platform
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-700">
-                  <th className="text-left py-3 px-4 font-medium">User</th>
-                  <th className="text-left py-3 px-4 font-medium">Action</th>
-                  <th className="text-left py-3 px-4 font-medium">Resource</th>
-                  <th className="text-left py-3 px-4 font-medium">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-gray-700">
-                  <td className="py-3 px-4">John Doe</td>
-                  <td className="py-3 px-4">Purchased</td>
-                  <td className="py-3 px-4">Advanced JavaScript Course</td>
-                  <td className="py-3 px-4">Today, 10:25 AM</td>
-                </tr>
-                <tr className="border-b border-gray-700">
-                  <td className="py-3 px-4">Sarah Smith</td>
-                  <td className="py-3 px-4">Created</td>
-                  <td className="py-3 px-4">Python for Beginners</td>
-                  <td className="py-3 px-4">Yesterday, 2:40 PM</td>
-                </tr>
-                <tr className="border-b border-gray-700">
-                  <td className="py-3 px-4">Robert Johnson</td>
-                  <td className="py-3 px-4">Submitted</td>
-                  <td className="py-3 px-4">Blog post for review</td>
-                  <td className="py-3 px-4">Yesterday, 1:12 PM</td>
-                </tr>
-                <tr className="border-b border-gray-700">
-                  <td className="py-3 px-4">Emily Davis</td>
-                  <td className="py-3 px-4">Registered</td>
-                  <td className="py-3 px-4">New account</td>
-                  <td className="py-3 px-4">Apr 2, 2025</td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-4">Michael Brown</td>
-                  <td className="py-3 px-4">Changed</td>
-                  <td className="py-3 px-4">Role from Student to Teacher</td>
-                  <td className="py-3 px-4">Apr 1, 2025</td>
-                </tr>
-              </tbody>
-            </table>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <Card className="p-6 bg-slate-900 border-slate-700">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">Pending Actions</h2>
+            <ShieldCheck className="h-5 w-5 text-orange-500" />
           </div>
-        </CardContent>
-      </Card>
+          <div className="space-y-4">
+            {pendingActions.map((action, index) => (
+              <Link href={action.link} key={index}>
+                <div className="flex items-center justify-between p-3 hover:bg-slate-800 rounded-md transition-colors cursor-pointer">
+                  <span className="text-slate-300">{action.title}</span>
+                  <span className="bg-orange-600/20 text-orange-500 text-xs font-medium px-2 py-1 rounded-full">
+                    {action.count}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-6 bg-slate-900 border-slate-700">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">Monthly Revenue</h2>
+            <TrendingUp className="h-5 w-5 text-green-500" />
+          </div>
+          <div className="h-64 flex items-center justify-center">
+            <div className="w-full h-full bg-slate-800/50 rounded-md flex items-center justify-center text-slate-500">
+              Revenue chart will be displayed here
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 mb-8">
+        <Card className="p-6 bg-slate-900 border-slate-700">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">Recent User Activities</h2>
+            <CircleUser className="h-5 w-5 text-blue-500" />
+          </div>
+          <div className="h-64 flex items-center justify-center">
+            <div className="w-full h-full bg-slate-800/50 rounded-md flex items-center justify-center text-slate-500">
+              User activity timeline will be displayed here
+            </div>
+          </div>
+        </Card>
+      </div>
+
     </div>
   );
 };
 
-export default AdminDashboard; 
+export default AdminDashboard;
 
-import React from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-} from "recharts";
-import { Users, BookOpen, DollarSign, ArrowUpRight } from "lucide-react";
-import Header from "@/components/Header";
-
-// Sample data for demonstration
-const userActivityData = [
-  { name: "Jan", students: 400, teachers: 240 },
-  { name: "Feb", students: 300, teachers: 139 },
-  { name: "Mar", students: 200, teachers: 980 },
-  { name: "Apr", students: 278, teachers: 390 },
-  { name: "May", students: 189, teachers: 480 },
-  { name: "Jun", students: 239, teachers: 380 },
-  { name: "Jul", students: 349, teachers: 430 },
-];
-
-const revenueData = [
-  { name: "Jan", amount: 4000 },
-  { name: "Feb", amount: 3000 },
-  { name: "Mar", amount: 5000 },
-  { name: "Apr", amount: 2780 },
-  { name: "May", amount: 1890 },
-  { name: "Jun", amount: 2390 },
-  { name: "Jul", amount: 3490 },
-];
-
-const AdminDashboard = () => {
-  return (
-    <div className="space-y-6">
-      <Header 
-        title="Admin Dashboard" 
-        subtitle="Overview of your learning platform"
-      />
-
-      {/* Key Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-customgreys-secondarybg border-none shadow-md">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-customgreys-dirtyGrey">
-              Total Users
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">1,284</div>
-              <div className="p-2 bg-green-500/20 rounded-full">
-                <Users className="h-5 w-5 text-green-500" />
-              </div>
-            </div>
-            <div className="flex items-center mt-4 text-green-500 text-sm">
-              <ArrowUpRight className="h-4 w-4 mr-1" />
-              <span>12% from last month</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-customgreys-secondarybg border-none shadow-md">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-customgreys-dirtyGrey">
-              Total Courses
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">346</div>
-              <div className="p-2 bg-blue-500/20 rounded-full">
-                <BookOpen className="h-5 w-5 text-blue-500" />
-              </div>
-            </div>
-            <div className="flex items-center mt-4 text-green-500 text-sm">
-              <ArrowUpRight className="h-4 w-4 mr-1" />
-              <span>8% from last month</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-customgreys-secondarybg border-none shadow-md">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-customgreys-dirtyGrey">
-              Total Revenue
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">$143,289</div>
-              <div className="p-2 bg-indigo-500/20 rounded-full">
-                <DollarSign className="h-5 w-5 text-indigo-500" />
-              </div>
-            </div>
-            <div className="flex items-center mt-4 text-green-500 text-sm">
-              <ArrowUpRight className="h-4 w-4 mr-1" />
-              <span>23% from last month</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="bg-customgreys-secondarybg border-none shadow-md">
-          <CardHeader>
-            <CardTitle>User Activity</CardTitle>
-            <CardDescription>
-              Monthly user activity by role
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={userActivityData}
-                  margin={{
-                    top: 5,
-                    right: 30,
-                    left: 20,
-                    bottom: 5,
-                  }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis dataKey="name" stroke="#888" />
-                  <YAxis stroke="#888" />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#333', border: 'none' }} 
-                  />
-                  <Legend />
-                  <Bar dataKey="students" fill="#8884d8" name="Students" />
-                  <Bar dataKey="teachers" fill="#82ca9d" name="Teachers" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-customgreys-secondarybg border-none shadow-md">
-          <CardHeader>
-            <CardTitle>Revenue Overview</CardTitle>
-            <CardDescription>
-              Monthly revenue in USD
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={revenueData}
-                  margin={{
-                    top: 5,
-                    right: 30,
-                    left: 20,
-                    bottom: 5,
-                  }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis dataKey="name" stroke="#888" />
-                  <YAxis stroke="#888" />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#333', border: 'none' }}
-                  />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="amount"
-                    name="Revenue"
-                    stroke="#8884d8"
-                    activeDot={{ r: 8 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Activity Table */}
-      <Card className="bg-customgreys-secondarybg border-none shadow-md">
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>
-            Latest actions across the platform
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-700">
-                  <th className="text-left py-3 px-4 font-medium">User</th>
-                  <th className="text-left py-3 px-4 font-medium">Action</th>
-                  <th className="text-left py-3 px-4 font-medium">Resource</th>
-                  <th className="text-left py-3 px-4 font-medium">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-gray-700">
-                  <td className="py-3 px-4">John Doe</td>
-                  <td className="py-3 px-4">Purchased</td>
-                  <td className="py-3 px-4">Advanced JavaScript Course</td>
-                  <td className="py-3 px-4">Today, 10:25 AM</td>
-                </tr>
-                <tr className="border-b border-gray-700">
-                  <td className="py-3 px-4">Sarah Smith</td>
-                  <td className="py-3 px-4">Created</td>
-                  <td className="py-3 px-4">Python for Beginners</td>
-                  <td className="py-3 px-4">Yesterday, 2:40 PM</td>
-                </tr>
-                <tr className="border-b border-gray-700">
-                  <td className="py-3 px-4">Robert Johnson</td>
-                  <td className="py-3 px-4">Submitted</td>
-                  <td className="py-3 px-4">Blog post for review</td>
-                  <td className="py-3 px-4">Yesterday, 1:12 PM</td>
-                </tr>
-                <tr className="border-b border-gray-700">
-                  <td className="py-3 px-4">Emily Davis</td>
-                  <td className="py-3 px-4">Registered</td>
-                  <td className="py-3 px-4">New account</td>
-                  <td className="py-3 px-4">Apr 2, 2025</td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-4">Michael Brown</td>
-                  <td className="py-3 px-4">Changed</td>
-                  <td className="py-3 px-4">Role from Student to Teacher</td>
-                  <td className="py-3 px-4">Apr 1, 2025</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
-
-export default AdminDashboard; 

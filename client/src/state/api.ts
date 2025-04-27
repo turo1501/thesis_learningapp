@@ -38,73 +38,52 @@ export interface BlogPostsResponse {
   count: number;
 }
 
-export interface Community {
-  id: string;
-  name: string;
-  description: string;
-  imageUrl?: string;
-  type: 'public' | 'private';
-  memberCount: number;
-  createdAt: string;
-  updatedAt: string;
-  topics?: string[];
-  ownerId: string;
+// Define the missing UpdateUserCourseProgressData interface
+export interface UpdateUserCourseProgressData {
+  courseId: string;
+  sectionId: string;
+  lessonId: string;
+  progress: number;
 }
 
-export interface Chat {
-  id: string;
-  users: string[];
-  type: 'direct' | 'group';
-  name?: string;
-  lastMessage?: {
-    content: string;
-    sender: string;
-    timestamp: string;
-  };
-  createdAt: string;
-  updatedAt: string;
-  unreadCount?: number;
-}
+const customBaseQuery = async (
+  args: string | FetchArgs,
+  api: BaseQueryApi,
+  extraOptions: any
+) => {
+  const baseQuery = fetchBaseQuery({
+    baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL,
+    prepareHeaders: async (headers) => {
+      try {
+        // Add cache control headers to prevent caching
+        headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        headers.set('Pragma', 'no-cache');
+        headers.set('Expires', '0');
+        
+        // Check if Clerk is available and authenticated
+        if (typeof window !== 'undefined' && window.Clerk) {
+          const session = await window.Clerk.session;
+          if (session) {
+            const token = await session.getToken();
+            if (token) {
+              headers.set("Authorization", `Bearer ${token}`);
+              console.log("Authorization header set with token");
+            } else {
+              console.warn("No token available from Clerk session");
+            }
+          } else {
+            console.warn("No Clerk session found");
+          }
+        } else {
+          console.warn("Clerk not available in window");
+        }
+      } catch (error) {
+        console.error("Error getting auth token:", error);
+      }
+      return headers;
+    },
+  });
 
-export interface Message {
-  id: string;
-  chatId: string;
-  content: string;
-  sender: string;
-  timestamp: string;
-  readBy: string[];
-  attachments?: {
-    id: string;
-    url: string;
-    type: string;
-    name: string;
-  }[];
-}
-
-export interface BlogComment {
-  id: string;
-  postId: string;
-  userId: string;
-  userName?: string;
-  content: string;
-  createdAt: string;
-  updatedAt?: string;
-  likes?: number;
-  replies?: BlogComment[];
-}
-
-// Define our custom base query with error handling
-const baseQueryWithRetry = retry(fetchBaseQuery({
-  baseUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api",
-  prepareHeaders: (headers) => {
-    // Add authorization header with JWT token if available
-    const token = localStorage.getItem("token");
-    if (token) {
-      headers.set("authorization", `Bearer ${token}`);
-    }
-    return headers;
-  },
-}), { maxRetries: 3 });
 
 // Enhanced base query with logging and error handling
 const dynamicBaseQuery: BaseQueryFn<
@@ -159,27 +138,10 @@ const dynamicBaseQuery: BaseQueryFn<
 
 // Define our API service
 export const api = createApi({
-  baseQuery: dynamicBaseQuery,
-  tagTypes: [
-    'User', 
-    'Course', 
-    'Module', 
-    'Assignment', 
-    'Submission', 
-    'Quiz',
-    'Question',
-    'Attempt',
-    'Coin',
-    'Reward',
-    'Stats',
-    'Enrollment',
-    'Community',
-    'Chat',
-    'Message',
-    'BlogPost',
-    'BlogPosts',
-    'Comment'
-  ],
+  baseQuery: customBaseQuery,
+  reducerPath: "api",
+  tagTypes: ["Courses", "Users", "UserCourseProgress", "BlogPosts", "BlogPost", "Assignments", "Meetings"],
+
   endpoints: (build) => ({
     /* 
     ===============
@@ -309,11 +271,26 @@ export const api = createApi({
         { type: 'Community', id: 'LIST' },
       ],
     }),
-    
-    leaveCommunity: build.mutation<void, { communityId: string; userId: string }>({
-      query: ({ communityId, userId }) => ({
-        url: `/communities/${communityId}/members/${userId}`,
-        method: 'DELETE',
+
+    // Course Progress - use a different name to avoid duplication
+    updateLessonProgress: build.mutation<{ success: boolean }, UpdateUserCourseProgressData>({
+      query: ({ courseId, sectionId, lessonId, progress }) => ({
+        url: "/user-course-progress",
+        method: "PUT",
+        body: { courseId, sectionId, lessonId, progress },
+      }),
+    }),
+
+    // Chat endpoints
+    sendChatMessage: build.mutation<
+      { response: string; id: string },
+      { message: string; userId: string }
+    >({
+      query: (data) => ({
+        url: "chat/message",
+        method: "POST",
+        body: data,
+
       }),
       invalidatesTags: (_result, _error, { communityId }) => [
         { type: 'Community', id: communityId },
@@ -427,6 +404,243 @@ export const api = createApi({
         { type: 'BlogPost', id: postId }
       ],
     }),
+
+    /* 
+    ===============
+    ASSIGNMENTS
+    =============== 
+    */
+    getCourseAssignments: build.query<Assignment[], string>({
+      query: (courseId) => `assignments/course/${courseId}`,
+      providesTags: (result, error, courseId) => [{ type: "Assignments", id: courseId }],
+    }),
+
+    getAssignment: build.query<Assignment, string>({
+      query: (assignmentId) => `assignments/${assignmentId}`,
+      providesTags: (result, error, id) => [{ type: "Assignments", id }],
+    }),
+
+    createAssignment: build.mutation<
+      Assignment,
+      {
+        courseId: string;
+        title: string;
+        description: string;
+        dueDate: string;
+        points: number;
+        attachments?: string[];
+      }
+    >({
+      query: (body) => ({
+        url: `assignments`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: (result, error, { courseId }) => [
+        { type: "Assignments", id: courseId },
+      ],
+    }),
+
+    updateAssignment: build.mutation<
+      Assignment,
+      {
+        assignmentId: string;
+        courseId: string;
+        title?: string;
+        description?: string;
+        dueDate?: string;
+        points?: number;
+        status?: string;
+        attachments?: string[];
+      }
+    >({
+      query: ({ assignmentId, ...body }) => ({
+        url: `assignments/${assignmentId}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: (result, error, { assignmentId, courseId }) => [
+        { type: "Assignments", id: assignmentId },
+        { type: "Assignments", id: courseId },
+      ],
+    }),
+
+    deleteAssignment: build.mutation<{ message: string }, string>({
+      query: (assignmentId) => ({
+        url: `assignments/${assignmentId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Assignments"],
+    }),
+
+    submitAssignment: build.mutation<
+      { message: string },
+      { assignmentId: string; content: string }
+    >({
+      query: ({ assignmentId, content }) => ({
+        url: `assignments/${assignmentId}/submit`,
+        method: "POST",
+        body: { content },
+      }),
+      invalidatesTags: (result, error, { assignmentId }) => [
+        { type: "Assignments", id: assignmentId },
+      ],
+    }),
+
+    gradeSubmission: build.mutation<
+      { message: string },
+      {
+        assignmentId: string;
+        studentId: string;
+        grade: number;
+        feedback: string;
+      }
+    >({
+      query: ({ assignmentId, studentId, ...body }) => ({
+        url: `assignments/${assignmentId}/submissions/${studentId}/grade`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: (result, error, { assignmentId }) => [
+        { type: "Assignments", id: assignmentId },
+      ],
+    }),
+
+    /* 
+    ===============
+    MEETINGS
+    =============== 
+    */
+    getTeacherMeetings: build.query<Meeting[], string>({
+      query: (teacherId) => `/meetings/teacher/${teacherId}`,
+    }),
+
+    getStudentMeetings: build.query<Meeting[], string>({
+      query: (studentId) => `/meetings/student/${studentId}`,
+    }),
+
+    getCourseMeetings: build.query<Meeting[], string>({
+      query: (courseId) => `meetings/course/${courseId}`,
+      providesTags: (result, error, courseId) => [{ type: "Meetings", id: courseId }],
+    }),
+
+    getMeeting: build.query<Meeting, string>({
+      query: (meetingId) => `meetings/${meetingId}`,
+      providesTags: (result, error, id) => [{ type: "Meetings", id }],
+    }),
+
+    createMeeting: build.mutation<
+      Meeting,
+      {
+        title: string;
+        description?: string;
+        courseId?: string;
+        courseName?: string;
+        date: string;
+        startTime: string;
+        duration: number;
+        type: "individual" | "group";
+        meetingLink?: string;
+        location?: string;
+        participants?: {
+          studentId: string;
+          studentName: string;
+          studentEmail: string;
+        }[];
+      }
+    >({
+      query: (body) => ({
+        url: `meetings`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["Meetings"],
+    }),
+
+    updateMeeting: build.mutation<
+      Meeting,
+      {
+        meetingId: string;
+        title?: string;
+        description?: string;
+        courseId?: string;
+        courseName?: string;
+        date?: string;
+        startTime?: string;
+        duration?: number;
+        type?: "individual" | "group";
+        status?: "scheduled" | "completed" | "cancelled" | "pending";
+        meetingLink?: string;
+        location?: string;
+        participants?: {
+          studentId: string;
+          studentName: string;
+          studentEmail: string;
+          status?: "confirmed" | "pending" | "cancelled";
+        }[];
+      }
+    >({
+      query: ({ meetingId, ...body }) => ({
+        url: `meetings/${meetingId}`,
+        method: "PUT",
+        body,
+      }),
+      invalidatesTags: (result, error, { meetingId }) => [
+        { type: "Meetings", id: meetingId },
+      ],
+    }),
+
+    deleteMeeting: build.mutation<{ message: string }, string>({
+      query: (meetingId) => ({
+        url: `meetings/${meetingId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["Meetings"],
+    }),
+
+    respondToMeeting: build.mutation<
+      { message: string },
+      { meetingId: string; response: "confirmed" | "cancelled" }
+    >({
+      query: ({ meetingId, response }) => ({
+        url: `meetings/${meetingId}/respond`,
+        method: "POST",
+        body: { response },
+      }),
+      invalidatesTags: (result, error, { meetingId }) => [
+        { type: "Meetings", id: meetingId },
+      ],
+    }),
+
+    addMeetingNotes: build.mutation<
+      { message: string },
+      { meetingId: string; notes: string }
+    >({
+      query: ({ meetingId, notes }) => ({
+        url: `meetings/${meetingId}/notes`,
+        method: "POST",
+        body: { notes },
+      }),
+      invalidatesTags: (result, error, { meetingId }) => [
+        { type: "Meetings", id: meetingId },
+      ],
+    }),
+
+    // Meetings
+    getMeetingById: build.query<Meeting, string>({
+      query: (meetingId) => `/meetings/${meetingId}`,
+    }),
+
+    updateMeetingAttendance: build.mutation<
+      { success: boolean },
+      { meetingId: string; studentId: string; status: "accepted" | "declined" | "pending" }
+    >({
+      query: ({ meetingId, studentId, status }) => ({
+        url: `/meetings/${meetingId}/attendance`,
+        method: "PUT",
+        body: { studentId, status },
+      }),
+    }),
   }),
 });
 
@@ -453,7 +667,25 @@ export const {
   useCreateBlogPostMutation,
   useUpdateBlogPostMutation,
   useDeleteBlogPostMutation,
-  useLikeBlogPostMutation,
-  useGetCommentsQuery,
-  useAddCommentMutation,
+  useModerateBlogPostMutation,
+  useGetCourseAssignmentsQuery,
+  useGetAssignmentQuery,
+  useCreateAssignmentMutation,
+  useUpdateAssignmentMutation,
+  useDeleteAssignmentMutation,
+  useSubmitAssignmentMutation,
+  useGradeSubmissionMutation,
+  useGetTeacherMeetingsQuery,
+  useGetStudentMeetingsQuery,
+  useGetCourseMeetingsQuery,
+  useGetMeetingQuery,
+  useCreateMeetingMutation,
+  useUpdateMeetingMutation,
+  useDeleteMeetingMutation,
+  useRespondToMeetingMutation,
+  useAddMeetingNotesMutation,
+  useUpdateLessonProgressMutation,
+  useGetMeetingByIdQuery,
+  useUpdateMeetingAttendanceMutation,
+
 } = api;

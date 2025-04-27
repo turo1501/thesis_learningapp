@@ -2,6 +2,26 @@
 
 import React, { useState } from "react";
 import Header from "@/components/Header";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -34,6 +54,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+>>>>>>> main
 import {
   Select,
   SelectContent,
@@ -42,15 +63,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
-import { format } from "date-fns";
-import { Progress } from "@/components/ui/progress";
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+
 import {
   Dialog,
   DialogContent,
@@ -58,6 +79,122 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  BookOpen,
+  Search,
+  Filter,
+  MoreVertical,
+  Eye,
+  Edit,
+  Trash2,
+  CheckCircle,
+  AlertCircle,
+  Download,
+} from "lucide-react";
+import { useGetCoursesQuery, useDeleteCourseMutation } from "@/state/api";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import Image from "next/image";
+import Link from "next/link";
+
+const AdminCoursesPage = () => {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [courseToDelete, setCourseToDelete] = useState<string | null>(null);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+
+  const router = useRouter();
+  const { data: courses = [], isLoading } = useGetCoursesQuery({ category: "" });
+  const [deleteCourse] = useDeleteCourseMutation();
+
+  // Filter courses based on search query, category and status
+  const filteredCourses = courses.filter((course) => {
+    const matchesSearch =
+      searchQuery === "" ||
+      course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      course.teacherName.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesCategory =
+      categoryFilter === "all" || course.category === categoryFilter;
+
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "published" && course.status === "Published") ||
+      (statusFilter === "draft" && course.status === "Draft");
+
+    return matchesSearch && matchesCategory && matchesStatus;
+  });
+
+  // Pagination logic
+  const coursesPerPage = 10;
+  const totalPages = Math.ceil(filteredCourses.length / coursesPerPage);
+  const paginatedCourses = filteredCourses.slice(
+    (currentPage - 1) * coursesPerPage,
+    currentPage * coursesPerPage
+  );
+
+  // Get unique categories for filter dropdown
+  const categories = [...new Set(courses.map((course) => course.category))];
+
+  // Format price from cents to dollars
+  const formatPrice = (price: number | undefined) => {
+    if (!price) return "Free";
+    return `$${(price / 100).toFixed(2)}`;
+  };
+
+  const handleDeleteClick = (courseId: string) => {
+    setCourseToDelete(courseId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!courseToDelete) return;
+
+    try {
+      await deleteCourse(courseToDelete).unwrap();
+      toast.success("Course deleted successfully");
+    } catch (error) {
+      toast.error("Failed to delete course");
+      console.error("Delete error:", error);
+    } finally {
+      setDeleteDialogOpen(false);
+      setCourseToDelete(null);
+    }
+  };
+
+  const handleViewCourse = (course: Course) => {
+    setSelectedCourse(course);
+    setViewDialogOpen(true);
+  };
+
+  const handleEditCourse = (courseId: string) => {
+    router.push(`/admin/courses/edit/${courseId}`);
+  };
+
+  return (
+    <div className="admin-courses pb-8">
+      <Header
+        title="Course Management"
+        subtitle="View, edit and manage all platform courses"
+        rightElement={
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Download className="mr-2 h-4 w-4" />
+            Export Courses
   DialogTrigger,
 } from "@/components/ui/dialog";
 
@@ -386,235 +523,427 @@ const CoursesManagement = () => {
         }
       />
 
-      {/* Filters and Search */}
-      <Card className="bg-customgreys-secondarybg border-none shadow-md">
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-grow">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-customgreys-dirtyGrey" />
-              <Input
-                placeholder="Search courses..."
-                className="pl-10 bg-customgreys-primarybg border-none"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-4 flex-wrap">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[160px] bg-customgreys-primarybg border-none">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent className="bg-customgreys-primarybg border-gray-700">
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="published">Published</SelectItem>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="archived">Archived</SelectItem>
-                  <SelectItem value="pending_review">Pending Review</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-[160px] bg-customgreys-primarybg border-none">
-                  <SelectValue placeholder="Filter by category" />
-                </SelectTrigger>
-                <SelectContent className="bg-customgreys-primarybg border-gray-700">
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map(category => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              <Select value={instructorFilter} onValueChange={setInstructorFilter}>
-                <SelectTrigger className="w-[180px] bg-customgreys-primarybg border-none">
-                  <SelectValue placeholder="Filter by instructor" />
-                </SelectTrigger>
-                <SelectContent className="bg-customgreys-primarybg border-gray-700">
-                  <SelectItem value="all">All Instructors</SelectItem>
-                  {instructors.map(instructor => (
-                    <SelectItem key={instructor} value={instructor}>
-                      {instructor}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Filters Section */}
+      <div className="mt-6 mb-6">
+        <Card className="bg-slate-800 border-slate-700">
+          <CardContent className="p-4">
+            <div className="flex flex-col md:flex-row gap-4 items-end">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+                  <Input
+                    placeholder="Search courses or teachers..."
+                    className="pl-8 bg-slate-900 border-slate-700"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </div>
 
-      {/* Course Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {filteredCourses.map(course => (
-          <Card key={course.id} className="bg-customgreys-secondarybg border-none shadow-md overflow-hidden">
-            <div className="relative h-40 overflow-hidden">
-              <div 
-                className="absolute inset-0 bg-center bg-cover" 
-                style={{ 
-                  backgroundImage: `url(${course.coverImage})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-black/20" />
-              <div className="absolute top-2 left-2 flex gap-2">
-                {getStatusBadge(course.status)}
-                {course.featured && <Badge className="bg-primary-700">Featured</Badge>}
-              </div>
-              <div className="absolute bottom-2 right-2 flex items-center gap-1">
-                <Star className="h-4 w-4 text-yellow-400" fill="currentColor" />
-                <span className="text-white text-sm font-medium">
-                  {course.rating > 0 ? course.rating.toFixed(1) : "New"}
-                </span>
-                {course.totalRatings > 0 && (
-                  <span className="text-gray-300 text-xs">({course.totalRatings})</span>
-                )}
+              <div className="w-full md:w-auto flex flex-col sm:flex-row gap-4">
+                <div className="w-full sm:w-48">
+                  <Select
+                    value={categoryFilter}
+                    onValueChange={setCategoryFilter}
+                  >
+                    <SelectTrigger className="bg-slate-900 border-slate-700">
+                      <div className="flex items-center">
+                        <Filter className="mr-2 h-4 w-4 text-slate-500" />
+                        <SelectValue placeholder="Category" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {categories.map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="w-full sm:w-48">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="bg-slate-900 border-slate-700">
+                      <div className="flex items-center">
+                        <Filter className="mr-2 h-4 w-4 text-slate-500" />
+                        <SelectValue placeholder="Status" />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="published">Published</SelectItem>
+                      <SelectItem value="draft">Draft</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
-            
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between">
-                <div>
-                  <Badge className="bg-blue-600 mb-2">{course.category}</Badge>
-                  <CardTitle className="text-lg line-clamp-1">{course.title}</CardTitle>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-customgreys-primarybg border-gray-700">
-                    <DropdownMenuItem className="cursor-pointer flex items-center">
-                      <Eye className="mr-2 h-4 w-4" />
-                      View Details
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer flex items-center">
-                      <Edit className="mr-2 h-4 w-4" />
-                      Edit Course
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      className="cursor-pointer flex items-center"
-                      onClick={() => handleToggleFeatured(course.id)}
-                    >
-                      <Star className="mr-2 h-4 w-4" fill={course.featured ? "currentColor" : "none"} />
-                      {course.featured ? "Remove from Featured" : "Add to Featured"}
-                    </DropdownMenuItem>
-                    
-                    {course.status === "pending_review" && (
-                      <>
-                        <DropdownMenuItem 
-                          className="cursor-pointer flex items-center text-green-500"
-                          onClick={() => handleApproveCourse(course.id)}
-                        >
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          Approve & Publish
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="cursor-pointer flex items-center text-amber-500"
-                          onClick={() => handleRejectCourse(course.id)}
-                        >
-                          <XCircle className="mr-2 h-4 w-4" />
-                          Return to Draft
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                    
-                    {course.status === "published" && (
-                      <DropdownMenuItem 
-                        className="cursor-pointer flex items-center text-amber-500"
-                        onClick={() => handleArchiveCourse(course.id)}
-                      >
-                        <AlertCircle className="mr-2 h-4 w-4" />
-                        Archive Course
-                      </DropdownMenuItem>
-                    )}
-                    
-                    {course.status === "archived" && (
-                      <DropdownMenuItem 
-                        className="cursor-pointer flex items-center text-green-500"
-                        onClick={() => handleRestoreCourse(course.id)}
-                      >
-                        <CheckCircle className="mr-2 h-4 w-4" />
-                        Restore Course
-                      </DropdownMenuItem>
-                    )}
-                    
-                    <DropdownMenuItem 
-                      className="cursor-pointer flex items-center text-red-500"
-                      onClick={() => handleDeleteCourse(course.id)}
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete Course
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              
-              <div className="flex items-center gap-2 mt-2">
-                <Avatar className="h-6 w-6">
-                  <AvatarImage src={course.instructor.avatar} alt={course.instructor.name} />
-                  <AvatarFallback className="bg-primary-700">
-                    {course.instructor.name.charAt(0)}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="text-sm text-gray-400">{course.instructor.name}</span>
-              </div>
-            </CardHeader>
-            
-            <CardContent className="py-2">
-              <p className="text-sm text-gray-400 line-clamp-2">{course.description}</p>
-              
-              <div className="flex items-center justify-between mt-4">
-                <div className="flex items-center gap-1 text-sm text-gray-400">
-                  <Clock className="h-4 w-4 text-gray-500" />
-                  <span>{course.duration}</span>
-                </div>
-                <div className="flex items-center gap-1 text-sm text-gray-400">
-                  <FileText className="h-4 w-4 text-gray-500" />
-                  <span>{course.totalLessons} lessons</span>
-                </div>
-                <div className="flex items-center gap-1 text-sm text-gray-400">
-                  <Users className="h-4 w-4 text-gray-500" />
-                  <span>{course.totalStudents.toLocaleString()}</span>
-                </div>
-              </div>
-            </CardContent>
-            
-            <CardFooter className="flex justify-between items-center pt-2 border-t border-gray-700">
-              {formatPrice(course.price, course.discountPrice)}
-              <div className="text-xs text-gray-400">
-                Updated {format(new Date(course.lastUpdated), "MMM d, yyyy")}
-              </div>
-            </CardFooter>
-          </Card>
-        ))}
-      </div>
-      
-      {filteredCourses.length === 0 && (
-        <Card className="bg-customgreys-secondarybg border-none shadow-md">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <BookOpen className="h-12 w-12 text-gray-500 mb-4" />
-            <p className="text-gray-400 text-center">No courses found matching your filters.</p>
-            <Button 
-              variant="outline" 
-              className="mt-4 border-gray-700"
-              onClick={() => {
-                setSearchTerm("");
-                setStatusFilter("all");
-                setCategoryFilter("all");
-                setInstructorFilter("all");
-              }}
-            >
-              Clear Filters
-            </Button>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Courses Table */}
+      <Card className="bg-slate-800 border-slate-700">
+        <div className="rounded-md overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-slate-900">
+              <TableRow>
+                <TableHead className="w-[300px] min-w-[200px]">Course</TableHead>
+                <TableHead>Teacher</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Price</TableHead>
+                <TableHead>Level</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-10">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="animate-spin h-10 w-10 rounded-full border-4 border-slate-700 border-t-blue-600 mb-4"></div>
+                      <span className="text-slate-400">Loading courses...</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : paginatedCourses.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-10">
+                    <div className="flex flex-col items-center justify-center">
+                      <BookOpen className="h-10 w-10 text-slate-500 mb-2" />
+                      <h3 className="text-lg text-slate-300 font-medium">
+                        No courses found
+                      </h3>
+                      <p className="text-slate-400 mt-1">
+                        Try changing your search or filter settings
+                      </p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                paginatedCourses.map((course) => (
+                  <TableRow key={course.courseId} className="border-slate-700">
+                    <TableCell className="font-medium">
+                      <div className="flex items-center space-x-3">
+                        <div className="h-12 w-12 rounded-md overflow-hidden flex-shrink-0 bg-slate-700">
+                          {course.image ? (
+                            <Image
+                              src={course.image}
+                              alt={course.title}
+                              width={48}
+                              height={48}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="h-full w-full flex items-center justify-center bg-slate-700 text-slate-400">
+                              <BookOpen size={20} />
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-medium truncate max-w-[200px]">
+                            {course.title}
+                          </div>
+                          <div className="text-xs text-slate-400 truncate max-w-[200px]">
+                            {course.sections?.length || 0} sections
+                          </div>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{course.teacherName}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="bg-slate-700 text-slate-200">
+                        {course.category}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={
+                          course.status === "Published"
+                            ? "bg-green-500/20 text-green-500 hover:bg-green-500/30"
+                            : "bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30"
+                        }
+                      >
+                        {course.status === "Published" ? (
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                        ) : (
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                        )}
+                        {course.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{formatPrice(course.price)}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={
+                          course.level === "Beginner"
+                            ? "bg-blue-500/20 text-blue-500"
+                            : course.level === "Intermediate"
+                            ? "bg-yellow-500/20 text-yellow-500"
+                            : "bg-red-500/20 text-red-500"
+                        }
+                      >
+                        {course.level}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                          >
+                            <span className="sr-only">Open menu</span>
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-slate-900 border-slate-700">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuSeparator className="bg-slate-700" />
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            onClick={() => handleViewCourse(course)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            onClick={() => handleEditCourse(course.courseId)}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit course
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="cursor-pointer text-red-500 focus:text-red-500"
+                            onClick={() => handleDeleteClick(course.courseId)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete course
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
+
+      {/* Pagination */}
+      {filteredCourses.length > 0 && (
+        <div className="mt-6 flex justify-center">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+              
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                // Show first 2 pages, current page, and last 2 pages
+                if (
+                  page <= 2 ||
+                  page > totalPages - 2 ||
+                  (page >= currentPage - 1 && page <= currentPage + 1)
+                ) {
+                  return (
+                    <PaginationItem key={page}>
+                      <PaginationLink
+                        isActive={page === currentPage}
+                        onClick={() => setCurrentPage(page)}
+                        className={page === currentPage ? "bg-blue-600" : ""}
+                      >
+                        {page}
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                } else if (
+                  page === 3 && currentPage > 4 ||
+                  page === totalPages - 2 && currentPage < totalPages - 3
+                ) {
+                  return (
+                    <PaginationItem key={page}>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  );
+                } else {
+                  return null;
+                }
+              })}
+              
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
       )}
+
+      {/* View Course Dialog */}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="bg-slate-800 border-slate-700 text-white max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Course Details</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              View detailed information about this course
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedCourse && (
+            <div className="mt-4">
+              <div className="mb-6 flex flex-col md:flex-row gap-6">
+                <div className="w-full md:w-1/3 h-40 md:h-auto rounded-md overflow-hidden bg-slate-700">
+                  {selectedCourse.image ? (
+                    <Image
+                      src={selectedCourse.image}
+                      alt={selectedCourse.title}
+                      width={300}
+                      height={200}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center bg-slate-700 text-slate-400">
+                      <BookOpen size={48} />
+                    </div>
+                  )}
+                </div>
+                
+                <div className="w-full md:w-2/3">
+                  <h2 className="text-2xl font-bold">{selectedCourse.title}</h2>
+                  
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    <Badge className="bg-slate-700">{selectedCourse.category}</Badge>
+                    <Badge
+                      className={
+                        selectedCourse.status === "Published"
+                          ? "bg-green-500/20 text-green-500"
+                          : "bg-yellow-500/20 text-yellow-500"
+                      }
+                    >
+                      {selectedCourse.status}
+                    </Badge>
+                    <Badge
+                      className={
+                        selectedCourse.level === "Beginner"
+                          ? "bg-blue-500/20 text-blue-500"
+                          : selectedCourse.level === "Intermediate"
+                          ? "bg-yellow-500/20 text-yellow-500"
+                          : "bg-red-500/20 text-red-500"
+                      }
+                    >
+                      {selectedCourse.level}
+                    </Badge>
+                    <Badge variant="outline">
+                      {formatPrice(selectedCourse.price)}
+                    </Badge>
+                  </div>
+                  
+                  <div className="mt-4 text-slate-300">
+                    <p>
+                      {selectedCourse.description || "No description available."}
+                    </p>
+                  </div>
+                  
+                  <div className="mt-4 text-sm text-slate-400">
+                    <p>Created by: {selectedCourse.teacherName}</p>
+                    <p>
+                      {selectedCourse.sections?.length || 0} sections with{" "}
+                      {selectedCourse.sections?.reduce(
+                        (acc, section) => acc + (section.chapters?.length || 0),
+                        0
+                      ) || 0}{" "}
+                      chapters
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-2">
+                <h3 className="text-lg font-semibold mb-2">Course Content</h3>
+                <div className="bg-slate-900 rounded-md divide-y divide-slate-700">
+                  {selectedCourse.sections?.length ? (
+                    selectedCourse.sections.map((section, index) => (
+                      <div key={section.sectionId} className="p-3">
+                        <div className="font-medium">
+                          {index + 1}. {section.sectionTitle}
+                        </div>
+                        <div className="text-sm text-slate-400 mt-1">
+                          {section.chapters?.length || 0} chapters
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-slate-400">
+                      No content available for this course.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter className="mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setViewDialogOpen(false)}
+              className="border-slate-600"
+            >
+              Close
+            </Button>
+            {selectedCourse && (
+              <Button
+                onClick={() => {
+                  setViewDialogOpen(false);
+                  handleEditCourse(selectedCourse.courseId);
+                }}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Course
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent className="bg-slate-800 border-slate-700 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              This will permanently delete this course and all its content. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-700 hover:bg-slate-600">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 };
 
-export default CoursesManagement; 
+export default AdminCoursesPage; 
+

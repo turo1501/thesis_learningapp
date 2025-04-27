@@ -64,6 +64,8 @@ const transactionRoutes_1 = __importDefault(require("./routes/transactionRoutes"
 const userCourseProgessRoutes_1 = __importDefault(require("./routes/userCourseProgessRoutes"));
 const chatRoutes_1 = __importDefault(require("./routes/chatRoutes"));
 const blogPostRoutes_1 = __importDefault(require("./routes/blogPostRoutes"));
+const assignmentRoutes_1 = __importDefault(require("./routes/assignmentRoutes"));
+const meetingRoutes_1 = __importDefault(require("./routes/meetingRoutes"));
 const errorMiddleware_1 = require("./middleware/errorMiddleware");
 /* CONFIGURATIONS */
 dotenv_1.default.config();
@@ -93,6 +95,8 @@ app.use("/transactions", (0, express_2.requireAuth)(), transactionRoutes_1.defau
 app.use("/users/course-progress", (0, express_2.requireAuth)(), userCourseProgessRoutes_1.default);
 app.use("/chat", (0, express_2.requireAuth)(), chatRoutes_1.default);
 app.use("/blog-posts", blogPostRoutes_1.default);
+app.use("/assignments", assignmentRoutes_1.default);
+app.use("/meetings", meetingRoutes_1.default);
 /* ERROR MIDDLEWARE */
 app.use(errorMiddleware_1.errorHandler);
 /* SERVER */

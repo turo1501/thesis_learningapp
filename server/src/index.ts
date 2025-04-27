@@ -20,6 +20,8 @@ import transactionRoutes from "./routes/transactionRoutes";
 import userCourseProgressRoutes from "./routes/userCourseProgessRoutes";
 import chatRoutes from "./routes/chatRoutes";
 import blogPostRoutes from "./routes/blogPostRoutes";
+import assignmentRoutes from "./routes/assignmentRoutes";
+import meetingRoutes from "./routes/meetingRoutes";
 import { errorHandler } from "./middleware/errorMiddleware";
 
 /* CONFIGURATIONS */
@@ -54,6 +56,8 @@ app.use("/transactions", requireAuth(), transactionRoutes);
 app.use("/users/course-progress", requireAuth(), userCourseProgressRoutes);
 app.use("/chat", requireAuth(), chatRoutes);
 app.use("/blog-posts", blogPostRoutes);
+app.use("/assignments", assignmentRoutes);
+app.use("/meetings", meetingRoutes);
 
 /* ERROR MIDDLEWARE */
 app.use(errorHandler);

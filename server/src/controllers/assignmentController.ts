@@ -1,269 +1,314 @@
 import { Request, Response } from "express";
-import { prisma } from "../lib/prisma";
-import { z } from "zod";
-import { ApiError } from "../utils/errors";
+import { v4 as uuidv4 } from "uuid";
+import Assignment from "../models/assignmentModel";
+import { getAuth } from "@clerk/express";
 
-// Schemas
-const createAssignmentSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  description: z.string().min(1, "Description is required"),
-  courseId: z.string().min(1, "Course ID is required"),
-  deadline: z.string().nullable(),
-  points: z.number().min(0, "Points must be at least 0"),
-  status: z.enum(["active", "closed", "draft"]),
-  attachments: z.array(z.string()).optional(),
-});
+// Type for extending Request to include authenticated user
+interface AuthenticatedRequest extends Request {
+  user?: {
+    id: string;
+    name?: string;
+    email?: string;
+    imageUrl?: string;
+    role?: "student" | "teacher" | "admin";
+  };
+}
 
-const updateAssignmentSchema = createAssignmentSchema.partial();
-
-// Create a new assignment
-export const createAssignment = async (req: Request, res: Response) => {
-  try {
-    const validatedData = createAssignmentSchema.parse(req.body);
-    
-    // Check if course exists
-    const course = await prisma.course.findUnique({
-      where: { id: validatedData.courseId },
-    });
-    
-    if (!course) {
-      throw new ApiError(404, "Course not found");
-    }
-    
-    // Calculate total students in the course
-    const enrollments = await prisma.enrollment.count({
-      where: { courseId: validatedData.courseId },
-    });
-    
-    const assignment = await prisma.assignment.create({
-      data: {
-        title: validatedData.title,
-        description: validatedData.description,
-        courseId: validatedData.courseId,
-        deadline: validatedData.deadline ? new Date(validatedData.deadline) : null,
-        points: validatedData.points,
-        status: validatedData.status,
-        totalStudents: enrollments,
-        submissionCount: 0,
-        dateCreated: new Date(),
-        attachments: validatedData.attachments || [],
-      },
-    });
-    
-    return res.status(201).json({
-      success: true,
-      data: assignment,
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        success: false,
-        error: error.errors,
-      });
-    }
-    
-    if (error instanceof ApiError) {
-      return res.status(error.statusCode).json({
-        success: false,
-        error: error.message,
-      });
-    }
-    
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
-    });
-  }
-};
-
-// Get all assignments for a teacher
-export const getTeacherAssignments = async (req: Request, res: Response) => {
-  try {
-    const { userId } = req.params;
-    
-    // Find all courses taught by this teacher
-    const teacherCourses = await prisma.course.findMany({
-      where: { teacherId: userId },
-      select: { id: true },
-    });
-    
-    const courseIds = teacherCourses.map((course: { id: string }) => course.id);
-    
-    const assignments = await prisma.assignment.findMany({
-      where: {
-        courseId: { in: courseIds },
-      },
-      include: {
-        course: {
-          select: {
-            title: true,
-          },
-        },
-      },
-      orderBy: {
-        dateCreated: 'desc',
-      },
-    });
-    
-    return res.status(200).json({
-      success: true,
-      data: assignments,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
-    });
-  }
-};
-
-// Get all assignments for a specific course
-export const getCourseAssignments = async (req: Request, res: Response) => {
+/**
+ * Get all assignments for a course
+ */
+export const getCourseAssignments = async (req: Request, res: Response): Promise<void> => {
   try {
     const { courseId } = req.params;
     
-    const assignments = await prisma.assignment.findMany({
-      where: {
-        courseId,
-      },
-      orderBy: {
-        dateCreated: 'desc',
-      },
-    });
+    if (!courseId) {
+      res.status(400).json({ message: "Course ID is required" });
+      return;
+    }
     
-    return res.status(200).json({
-      success: true,
-      data: assignments,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
+    const assignments = await Assignment.scan("courseId").eq(courseId).exec();
+    
+    res.status(200).json(assignments);
+  } catch (error: any) {
+    console.error("Error getting course assignments:", error);
+    res.status(500).json({ 
+      message: "Failed to get course assignments", 
+      error: error.message 
     });
   }
 };
 
-// Get a single assignment by ID
-export const getAssignmentById = async (req: Request, res: Response) => {
+/**
+ * Get a single assignment by ID
+ */
+export const getAssignment = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { assignmentId } = req.params;
     
-    const assignment = await prisma.assignment.findUnique({
-      where: { id },
-      include: {
-        course: {
-          select: {
-            title: true,
-          },
-        },
-        submissions: {
-          select: {
-            id: true,
-            studentId: true,
-            submissionDate: true,
-            status: true,
-            grade: true,
-          },
-        },
-      },
-    });
+    if (!assignmentId) {
+      res.status(400).json({ message: "Assignment ID is required" });
+      return;
+    }
+    
+    const assignment = await Assignment.get(assignmentId);
     
     if (!assignment) {
-      return res.status(404).json({
-        success: false,
-        error: "Assignment not found",
-      });
+      res.status(404).json({ message: "Assignment not found" });
+      return;
     }
     
-    return res.status(200).json({
-      success: true,
-      data: assignment,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
+    res.status(200).json(assignment);
+  } catch (error: any) {
+    console.error("Error getting assignment:", error);
+    res.status(500).json({ 
+      message: "Failed to get assignment", 
+      error: error.message 
     });
   }
 };
 
-// Update an assignment
-export const updateAssignment = async (req: Request, res: Response) => {
+/**
+ * Create a new assignment
+ */
+export const createAssignment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
-    const validatedData = updateAssignmentSchema.parse(req.body);
+    const { userId } = getAuth(req);
+    const { 
+      courseId, 
+      title, 
+      description, 
+      dueDate, 
+      points,
+      attachments 
+    } = req.body;
     
-    // Check if assignment exists
-    const existingAssignment = await prisma.assignment.findUnique({
-      where: { id },
-    });
-    
-    if (!existingAssignment) {
-      return res.status(404).json({
-        success: false,
-        error: "Assignment not found",
+    if (!courseId || !title || !description || !dueDate || !points) {
+      res.status(400).json({ 
+        message: "Course ID, title, description, due date, and points are required" 
       });
+      return;
     }
     
-    // Update assignment
-    const updatedAssignment = await prisma.assignment.update({
-      where: { id },
-      data: {
-        ...validatedData,
-        deadline: validatedData.deadline ? new Date(validatedData.deadline) : existingAssignment.deadline,
-        updatedAt: new Date(),
-      },
-    });
-    
-    return res.status(200).json({
-      success: true,
-      data: updatedAssignment,
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        success: false,
-        error: error.errors,
-      });
+    // Ensure only teachers can create assignments
+    if (req.user?.role !== "teacher" && req.user?.role !== "admin") {
+      res.status(403).json({ message: "Only teachers can create assignments" });
+      return;
     }
     
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
+    const assignment = new Assignment({
+      assignmentId: uuidv4(),
+      courseId,
+      teacherId: userId,
+      title,
+      description,
+      dueDate,
+      points,
+      status: "draft",
+      attachments: attachments || [],
+      submissions: []
+    });
+    
+    await assignment.save();
+    
+    res.status(201).json(assignment);
+  } catch (error: any) {
+    console.error("Error creating assignment:", error);
+    res.status(500).json({ 
+      message: "Failed to create assignment", 
+      error: error.message 
     });
   }
 };
 
-// Delete an assignment
-export const deleteAssignment = async (req: Request, res: Response) => {
+/**
+ * Update an assignment
+ */
+export const updateAssignment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { assignmentId } = req.params;
+    const { userId } = getAuth(req);
+    const updateData = req.body;
     
-    // Check if assignment exists
-    const existingAssignment = await prisma.assignment.findUnique({
-      where: { id },
+    // Get the existing assignment
+    const assignment = await Assignment.get(assignmentId);
+    
+    if (!assignment) {
+      res.status(404).json({ message: "Assignment not found" });
+      return;
+    }
+    
+    // Check if the user is the teacher who created the assignment
+    if (assignment.teacherId !== userId && req.user?.role !== "admin") {
+      res.status(403).json({ 
+        message: "You don't have permission to update this assignment" 
+      });
+      return;
+    }
+    
+    // Apply updates
+    Object.assign(assignment, updateData);
+    
+    // Save updated assignment
+    await assignment.save();
+    
+    res.status(200).json(assignment);
+  } catch (error: any) {
+    console.error("Error updating assignment:", error);
+    res.status(500).json({ 
+      message: "Failed to update assignment", 
+      error: error.message 
     });
+  }
+};
+
+/**
+ * Delete an assignment
+ */
+export const deleteAssignment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { assignmentId } = req.params;
+    const { userId } = getAuth(req);
     
-    if (!existingAssignment) {
-      return res.status(404).json({
-        success: false,
-        error: "Assignment not found",
+    // Get the assignment to check ownership
+    const assignment = await Assignment.get(assignmentId);
+    
+    if (!assignment) {
+      res.status(404).json({ message: "Assignment not found" });
+      return;
+    }
+    
+    // Check if the user is the teacher who created the assignment
+    if (assignment.teacherId !== userId && req.user?.role !== "admin") {
+      res.status(403).json({ 
+        message: "You don't have permission to delete this assignment" 
+      });
+      return;
+    }
+    
+    // Delete the assignment
+    await Assignment.delete(assignmentId);
+    
+    res.status(200).json({ message: "Assignment deleted successfully" });
+  } catch (error: any) {
+    console.error("Error deleting assignment:", error);
+    res.status(500).json({ 
+      message: "Failed to delete assignment", 
+      error: error.message 
+    });
+  }
+};
+
+/**
+ * Submit assignment (for students)
+ */
+export const submitAssignment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { assignmentId } = req.params;
+    const { userId } = getAuth(req);
+    const { content } = req.body;
+    
+    if (!content) {
+      res.status(400).json({ message: "Submission content is required" });
+      return;
+    }
+    
+    // Get the assignment
+    const assignment = await Assignment.get(assignmentId);
+    
+    if (!assignment) {
+      res.status(404).json({ message: "Assignment not found" });
+      return;
+    }
+    
+    // Check if user has already submitted
+    const existingSubmission = assignment.submissions.find(
+      (submission: any) => submission.studentId === userId
+    );
+    
+    if (existingSubmission) {
+      // Update existing submission
+      existingSubmission.content = content;
+      existingSubmission.submissionDate = new Date().toISOString();
+      existingSubmission.status = "submitted";
+    } else {
+      // Add new submission
+      assignment.submissions.push({
+        studentId: userId,
+        studentName: req.user?.name || "Unknown Student",
+        content,
+        submissionDate: new Date().toISOString(),
+        status: "submitted"
       });
     }
     
-    // Delete assignment
-    await prisma.assignment.delete({
-      where: { id },
-    });
+    // Save the updated assignment with the new submission
+    await assignment.save();
     
-    return res.status(200).json({
-      success: true,
-      message: "Assignment deleted successfully",
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: "Internal server error",
+    res.status(200).json({ message: "Assignment submitted successfully" });
+  } catch (error: any) {
+    console.error("Error submitting assignment:", error);
+    res.status(500).json({ 
+      message: "Failed to submit assignment", 
+      error: error.message 
     });
   }
-}; 
+};
+
+/**
+ * Grade a submission (for teachers)
+ */
+export const gradeSubmission = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { assignmentId, studentId } = req.params;
+    const { userId } = getAuth(req);
+    const { grade, feedback } = req.body;
+    
+    if (grade === undefined || !feedback) {
+      res.status(400).json({ message: "Grade and feedback are required" });
+      return;
+    }
+    
+    // Get the assignment
+    const assignment = await Assignment.get(assignmentId);
+    
+    if (!assignment) {
+      res.status(404).json({ message: "Assignment not found" });
+      return;
+    }
+    
+    // Check if the user is the teacher who created the assignment
+    if (assignment.teacherId !== userId && req.user?.role !== "admin") {
+      res.status(403).json({ 
+        message: "You don't have permission to grade this assignment" 
+      });
+      return;
+    }
+    
+    // Find the student's submission
+    const submissionIndex = assignment.submissions.findIndex(
+      (submission: any) => submission.studentId === studentId
+    );
+    
+    if (submissionIndex === -1) {
+      res.status(404).json({ message: "Student submission not found" });
+      return;
+    }
+    
+    // Update the submission with grade and feedback
+    assignment.submissions[submissionIndex].grade = grade;
+    assignment.submissions[submissionIndex].feedback = feedback;
+    assignment.submissions[submissionIndex].status = "graded";
+    
+    // Save the updated assignment
+    await assignment.save();
+    
+    res.status(200).json({ message: "Submission graded successfully" });
+  } catch (error: any) {
+    console.error("Error grading submission:", error);
+    res.status(500).json({ 
+      message: "Failed to grade submission", 
+      error: error.message 
+    });
+  }
+};
+
