@@ -2,37 +2,53 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useRouter, useSearchParams } from "next/navigation";
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 
 export const useCheckoutNavigation = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isLoaded, isSignedIn, user } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
+  const navigationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const courseId = searchParams.get("id") ?? "";
   const checkoutStep = parseInt(searchParams.get("step") ?? "1", 10);
-  const showSignUpParam = searchParams.get("showSignUp");
+  const showSignUp = searchParams.get("showSignUp") ?? "false";
 
-  // Get the user role
-  const userRole = user?.publicMetadata?.userType as string;
-  const isTeacher = userRole === "teacher";
+  // Clear any existing timeout on component unmount
+  useEffect(() => {
+    return () => {
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+    };
+  }, []);
+
 
   const navigateToStep = useCallback(
     (step: number) => {
       const newStep = Math.min(Math.max(1, step), 3);
-      // Keep the current showSignUp value if it exists, otherwise set based on isSignedIn
-      const showSignUp = showSignUpParam !== null ? showSignUpParam : isSignedIn ? "true" : "false";
+      const showSignUpValue = showSignUp;
 
-      router.push(
-        `/checkout?step=${newStep}&id=${courseId}&showSignUp=${showSignUp}`,
-        {
-          scroll: false,
-        }
-      );
+      // Clear any existing timeout
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+
+      // Set a longer timeout to prevent flickering and give the session time to stabilize
+      navigationTimeoutRef.current = setTimeout(() => {
+        router.push(
+          `/checkout?step=${newStep}&id=${courseId}&showSignUp=${showSignUpValue}`,
+          {
+            scroll: false,
+          }
+        );
+      }, 300); // Increased from 50ms to 300ms for better stability
     },
-    [courseId, isSignedIn, router, showSignUpParam]
+    [courseId, router, showSignUp]
+
   );
 
+  // Only redirect back to step 1 if not signed in and trying to access step > 1
   useEffect(() => {
     // Only redirect in these cases:
     // 1. If user is not signed in and trying to access steps > 1

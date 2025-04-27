@@ -1,7 +1,8 @@
 "use client";
 
 import { SignUp, useUser } from "@clerk/nextjs";
-import React, { useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+
 import { dark } from "@clerk/themes";
 import { useSearchParams, useRouter } from "next/navigation";
 
@@ -11,23 +12,47 @@ const SignUpComponent = () => {
   const router = useRouter();
   const isCheckoutPage = searchParams.get("showSignUp") !== null;
   const courseId = searchParams.get("id");
-  const step = searchParams.get("step") || "1";
+  const showSignUpValue = searchParams.get("showSignUp") || "true";
+  const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+
 
   const signInUrl = isCheckoutPage
     ? `/checkout?step=${step}&id=${courseId}&showSignUp=false`
     : "/signin";
 
-  const getRedirectUrl = () => {
-    if (isCheckoutPage) {
-      return `/checkout?step=2&id=${courseId}&showSignUp=true`;
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+      }
+    };
+  }, []);
+
+
+  useEffect(() => {
+    if (!user) return;
+    
+    // Clear any existing timeout
+    if (redirectTimeoutRef.current) {
+      clearTimeout(redirectTimeoutRef.current);
     }
 
-    const userType = user?.publicMetadata?.userType as string;
-    if (userType === "teacher") {
-      return "/teacher/courses";
-    }
-    return "/user/courses";
-  };
+    redirectTimeoutRef.current = setTimeout(() => {
+      if (isCheckoutPage) {
+        setRedirectUrl(`/checkout?step=2&id=${courseId}&showSignUp=${showSignUpValue}`);
+        return;
+      }
+
+      const userType = user?.publicMetadata?.userType as string;
+      if (userType === "teacher") {
+        setRedirectUrl("/teacher/courses");
+      } else {
+        setRedirectUrl("/user/courses");
+      }
+    }, 300);
+  }, [user, isCheckoutPage, courseId, showSignUpValue]);
 
   // Handle the post-registration redirect for checkout
   useEffect(() => {
@@ -60,7 +85,7 @@ const SignUpComponent = () => {
         },
       }}
       signInUrl={signInUrl}
-      forceRedirectUrl={getRedirectUrl()}
+      forceRedirectUrl={redirectUrl}
       routing="hash"
       afterSignOutUrl="/"
     />

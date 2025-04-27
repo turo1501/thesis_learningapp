@@ -1,7 +1,7 @@
 "use client";
 
 import { SignIn, useAuth } from "@clerk/nextjs";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { dark } from "@clerk/themes";
 import { useSearchParams, useRouter } from "next/navigation";
 
@@ -11,7 +11,9 @@ const SignInComponent = () => {
   const router = useRouter();
   const isCheckoutPage = searchParams.get("showSignUp") !== null;
   const courseId = searchParams.get("id");
-  const step = searchParams.get("step") || "1";
+  const showSignUpValue = searchParams.get("showSignUp") || "false";
+  const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
 
   const signUpUrl = isCheckoutPage
     ? `/checkout?step=1&id=${courseId}&showSignUp=true`
@@ -19,21 +21,31 @@ const SignInComponent = () => {
 
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!isLoaded) return; // Wait for Clerk to load
 
     if (!isSignedIn) return; // If not signed in, no need to process further
 
+    // Clear any existing timeout
+    if (redirectTimeoutRef.current) {
+      clearTimeout(redirectTimeoutRef.current);
+    }
+
     if (isCheckoutPage) {
-      // For checkout, ensure step is preserved or defaulted to step 2 after login
-      const targetStep = step || "2";
-      const url = `/checkout?step=${targetStep}&id=${courseId}&showSignUp=true`;
-      setRedirectUrl(url);
-      
-      // Handle immediate redirect to prevent flash
-      if (typeof window !== 'undefined') {
-        router.push(url, { scroll: false });
-      }
+      // Add a small delay to allow the session to stabilize before redirecting
+      redirectTimeoutRef.current = setTimeout(() => {
+        setRedirectUrl(`/checkout?step=2&id=${courseId}&showSignUp=${showSignUpValue}`);
+      }, 300);
+
       return;
     }
 
@@ -43,14 +55,18 @@ const SignInComponent = () => {
         const userType = data.userType;
         console.log("UserType:", userType);
 
-        if (userType === "user") {
-          setRedirectUrl("/user/courses");
-        } else {
-          setRedirectUrl("/teacher/courses");
-        }
+        // Add a small delay to allow the session to stabilize before redirecting
+        redirectTimeoutRef.current = setTimeout(() => {
+          if (userType === "user") {
+            setRedirectUrl("/user/courses");
+          } else {
+            setRedirectUrl("/teacher/courses");
+          }
+        }, 300);
       })
       .catch((error) => console.error("Error fetching user role:", error));
-  }, [isLoaded, isSignedIn, userId, isCheckoutPage, courseId, step, router]);
+  }, [isLoaded, isSignedIn, userId, isCheckoutPage, courseId, showSignUpValue]);
+
 
   return (
     <SignIn

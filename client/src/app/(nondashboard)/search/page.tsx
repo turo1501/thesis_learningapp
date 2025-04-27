@@ -16,7 +16,8 @@ const Search = () => {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const router = useRouter();
-  const { isSignedIn } = useUser();
+  const { isSignedIn, isLoaded } = useUser();
+
 
   useEffect(() => {
     if (apiCourses) {
@@ -58,11 +59,15 @@ const Search = () => {
   };
 
   const handleEnrollNow = (courseId: string) => {
-    // Set different parameters based on authentication state
+    // Wait for authentication state to be loaded
+    if (!isLoaded) return;
+
+    // Force step=2 for authenticated users, otherwise step=1
     const step = isSignedIn ? "2" : "1";
-    const showSignUp = isSignedIn ? "true" : "false";
     
-    router.push(`/checkout?step=${step}&id=${courseId}&showSignUp=${showSignUp}`, {
+    // Always set showSignUp to false for consistent behavior
+    router.push(`/checkout?step=${step}&id=${courseId}&showSignUp=false`, {
+
       scroll: false,
     });
   };
