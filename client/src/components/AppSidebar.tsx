@@ -22,6 +22,14 @@ import {
   PenTool,
   FileText,
   CheckSquare,
+  BarChart2,
+  MessageCircle,
+  BrainCircuit,
+  Video,
+  Users,
+  ClipboardCheck,
+  School,
+  UserCog
 } from "lucide-react";
 import Loading from "./Loading";
 import Image from "next/image";
@@ -37,17 +45,29 @@ const AppSidebar = () => {
   const navLinks = {
     student: [
       { icon: BookOpen, label: "Courses", href: "/user/courses" },
-      { icon: PenTool, label: "Blog", href: "/student/blog" },
+      { icon: PenTool, label: "Blog", href: "/blog" },
+      { icon: BarChart2, label: "Analysis", href: "/user/analysis" },
+      { icon: BrainCircuit, label: "Memory Cards", href: "/user/memory-cards" },
       { icon: Briefcase, label: "Billing", href: "/user/billing" },
       { icon: User, label: "Profile", href: "/user/profile" },
       { icon: Settings, label: "Settings", href: "/user/settings" },
     ],
     teacher: [
       { icon: BookOpen, label: "Courses", href: "/teacher/courses" },
-      { icon: CheckSquare, label: "Moderation", href: "/teacher/moderation" },
-      { icon: DollarSign, label: "Billing", href: "/teacher/billing" },
+      { icon: ClipboardCheck, label: "Assignments", href: "/teacher/assignments" },
+      { icon: Video, label: "Meetings", href: "/teacher/meetings" },
+      { icon: Users, label: "Students", href: "/teacher/billing" },
+      { icon: PenTool, label: "Blog", href: "/blog" },
       { icon: User, label: "Profile", href: "/teacher/profile" },
       { icon: Settings, label: "Settings", href: "/teacher/settings" },
+    ],
+    admin: [
+      { icon: BarChart2, label: "Dashboard", href: "/admin/dashboard" },
+      { icon: Users, label: "Users", href: "/admin/users" },
+      { icon: School, label: "Courses", href: "/admin/courses" },
+      { icon: CheckSquare, label: "Blog Approval", href: "/admin/blog-approval" },
+      { icon: DollarSign, label: "Payments", href: "/admin/payments" },
+      { icon: UserCog, label: "Settings", href: "/admin/settings" },
     ],
   };
 
@@ -55,8 +75,8 @@ const AppSidebar = () => {
   if (!user) return <div>User not found</div>;
 
   const userType =
-    (user.publicMetadata.userType as "student" | "teacher") || "student";
-  const currentNavLinks = navLinks[userType];
+    (user.publicMetadata.userType as "student" | "teacher" | "admin") || "student";
+  const currentNavLinks = navLinks[userType] || navLinks.student;
 
   return (
     <Sidebar
@@ -133,6 +153,26 @@ const AppSidebar = () => {
           })}
         </SidebarMenu>
       </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <button
+                onClick={() => signOut()}
+                className="app-sidebar__signout"
+              >
+                <LogOut className="mr-2 h-6 w-6" />
+                <span>Sign out</span>
+              </button>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+    </Sidebar>
+  );
+};
+
+export default AppSidebar;
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
