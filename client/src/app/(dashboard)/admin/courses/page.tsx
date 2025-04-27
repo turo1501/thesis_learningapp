@@ -23,6 +23,39 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Search,
+  Plus,
+  Edit,
+  Trash2,
+  MoreHorizontal,
+  Eye,
+  CheckCircle,
+  Clock,
+  XCircle,
+  AlertCircle,
+  BookOpen,
+  Users,
+  BarChart2,
+  FileText,
+  Filter,
+  ChevronRight,
+  Star,
+  DollarSign,
+} from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+>>>>>>> main
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -38,6 +71,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+
 import {
   Dialog,
   DialogContent,
@@ -161,6 +195,330 @@ const AdminCoursesPage = () => {
           <Button className="bg-blue-600 hover:bg-blue-700 text-white">
             <Download className="mr-2 h-4 w-4" />
             Export Courses
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+// Define types
+interface Instructor {
+  id: string;
+  name: string;
+  avatar: string;
+  email: string;
+}
+
+interface Course {
+  id: string;
+  title: string;
+  description: string;
+  coverImage: string;
+  category: string;
+  status: "published" | "draft" | "archived" | "pending_review";
+  instructor: Instructor;
+  price: number;
+  discountPrice?: number;
+  rating: number;
+  totalRatings: number;
+  totalStudents: number;
+  totalLessons: number;
+  duration: string; // Format: "10h 30m"
+  lastUpdated: string; // ISO date string
+  featured: boolean;
+}
+
+// Sample data
+const sampleCourses: Course[] = [
+  {
+    id: "course_1",
+    title: "Complete JavaScript from Zero to Expert",
+    description: "Master JavaScript with the most comprehensive course on the market. Projects included!",
+    coverImage: "/images/courses/javascript-course.jpg",
+    category: "Programming",
+    status: "published",
+    instructor: {
+      id: "inst_1",
+      name: "Sarah Smith",
+      avatar: "/avatars/sarah.jpg",
+      email: "sarah.smith@example.com",
+    },
+    price: 129.99,
+    discountPrice: 89.99,
+    rating: 4.8,
+    totalRatings: 2345,
+    totalStudents: 15642,
+    totalLessons: 158,
+    duration: "24h 30m",
+    lastUpdated: "2025-02-15T14:30:00Z",
+    featured: true,
+  },
+  {
+    id: "course_2",
+    title: "React - The Complete Guide",
+    description: "Dive into React development and learn how to build powerful, reactive applications",
+    coverImage: "/images/courses/react-course.jpg",
+    category: "Programming",
+    status: "published",
+    instructor: {
+      id: "inst_2",
+      name: "Michael Brown",
+      avatar: "/avatars/michael.jpg",
+      email: "michael.brown@example.com",
+    },
+    price: 149.99,
+    discountPrice: 99.99,
+    rating: 4.9,
+    totalRatings: 3217,
+    totalStudents: 18934,
+    totalLessons: 182,
+    duration: "32h 45m",
+    lastUpdated: "2025-03-01T09:15:00Z",
+    featured: true,
+  },
+  {
+    id: "course_3",
+    title: "Python for Data Science and Machine Learning",
+    description: "Learn how to use Python for data analysis, visualization, and machine learning",
+    coverImage: "/images/courses/python-course.jpg",
+    category: "Data Science",
+    status: "published",
+    instructor: {
+      id: "inst_3",
+      name: "Emily Davis",
+      avatar: "/avatars/emily.jpg",
+      email: "emily.davis@example.com",
+    },
+    price: 179.99,
+    discountPrice: 119.99,
+    rating: 4.7,
+    totalRatings: 1852,
+    totalStudents: 12431,
+    totalLessons: 145,
+    duration: "28h 15m",
+    lastUpdated: "2025-02-25T11:45:00Z",
+    featured: false,
+  },
+  {
+    id: "course_4",
+    title: "Modern Web Design: HTML, CSS, and UI/UX",
+    description: "Create stunning, responsive websites with modern HTML, CSS, and design principles",
+    coverImage: "/images/courses/web-design-course.jpg",
+    category: "Web Design",
+    status: "draft",
+    instructor: {
+      id: "inst_4",
+      name: "David Kim",
+      avatar: "/avatars/david.jpg",
+      email: "david.kim@example.com",
+    },
+    price: 119.99,
+    rating: 0,
+    totalRatings: 0,
+    totalStudents: 0,
+    totalLessons: 102,
+    duration: "18h 20m",
+    lastUpdated: "2025-03-10T15:20:00Z",
+    featured: false,
+  },
+  {
+    id: "course_5",
+    title: "Advanced Node.js: Building Scalable Applications",
+    description: "Learn how to build high-performance, scalable backend systems with Node.js",
+    coverImage: "/images/courses/nodejs-course.jpg",
+    category: "Programming",
+    status: "pending_review",
+    instructor: {
+      id: "inst_2",
+      name: "Michael Brown",
+      avatar: "/avatars/michael.jpg",
+      email: "michael.brown@example.com",
+    },
+    price: 159.99,
+    rating: 0,
+    totalRatings: 0,
+    totalStudents: 0,
+    totalLessons: 132,
+    duration: "22h 45m",
+    lastUpdated: "2025-03-12T10:30:00Z",
+    featured: false,
+  },
+  {
+    id: "course_6",
+    title: "AWS Certified Solutions Architect",
+    description: "Prepare for the AWS Solutions Architect certification with hands-on exercises",
+    coverImage: "/images/courses/aws-course.jpg",
+    category: "Cloud Computing",
+    status: "published",
+    instructor: {
+      id: "inst_5",
+      name: "James Wilson",
+      avatar: "/avatars/james.jpg",
+      email: "james.wilson@example.com",
+    },
+    price: 199.99,
+    discountPrice: 149.99,
+    rating: 4.9,
+    totalRatings: 974,
+    totalStudents: 8215,
+    totalLessons: 165,
+    duration: "30h 15m",
+    lastUpdated: "2025-03-05T13:10:00Z",
+    featured: true,
+  },
+  {
+    id: "course_7",
+    title: "Flutter & Dart: Build iOS and Android Apps",
+    description: "Create beautiful native mobile apps for both platforms from a single codebase",
+    coverImage: "/images/courses/flutter-course.jpg",
+    category: "Mobile Development",
+    status: "archived",
+    instructor: {
+      id: "inst_1",
+      name: "Sarah Smith",
+      avatar: "/avatars/sarah.jpg",
+      email: "sarah.smith@example.com",
+    },
+    price: 139.99,
+    rating: 4.6,
+    totalRatings: 1245,
+    totalStudents: 9764,
+    totalLessons: 128,
+    duration: "26h 30m",
+    lastUpdated: "2024-11-20T09:45:00Z",
+    featured: false,
+  },
+];
+
+const CoursesManagement = () => {
+  const [courses, setCourses] = useState<Course[]>(sampleCourses);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [instructorFilter, setInstructorFilter] = useState("all");
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  
+  // Get unique categories and instructors for filters
+  const categories = [...new Set(courses.map(course => course.category))];
+  const instructors = [...new Set(courses.map(course => course.instructor.name))];
+  
+  // Filter courses based on filters and search
+  const filteredCourses = courses.filter(course => {
+    const matchesSearch = 
+      course.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      course.description.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || course.status === statusFilter;
+    const matchesCategory = categoryFilter === "all" || course.category === categoryFilter;
+    const matchesInstructor = instructorFilter === "all" || course.instructor.name === instructorFilter;
+    
+    return matchesSearch && matchesStatus && matchesCategory && matchesInstructor;
+  });
+  
+  // Function to approve a pending course
+  const handleApproveCourse = (courseId: string) => {
+    setCourses(prevCourses => 
+      prevCourses.map(course => 
+        course.id === courseId 
+          ? { ...course, status: "published" } 
+          : course
+      )
+    );
+    toast.success("Course has been published");
+  };
+  
+  // Function to reject a pending course
+  const handleRejectCourse = (courseId: string) => {
+    setCourses(prevCourses => 
+      prevCourses.map(course => 
+        course.id === courseId 
+          ? { ...course, status: "draft" } 
+          : course
+      )
+    );
+    toast.success("Course has been returned to draft status");
+  };
+  
+  // Function to archive a course
+  const handleArchiveCourse = (courseId: string) => {
+    setCourses(prevCourses => 
+      prevCourses.map(course => 
+        course.id === courseId 
+          ? { ...course, status: "archived" } 
+          : course
+      )
+    );
+    toast.success("Course has been archived");
+  };
+  
+  // Function to restore an archived course
+  const handleRestoreCourse = (courseId: string) => {
+    setCourses(prevCourses => 
+      prevCourses.map(course => 
+        course.id === courseId 
+          ? { ...course, status: "published" } 
+          : course
+      )
+    );
+    toast.success("Course has been restored and published");
+  };
+  
+  // Function to toggle featured status
+  const handleToggleFeatured = (courseId: string) => {
+    setCourses(prevCourses => 
+      prevCourses.map(course => 
+        course.id === courseId 
+          ? { ...course, featured: !course.featured } 
+          : course
+      )
+    );
+    
+    const course = courses.find(c => c.id === courseId);
+    const featuredAction = course?.featured ? "removed from" : "added to";
+    toast.success(`Course ${featuredAction} featured courses`);
+  };
+  
+  // Function to delete a course
+  const handleDeleteCourse = (courseId: string) => {
+    setCourses(prevCourses => prevCourses.filter(course => course.id !== courseId));
+    toast.success("Course has been deleted");
+  };
+  
+  // Helper function to format price
+  const formatPrice = (price: number, discountPrice?: number) => {
+    if (discountPrice) {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="text-primary-500 font-semibold">${discountPrice.toFixed(2)}</span>
+          <span className="text-gray-400 text-sm line-through">${price.toFixed(2)}</span>
+        </div>
+      );
+    }
+    return <span className="text-primary-500 font-semibold">${price.toFixed(2)}</span>;
+  };
+  
+  // Helper function to get status badge
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "published":
+        return <Badge className="bg-green-600">Published</Badge>;
+      case "draft":
+        return <Badge className="bg-gray-500">Draft</Badge>;
+      case "archived":
+        return <Badge className="bg-red-600">Archived</Badge>;
+      case "pending_review":
+        return <Badge className="bg-amber-500">Pending Review</Badge>;
+      default:
+        return <Badge>Unknown</Badge>;
+    }
+  };
+  
+  return (
+    <div className="space-y-6">
+      <Header 
+        title="Courses Management" 
+        subtitle="Manage, approve, and analyze courses"
+        rightElement={
+          <Button className="bg-primary-700 hover:bg-primary-600">
+            <Plus className="mr-2 h-4 w-4" />
+            Add New Course
           </Button>
         }
       />
@@ -582,8 +940,10 @@ const AdminCoursesPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
     </div>
   );
 };
 
 export default AdminCoursesPage; 
+
