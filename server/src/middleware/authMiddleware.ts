@@ -10,7 +10,11 @@ export const authenticate: RequestHandler = async (req, res, next) => {
     // Use type assertion to access auth property
     const userId = (req as any).auth?.userId;
     
+    console.log('Auth Middleware - Auth Object:', (req as any).auth);
+    console.log('Auth Middleware - UserId:', userId);
+    
     if (!userId) {
+      console.log('Auth Middleware - No userId found in request');
       res.status(401).json({ message: 'Unauthorized: Not authenticated' });
       return;
     }
@@ -21,6 +25,7 @@ export const authenticate: RequestHandler = async (req, res, next) => {
       
       // If user not found
       if (!user) {
+        console.log('Auth Middleware - User not found for userId:', userId);
         res.status(403).json({ message: 'Forbidden: User not found' });
         return;
       }
@@ -34,10 +39,11 @@ export const authenticate: RequestHandler = async (req, res, next) => {
         role: (user.publicMetadata.userType as 'student' | 'teacher' | 'admin') || 'student',
       };
       
-      console.log("User role:", (req as any).user?.role);
+      console.log("Auth Middleware - User role:", (req as any).user?.role);
       
       next();
     } catch (error) {
+      console.error('Auth Middleware - Error getting user data:', error);
       res.status(401).json({ message: 'Unauthorized: Invalid user data' });
       return;
     }

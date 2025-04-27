@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { format } from "date-fns";
+import { format as dateFormat } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -137,7 +137,7 @@ export default function AssignmentSubmissionsPage() {
             </Badge>
             <Badge variant="outline" className="bg-slate-900 border-slate-700">
               <Calendar className="h-3 w-3 mr-1" />
-              Due: {format(new Date(assignment.dueDate), "MMM dd, yyyy")}
+              Due: {dateFormat(new Date(assignment.dueDate), "MMM dd, yyyy")}
             </Badge>
           </div>
           <div className="flex flex-wrap gap-4 text-sm text-slate-400">
@@ -190,7 +190,7 @@ export default function AssignmentSubmissionsPage() {
                                 <div>
                                   <h5 className="font-medium">{submission.studentName}</h5>
                                   <p className="text-sm text-slate-400">
-                                    Submitted: {format(new Date(submission.submissionDate), "MMM dd, yyyy h:mm a")}
+                                    Submitted: {dateFormat(new Date(submission.submissionDate), "MMM dd, yyyy h:mm a")}
                                   </p>
                                 </div>
                               </div>
@@ -230,7 +230,7 @@ export default function AssignmentSubmissionsPage() {
                                   <h5 className="font-medium">{submission.studentName}</h5>
                                   <div className="flex flex-wrap gap-2 mt-1">
                                     <span className="text-sm text-slate-400">
-                                      Submitted: {format(new Date(submission.submissionDate), "MMM dd, yyyy")}
+                                      Submitted: {dateFormat(new Date(submission.submissionDate), "MMM dd, yyyy")}
                                     </span>
                                     <span className="text-sm text-green-500 font-medium">
                                       Grade: {submission.grade}/{assignment.points}

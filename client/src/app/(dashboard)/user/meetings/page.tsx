@@ -22,7 +22,7 @@ import {
   X,
   ExternalLink,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format as dateFormat } from "date-fns";
 import React, { useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useGetStudentMeetingsQuery, useRespondToMeetingMutation } from "@/state/api";
@@ -196,7 +196,7 @@ const renderMeetingsList = (
             <div className="flex items-center text-slate-300">
               <Calendar className="h-4 w-4 mr-1 text-slate-500" />
               <span>
-                {format(new Date(meeting.date), "EEEE, MMMM dd, yyyy")}
+                {dateFormat(new Date(meeting.date), "EEEE, MMMM dd, yyyy")}
               </span>
             </div>
             <div className="flex items-center text-slate-300">

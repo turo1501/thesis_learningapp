@@ -60,6 +60,7 @@ const express_2 = require("@clerk/express");
 /* ROUTE IMPORTS */
 const courseRoutes_1 = __importDefault(require("./routes/courseRoutes"));
 const userClerkRoutes_1 = __importDefault(require("./routes/userClerkRoutes"));
+const roleChangeRoutes_1 = __importDefault(require("./routes/roleChangeRoutes"));
 const transactionRoutes_1 = __importDefault(require("./routes/transactionRoutes"));
 const userCourseProgessRoutes_1 = __importDefault(require("./routes/userCourseProgessRoutes"));
 const chatRoutes_1 = __importDefault(require("./routes/chatRoutes"));
@@ -67,6 +68,7 @@ const blogPostRoutes_1 = __importDefault(require("./routes/blogPostRoutes"));
 const assignmentRoutes_1 = __importDefault(require("./routes/assignmentRoutes"));
 const meetingRoutes_1 = __importDefault(require("./routes/meetingRoutes"));
 const errorMiddleware_1 = require("./middleware/errorMiddleware");
+const authMiddleware_1 = require("./middleware/authMiddleware");
 /* CONFIGURATIONS */
 dotenv_1.default.config();
 const isProduction = process.env.NODE_ENV === "production";
@@ -90,10 +92,11 @@ app.get("/", (_req, res) => {
     res.send("Hello World");
 });
 app.use("/courses", courseRoutes_1.default);
-app.use("/users/clerk", (0, express_2.requireAuth)(), userClerkRoutes_1.default);
-app.use("/transactions", (0, express_2.requireAuth)(), transactionRoutes_1.default);
-app.use("/users/course-progress", (0, express_2.requireAuth)(), userCourseProgessRoutes_1.default);
-app.use("/chat", (0, express_2.requireAuth)(), chatRoutes_1.default);
+app.use("/users/clerk", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, userClerkRoutes_1.default);
+app.use("/role-change", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, roleChangeRoutes_1.default);
+app.use("/transactions", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, transactionRoutes_1.default);
+app.use("/users/course-progress", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, userCourseProgessRoutes_1.default);
+app.use("/chat", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, chatRoutes_1.default);
 app.use("/blog-posts", blogPostRoutes_1.default);
 app.use("/assignments", assignmentRoutes_1.default);
 app.use("/meetings", meetingRoutes_1.default);

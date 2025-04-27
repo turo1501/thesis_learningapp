@@ -26,9 +26,6 @@ import {
   LayoutDashboard,
   UserCog,
   BarChart3,
-  GraduationCap,
-  CreditCard,
-  UserIcon,
 
 } from "lucide-react";
 import Loading from "./Loading";
@@ -44,12 +41,10 @@ const AppSidebar = () => {
 
   const navLinks = {
     student: [
-      { icon: GraduationCap, label: "Courses", href: "/user/courses" },
-      { icon: CheckSquare, label: "Assignments", href: "/user/assignments" },
-      { icon: BookOpen, label: "Blog", href: "/user/blog" },
-      { icon: VideoIcon, label: "Meetings", href: "/user/meetings" },
-      { icon: CreditCard, label: "Billing", href: "/user/billing" },
-      { icon: UserIcon, label: "Profile", href: "/user/profile" },
+      { icon: BookOpen, label: "Courses", href: "/user/courses" },
+      { icon: PenTool, label: "Blog", href: "/user/blog" },
+      { icon: Briefcase, label: "Billing", href: "/user/billing" },
+      { icon: User, label: "Profile", href: "/user/profile" },
 
       { icon: Settings, label: "Settings", href: "/user/settings" },
     ],
