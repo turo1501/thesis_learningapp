@@ -19,6 +19,9 @@ import {
   PanelLeft,
   Settings,
   User,
+  PenTool,
+  FileText,
+  CheckSquare,
 } from "lucide-react";
 import Loading from "./Loading";
 import Image from "next/image";
@@ -34,12 +37,14 @@ const AppSidebar = () => {
   const navLinks = {
     student: [
       { icon: BookOpen, label: "Courses", href: "/user/courses" },
+      { icon: PenTool, label: "Blog", href: "/student/blog" },
       { icon: Briefcase, label: "Billing", href: "/user/billing" },
       { icon: User, label: "Profile", href: "/user/profile" },
       { icon: Settings, label: "Settings", href: "/user/settings" },
     ],
     teacher: [
       { icon: BookOpen, label: "Courses", href: "/teacher/courses" },
+      { icon: CheckSquare, label: "Moderation", href: "/teacher/moderation" },
       { icon: DollarSign, label: "Billing", href: "/teacher/billing" },
       { icon: User, label: "Profile", href: "/teacher/profile" },
       { icon: Settings, label: "Settings", href: "/teacher/settings" },

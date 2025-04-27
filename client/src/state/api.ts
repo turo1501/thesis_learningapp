@@ -5,6 +5,31 @@ import { Clerk } from "@clerk/clerk-js";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from 'uuid';
 
+// Add these interfaces at the beginning of the file after other interfaces
+export interface BlogPost {
+  postId: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  title: string;
+  content: string;
+  category: string;
+  tags: string[];
+  status: 'draft' | 'pending' | 'published' | 'rejected';
+  moderatedBy?: string;
+  moderationComment?: string;
+  featuredImage?: string;
+  createdAt: number;
+  updatedAt: number;
+  publishedAt?: number;
+}
+
+export interface BlogPostsResponse {
+  posts: BlogPost[];
+  lastKey: string | null;
+  count: number;
+}
+
 const customBaseQuery = async (
   args: string | FetchArgs,
   api: BaseQueryApi,
@@ -13,16 +38,45 @@ const customBaseQuery = async (
   const baseQuery = fetchBaseQuery({
     baseUrl: process.env.NEXT_PUBLIC_API_BASE_URL,
     prepareHeaders: async (headers) => {
-      const token = await window.Clerk?.session?.getToken();
-      if (token) {
-        headers.set("Authorization", `Bearer ${token}`);
+      try {
+        // Add cache control headers to prevent caching
+        headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        headers.set('Pragma', 'no-cache');
+        headers.set('Expires', '0');
+        
+        // Check if Clerk is available and authenticated
+        if (typeof window !== 'undefined' && window.Clerk) {
+          const session = await window.Clerk.session;
+          if (session) {
+            const token = await session.getToken();
+            if (token) {
+              headers.set("Authorization", `Bearer ${token}`);
+              console.log("Authorization header set with token");
+            } else {
+              console.warn("No token available from Clerk session");
+            }
+          } else {
+            console.warn("No Clerk session found");
+          }
+        } else {
+          console.warn("Clerk not available in window");
+        }
+      } catch (error) {
+        console.error("Error getting auth token:", error);
       }
       return headers;
     },
   });
 
+  // Log the request being made
+  const url = typeof args === 'string' ? args : args.url;
+  console.log(`API Request: ${url}`, args);
+
   try {
     const result = await baseQuery(args, api, extraOptions);
+
+    // Log the response
+    console.log(`API Response for ${url}:`, result);
 
     // Handle errors
     if (result.error) {
@@ -52,23 +106,16 @@ const customBaseQuery = async (
     }
 
     return result;
-  } catch (error: unknown) {
-    console.error('Query error:', error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    return {
-      error: {
-        status: 'CUSTOM_ERROR',
-        data: { message: errorMessage }
-      }
-    };
+  } catch (error) {
+    toast.error(`Network error: ${error instanceof Error ? error.message : "Unknown error"}`);
+    return { error: { status: "FETCH_ERROR", error: String(error) } };
   }
 };
 
 export const api = createApi({
   baseQuery: customBaseQuery,
   reducerPath: "api",
-  tagTypes: ["Courses", "Users", "UserCourseProgress"],
+  tagTypes: ["Courses", "Users", "UserCourseProgress", "BlogPosts", "BlogPost"],
   endpoints: (build) => ({
     /* 
     ===============
@@ -271,6 +318,96 @@ export const api = createApi({
         return response;
       },
     }),
+
+    /* 
+    ===============
+    BLOG POSTS
+    =============== 
+    */
+    getBlogPosts: build.query<BlogPostsResponse, { 
+      status?: string;
+      category?: string;
+      userId?: string;
+      limit?: number;
+      lastKey?: string;
+    }>({
+      query: (params) => {
+        const queryParams = new URLSearchParams();
+        if (params.status) queryParams.append('status', params.status);
+        if (params.category) queryParams.append('category', params.category);
+        if (params.userId) queryParams.append('userId', params.userId);
+        if (params.limit) queryParams.append('limit', params.limit.toString());
+        if (params.lastKey) queryParams.append('lastKey', params.lastKey);
+        
+        return {
+          url: `/blog-posts?${queryParams.toString()}`,
+          method: 'GET',
+        };
+      },
+      providesTags: (result) => 
+        result 
+          ? [
+              ...result.posts.map(post => ({ type: 'BlogPost' as const, id: post.postId })),
+              { type: 'BlogPosts' as const, id: 'LIST' }
+            ]
+          : [{ type: 'BlogPosts' as const, id: 'LIST' }],
+    }),
+    
+    getBlogPost: build.query<BlogPost, string>({
+      query: (postId) => ({
+        url: `/blog-posts/${postId}`,
+        method: 'GET',
+      }),
+      providesTags: (_, __, postId) => [{ type: 'BlogPost', id: postId }],
+    }),
+    
+    createBlogPost: build.mutation<BlogPost, Partial<BlogPost>>({
+      query: (post) => ({
+        url: '/blog-posts',
+        method: 'POST',
+        body: post,
+      }),
+      invalidatesTags: [{ type: 'BlogPosts', id: 'LIST' }],
+    }),
+    
+    updateBlogPost: build.mutation<BlogPost, { postId: string; post: Partial<BlogPost> }>({
+      query: ({ postId, post }) => ({
+        url: `/blog-posts/${postId}`,
+        method: 'PUT',
+        body: post,
+      }),
+      invalidatesTags: (_, __, { postId }) => [
+        { type: 'BlogPost', id: postId },
+        { type: 'BlogPosts', id: 'LIST' }
+      ],
+    }),
+    
+    deleteBlogPost: build.mutation<{ message: string }, string>({
+      query: (postId) => ({
+        url: `/blog-posts/${postId}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (_, __, postId) => [
+        { type: 'BlogPost', id: postId },
+        { type: 'BlogPosts', id: 'LIST' }
+      ],
+    }),
+    
+    moderateBlogPost: build.mutation<BlogPost, { 
+      postId: string; 
+      status: 'published' | 'rejected'; 
+      moderationComment?: string 
+    }>({
+      query: ({ postId, ...data }) => ({
+        url: `/blog-posts/${postId}/moderate`,
+        method: 'PUT',
+        body: data,
+      }),
+      invalidatesTags: (_, __, { postId }) => [
+        { type: 'BlogPost', id: postId },
+        { type: 'BlogPosts', id: 'LIST' }
+      ],
+    }),
   }),
 });
 
@@ -290,4 +427,10 @@ export const {
   useUpdateUserCourseProgressMutation,
   useSendChatMessageMutation,
   useGetChatHistoryQuery,
+  useGetBlogPostsQuery,
+  useGetBlogPostQuery,
+  useCreateBlogPostMutation,
+  useUpdateBlogPostMutation,
+  useDeleteBlogPostMutation,
+  useModerateBlogPostMutation,
 } = api;

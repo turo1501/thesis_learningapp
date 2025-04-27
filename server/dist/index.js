@@ -63,6 +63,8 @@ const userClerkRoutes_1 = __importDefault(require("./routes/userClerkRoutes"));
 const transactionRoutes_1 = __importDefault(require("./routes/transactionRoutes"));
 const userCourseProgessRoutes_1 = __importDefault(require("./routes/userCourseProgessRoutes"));
 const chatRoutes_1 = __importDefault(require("./routes/chatRoutes"));
+const blogPostRoutes_1 = __importDefault(require("./routes/blogPostRoutes"));
+const errorMiddleware_1 = require("./middleware/errorMiddleware");
 /* CONFIGURATIONS */
 dotenv_1.default.config();
 const isProduction = process.env.NODE_ENV === "production";
@@ -82,7 +84,7 @@ app.use(body_parser_1.default.urlencoded({ extended: false }));
 app.use((0, cors_1.default)());
 app.use((0, express_2.clerkMiddleware)());
 /* ROUTES */
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
     res.send("Hello World");
 });
 app.use("/courses", courseRoutes_1.default);
@@ -90,6 +92,9 @@ app.use("/users/clerk", (0, express_2.requireAuth)(), userClerkRoutes_1.default)
 app.use("/transactions", (0, express_2.requireAuth)(), transactionRoutes_1.default);
 app.use("/users/course-progress", (0, express_2.requireAuth)(), userCourseProgessRoutes_1.default);
 app.use("/chat", (0, express_2.requireAuth)(), chatRoutes_1.default);
+app.use("/blog-posts", blogPostRoutes_1.default);
+/* ERROR MIDDLEWARE */
+app.use(errorMiddleware_1.errorHandler);
 /* SERVER */
 const port = process.env.PORT || 3000;
 if (!isProduction) {

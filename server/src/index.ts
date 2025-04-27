@@ -19,6 +19,8 @@ import userClerkRoutes from "./routes/userClerkRoutes";
 import transactionRoutes from "./routes/transactionRoutes";
 import userCourseProgressRoutes from "./routes/userCourseProgessRoutes";
 import chatRoutes from "./routes/chatRoutes";
+import blogPostRoutes from "./routes/blogPostRoutes";
+import { errorHandler } from "./middleware/errorMiddleware";
 
 /* CONFIGURATIONS */
 dotenv.config();
@@ -42,7 +44,7 @@ app.use(cors());
 app.use(clerkMiddleware());
 
 /* ROUTES */
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.send("Hello World");
 });
 
@@ -51,6 +53,10 @@ app.use("/users/clerk", requireAuth(), userClerkRoutes);
 app.use("/transactions", requireAuth(), transactionRoutes);
 app.use("/users/course-progress", requireAuth(), userCourseProgressRoutes);
 app.use("/chat", requireAuth(), chatRoutes);
+app.use("/blog-posts", blogPostRoutes);
+
+/* ERROR MIDDLEWARE */
+app.use(errorHandler);
 
 /* SERVER */
 const port = process.env.PORT || 3000;
