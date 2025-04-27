@@ -1,23 +1,25 @@
 "use client";
 
 import { SignUp, useUser } from "@clerk/nextjs";
-import React from "react";
+import React, { useEffect } from "react";
 import { dark } from "@clerk/themes";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const SignUpComponent = () => {
   const { user } = useUser();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const isCheckoutPage = searchParams.get("showSignUp") !== null;
   const courseId = searchParams.get("id");
+  const step = searchParams.get("step") || "1";
 
   const signInUrl = isCheckoutPage
-    ? `/checkout?step=1&id=${courseId}&showSignUp=false`
+    ? `/checkout?step=${step}&id=${courseId}&showSignUp=false`
     : "/signin";
 
   const getRedirectUrl = () => {
     if (isCheckoutPage) {
-      return `/checkout?step=2&id=${courseId}&showSignUp=false`;
+      return `/checkout?step=2&id=${courseId}&showSignUp=true`;
     }
 
     const userType = user?.publicMetadata?.userType as string;
@@ -26,6 +28,14 @@ const SignUpComponent = () => {
     }
     return "/user/courses";
   };
+
+  // Handle the post-registration redirect for checkout
+  useEffect(() => {
+    if (user && isCheckoutPage) {
+      const redirectUrl = `/checkout?step=2&id=${courseId}&showSignUp=true`;
+      router.push(redirectUrl, { scroll: false });
+    }
+  }, [user, isCheckoutPage, courseId, router]);
 
   return (
     <SignUp
