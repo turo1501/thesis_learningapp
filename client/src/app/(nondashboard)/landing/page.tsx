@@ -1,15 +1,31 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
 import { useCarousel } from "@/hooks/useCarousel";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useGetCoursesQuery } from "@/state/api";
+import { useGetCoursesQuery } from "@/state/api/courseApi";
 import { useRouter } from "next/navigation";
 import CourseCardSearch from "@/components/CourseCardSearch";
 import { useUser } from "@clerk/nextjs";
+
+// Define the Course interface structure expected by CourseCardSearch
+interface Course {
+  courseId: string;
+  title: string;
+  description: string;
+  teacherId: string;
+  teacherName: string;
+  category: string;
+  level: "Beginner" | "Intermediate" | "Advanced";
+  status: "Draft" | "Published";
+  sections: any[];
+  price?: number;
+  image?: string;
+  enrollments?: Array<{ userId: string }>;
+}
 
 const LoadingSkeleton = () => {
   return (
@@ -47,7 +63,30 @@ const LoadingSkeleton = () => {
 const Landing = () => {
   const router = useRouter();
   const currentImage = useCarousel({ totalImages: 3 });
-  const { data: courses, isLoading, isError } = useGetCoursesQuery({});
+  const { data: apiCourses, isLoading, isError } = useGetCoursesQuery({});
+  const [courses, setCourses] = useState<Course[]>([]);
+
+  useEffect(() => {
+    if (apiCourses) {
+      // Transform the API courses to match the global Course interface
+      const transformedCourses: Course[] = apiCourses.map(course => ({
+        courseId: course.id,
+        title: course.title,
+        description: course.description,
+        teacherId: course.teacherId,
+        teacherName: course.teacherId, // Using teacherId as teacherName temporarily
+        category: course.subject,
+        level: course.level as "Beginner" | "Intermediate" | "Advanced",
+        status: course.status as "Draft" | "Published",
+        sections: [],
+        price: 0, // Default price
+        image: course.imageUrl,
+        enrollments: []
+      }));
+      
+      setCourses(transformedCourses);
+    }
+  }, [apiCourses]);
 
   const handleCourseClick = (courseId: string) => {
     router.push(`/search?id=${courseId}`, {
@@ -128,7 +167,7 @@ const Landing = () => {
         </div>
 
         <div className="landing__courses">
-          {courses &&
+          {courses.length > 0 &&
             courses.slice(0, 4).map((course, index) => (
               <motion.div
                 key={course.courseId}
