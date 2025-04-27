@@ -8,6 +8,7 @@ import { useUser } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import ChaptersSidebar from "./user/courses/[courseId]/ChaptersSidebar";
+import ChatBot from "@/components/ChatBot";
 
 export default function DashboardLayout({
   children,
@@ -50,6 +51,7 @@ export default function DashboardLayout({
             <main className="dashboard__body">{children}</main>
           </div>
         </div>
+        <ChatBot />
       </div>
     </SidebarProvider>
   );

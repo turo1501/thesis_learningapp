@@ -55,12 +55,14 @@ const morgan_1 = __importDefault(require("morgan"));
 const dynamoose = __importStar(require("dynamoose"));
 const serverless_http_1 = __importDefault(require("serverless-http"));
 const seedDynamodb_1 = __importDefault(require("./seed/seedDynamodb"));
+const seedData_1 = require("./utils/seedData");
 const express_2 = require("@clerk/express");
 /* ROUTE IMPORTS */
 const courseRoutes_1 = __importDefault(require("./routes/courseRoutes"));
 const userClerkRoutes_1 = __importDefault(require("./routes/userClerkRoutes"));
 const transactionRoutes_1 = __importDefault(require("./routes/transactionRoutes"));
 const userCourseProgessRoutes_1 = __importDefault(require("./routes/userCourseProgessRoutes"));
+const chatRoutes_1 = __importDefault(require("./routes/chatRoutes"));
 /* CONFIGURATIONS */
 dotenv_1.default.config();
 const isProduction = process.env.NODE_ENV === "production";
@@ -87,18 +89,22 @@ app.use("/courses", courseRoutes_1.default);
 app.use("/users/clerk", (0, express_2.requireAuth)(), userClerkRoutes_1.default);
 app.use("/transactions", (0, express_2.requireAuth)(), transactionRoutes_1.default);
 app.use("/users/course-progress", (0, express_2.requireAuth)(), userCourseProgessRoutes_1.default);
+app.use("/chat", (0, express_2.requireAuth)(), chatRoutes_1.default);
 /* SERVER */
 const port = process.env.PORT || 3000;
 if (!isProduction) {
-    app.listen(port, () => {
+    app.listen(port, () => __awaiter(void 0, void 0, void 0, function* () {
         console.log(`Server running on port ${port}`);
-    });
+        // Seed sample courses to the database
+        yield (0, seedData_1.seedCourses)();
+    }));
 }
 // aws production environment
 const serverlessApp = (0, serverless_http_1.default)(app);
 const handler = (event, context) => __awaiter(void 0, void 0, void 0, function* () {
     if (event.action === "seed") {
         yield (0, seedDynamodb_1.default)();
+        yield (0, seedData_1.seedCourses)();
         return {
             statusCode: 200,
             body: JSON.stringify({ message: "Data seeded successfully" }),

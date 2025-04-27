@@ -1,4 +1,5 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import chatReducer from "./chatSlice";
 
 interface InitialStateTypes {
   courseEditor: {

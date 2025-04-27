@@ -1559,3 +1559,56 @@ input[type="color"] {
     @apply bg-background text-foreground;
   }
 }
+
+/* Chat Bot Styles */
+.chatbot {
+  font-family: var(--font-dm-sans);
+  transition: all 0.3s ease;
+}
+
+.chatbot__header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.chatbot__messages {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.chatbot__messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chatbot__messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chatbot__messages::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+}
+
+.chatbot__message {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  word-break: break-word;
+}
+
+.chatbot__message--user {
+  border-bottom-right-radius: 4px;
+}
+
+.chatbot__message--bot {
+  border-bottom-left-radius: 4px;
+}
+
+.chatbot__input-container {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.chatbot-trigger {
+  transition: all 0.2s ease;
+}
+
+.chatbot-trigger:hover {
+  transform: scale(1.05);
+}
