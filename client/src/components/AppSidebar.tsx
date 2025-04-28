@@ -26,6 +26,7 @@ import {
   LayoutDashboard,
   UserCog,
   BarChart3,
+  Brain,
 } from "lucide-react";
 import Loading from "./Loading";
 import Image from "next/image";
@@ -41,11 +42,11 @@ const AppSidebar = () => {
   const navLinks = {
     student: [
       { icon: BookOpen, label: "Courses", href: "/user/courses" },
+      { icon: Brain, label: "Memory Cards", href: "/user/memory-cards" },
       { icon: PenTool, label: "Blog", href: "/user/blog" },
       { icon: Briefcase, label: "Billing", href: "/user/billing" },
       { icon: User, label: "Profile", href: "/user/profile" },
       { icon: VideoIcon, label: "Meetings", href: "/user/meetings" },
-
       { icon: Settings, label: "Settings", href: "/user/settings" },
     ],
     teacher: [
