@@ -331,9 +331,4 @@ const renderAssignmentsList = (
 };
 
 export default StudentAssignments; 
-      </Card>
-    );
-  });
-};
-
-export default StudentAssignments; 
+      

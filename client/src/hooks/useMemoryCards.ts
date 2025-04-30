@@ -87,21 +87,25 @@ export const useMemoryCards = ({ userId, deckId, skipInitialFetch = false }: Use
   }, [deckData]);
   
   // Extract cards from deck data with enhanced error handling
-  const extractCards = (deckData: any): MemoryCard[] => {
+  const extractCards = (deckData: any, verbose: boolean = false): MemoryCard[] => {
     if (!deckData) {
-      console.log('No deck data provided to extractCards');
+      if (verbose) console.log('No deck data provided to extractCards');
       return [];
     }
     
-    console.log('Extracting cards from deck data:', 
-      typeof deckData, 
-      deckData ? `Has cards: ${!!deckData.cards}` : 'null data'
-    );
+    if (verbose) {
+      console.log('Extracting cards from deck data:', 
+        typeof deckData, 
+        deckData ? `Has cards: ${!!deckData.cards}` : 'null data'
+      );
+    }
     
     // If data has a nested 'data' property structure (common in some API responses)
     if (deckData.data && deckData.data.cards) {
-      console.log('Found cards in nested data property', 
-        Array.isArray(deckData.data.cards) ? deckData.data.cards.length : 'not an array');
+      if (verbose) {
+        console.log('Found cards in nested data property', 
+          Array.isArray(deckData.data.cards) ? deckData.data.cards.length : 'not an array');
+      }
       
       if (Array.isArray(deckData.data.cards)) {
         return deckData.data.cards;
@@ -111,23 +115,23 @@ export const useMemoryCards = ({ userId, deckId, skipInitialFetch = false }: Use
     // Direct cards access
     if (deckData.cards) {
       if (Array.isArray(deckData.cards)) {
-        console.log('Found cards in direct cards property', deckData.cards.length);
+        if (verbose) console.log('Found cards in direct cards property', deckData.cards.length);
         return deckData.cards;
       } else {
-        console.warn('Cards property exists but is not an array:', typeof deckData.cards);
+        if (verbose) console.warn('Cards property exists but is not an array:', typeof deckData.cards);
         
         // Try to parse cards if it's a string (sometimes APIs return stringified JSON)
         if (typeof deckData.cards === 'string') {
           try {
             const parsedCards = JSON.parse(deckData.cards);
             if (Array.isArray(parsedCards)) {
-              console.log('Parsed cards from string', parsedCards.length);
+              if (verbose) console.log('Parsed cards from string', parsedCards.length);
               return parsedCards;
             } else {
-              console.warn('Parsed cards is not an array:', typeof parsedCards);
+              if (verbose) console.warn('Parsed cards is not an array:', typeof parsedCards);
             }
           } catch (e) {
-            console.error('Failed to parse cards string:', e);
+            if (verbose) console.error('Failed to parse cards string:', e);
           }
         }
         
@@ -136,18 +140,18 @@ export const useMemoryCards = ({ userId, deckId, skipInitialFetch = false }: Use
           try {
             const cardValues = Object.values(deckData.cards);
             if (Array.isArray(cardValues) && cardValues.length > 0) {
-              console.log('Converted object cards to array', cardValues.length);
+              if (verbose) console.log('Converted object cards to array', cardValues.length);
               return cardValues as MemoryCard[];
             }
           } catch (e) {
-            console.error('Failed to convert cards object to array:', e);
+            if (verbose) console.error('Failed to convert cards object to array:', e);
           }
         }
       }
     }
     
     // If we've reached here, log a warning and return empty array
-    console.warn('No valid cards found in deck data. Full deck data:', JSON.stringify(deckData, null, 2));
+    if (verbose) console.warn('No valid cards found in deck data. Full deck data:', JSON.stringify(deckData, null, 2));
     return [];
   };
   

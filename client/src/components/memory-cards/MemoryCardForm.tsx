@@ -311,42 +311,18 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
   // Generate AI alternatives for a single card
   const handleGenerateAIAlternatives = async () => {
     if (!userId) {
-      toast.error("You must be signed in to use AI features");
+      toast.error("You must be signed in to generate alternatives");
       return;
     }
-
-    // Get the current question and answer based on mode
-    let question = '';
-    let answer = '';
-
-    if (mode === 'single') {
-      question = singleForm.getValues('question');
-      answer = singleForm.getValues('answer');
-    } else if (mode === 'multiple') {
-      // Use the first card in multiple mode
-      const cards = multipleForm.getValues().cards;
-      if (cards && cards.length > 0) {
-        question = cards[0].question;
-        answer = cards[0].answer;
-      }
-    } else {
-      // For batch mode, we don't support AI generation
-      toast.error("AI generation is only available for single card and multiple cards modes");
+    
+    // In single mode, get values from single form
+    const question = singleForm.getValues('question');
+    const answer = singleForm.getValues('answer');
+    
+    if (!question || !answer) {
+      toast.error("Please enter both a question and answer first");
       return;
     }
-
-    // Validate the question and answer
-    if (!question || question.length < 3) {
-      toast.error("Please enter a valid question (at least 3 characters)");
-      return;
-    }
-
-    if (!answer || answer.length < 3) {
-      toast.error("Please enter a valid answer (at least 3 characters)");
-      return;
-    }
-
-    console.log('Generating AI alternatives for:', { question, answer });
     
     try {
       // Call the API to generate alternatives
@@ -362,14 +338,35 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
       toast.dismiss();
       console.log('AI alternatives generated:', result);
       
-      if (!result.alternatives || !Array.isArray(result.alternatives) || result.alternatives.length === 0) {
+      // Safety check for the response structure
+      if (!result) {
+        console.warn('Empty response from API');
+        toast.error("Failed to generate alternatives. Please try again.");
+        return;
+      }
+      
+      // Check if we have valid alternatives
+      const alternatives = result.alternatives || [];
+      if (!Array.isArray(alternatives) || alternatives.length === 0) {
         console.warn('No alternatives returned from API', result);
         toast.error("No alternative cards were generated. Please try again with a different question/answer.");
         return;
       }
 
+      // Ensure alternatives are properly formatted
+      const validAlternatives = alternatives.filter(alt => 
+        alt && typeof alt === 'object' && alt.question && alt.answer
+      );
+      
+      if (validAlternatives.length === 0) {
+        console.warn('No valid alternatives in response', alternatives);
+        toast.error("Generated alternatives were invalid. Please try again.");
+        return;
+      }
+      
       // Update the state with the alternatives
-      setAiAlternatives(result.alternatives || []);
+      setAiAlternatives(validAlternatives);
+      console.log('Setting AI alternatives:', validAlternatives);
       
       // Switch to multiple mode if not already in it
       if (mode !== 'multiple') {
@@ -378,56 +375,62 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
         
         // If in single mode, populate the first card in multiple mode
         if (mode === 'single') {
-          // Create the initial card array
-          const initialCards = [{
-            question,
-            answer,
-            difficultyLevel: singleForm.getValues('difficultyLevel') || 'medium'
-          }];
+          // Create the initial card array with original card and all alternatives
+          const initialCards = [
+            {
+              question,
+              answer,
+              difficultyLevel: singleForm.getValues('difficultyLevel') || 'medium'
+            },
+            ...validAlternatives.map(alt => ({
+              question: alt.question,
+              answer: alt.answer,
+              difficultyLevel: 'medium' as "easy" | "medium" | "hard"
+            }))
+          ];
           
-          console.log('Setting initial card for multiple mode:', initialCards);
+          console.log('Setting initial cards for multiple mode:', initialCards);
           
-          // Set the cards in the form
-          multipleForm.setValue('cards', initialCards, {
-            shouldValidate: true,
-            shouldDirty: true,
-            shouldTouch: true
+          // Set the cards in the form - use reset to ensure clean state
+          multipleForm.reset({
+            cards: initialCards,
+            courseId: singleForm.getValues('courseId') || '',
+            sectionId: singleForm.getValues('sectionId') || '',
+            chapterId: singleForm.getValues('chapterId') || '',
+            tags: singleForm.getValues('tags') || ''
           });
           
-          // Copy over course data
-          multipleForm.setValue('courseId', singleForm.getValues('courseId') || '');
-          multipleForm.setValue('sectionId', singleForm.getValues('sectionId') || '');
-          multipleForm.setValue('chapterId', singleForm.getValues('chapterId') || '');
-          multipleForm.setValue('tags', singleForm.getValues('tags') || '');
+          // Trigger validation
+          multipleForm.trigger();
+          
+          // Don't hide alternatives, keep them visible for user to choose
+          setTimeout(() => {
+            const alternativesSection = document.querySelector('.ai-alternatives-section');
+            if (alternativesSection) {
+              alternativesSection.scrollIntoView({ behavior: 'smooth' });
+            }
+          }, 300);
+          
+          toast.success(`Generated ${validAlternatives.length} alternative cards`);
+          return;
         }
       }
       
+      // If already in multiple mode, show alternatives for manual addition
       // Wait a moment for the UI to update and show alternatives section
       setTimeout(() => {
         // Focus on the alternatives section
-        const alternativesSection = document.querySelector('.space-y-3');
+        const alternativesSection = document.querySelector('.ai-alternatives-section');
         if (alternativesSection) {
           alternativesSection.scrollIntoView({ behavior: 'smooth' });
         }
       }, 300);
       
-      toast.success(`Generated ${result.alternatives.length} alternative questions and answers`);
+      toast.success(`Generated ${validAlternatives.length} alternative questions and answers`);
     } catch (error) {
       toast.dismiss();
       console.error('Error generating AI alternatives:', error);
-      
-      // Provide more specific error messages
-      if (error && typeof error === 'object' && 'status' in error) {
-        if ((error as any).status === 429) {
-          toast.error("Too many requests. Please wait a moment before trying again.");
-        } else if ((error as any).status === 503) {
-          toast.error("AI service is currently unavailable. Please try again later.");
-        } else {
-          toast.error(`Failed to generate alternatives: ${(error as any).data?.message || 'Unknown error'}`);
-        }
-      } else {
-        toast.error("Failed to generate alternatives. Please try again.");
-      }
+      toast.error('Failed to generate alternatives. Please try again.');
     }
   };
 
@@ -447,10 +450,12 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
         return;
       }
       
-      // Get current cards array
-      const existingCards = multipleForm.getValues('cards');
-      if (!existingCards || !Array.isArray(existingCards)) {
+      // Get current cards array - ensure it's a valid array
+      const existingCards = multipleForm.getValues('cards') || [];
+      if (!Array.isArray(existingCards)) {
         console.error('Invalid existing cards array:', existingCards);
+        // Initialize with empty array if not valid
+        multipleForm.setValue('cards', [], { shouldValidate: false });
         return;
       }
       
@@ -463,8 +468,8 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
         difficultyLevel: 'medium' as "easy" | "medium" | "hard"
       };
       
-      // Add the alternative as a new card
-      const updatedCards = [...existingCards, newCard];
+      // Add the alternative as a new card - create a deep copy to ensure UI updates
+      const updatedCards = JSON.parse(JSON.stringify([...existingCards, newCard]));
       
       // Update the form state with the new card
       multipleForm.setValue('cards', updatedCards, {
@@ -473,18 +478,13 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
         shouldTouch: true 
       });
       
-      // Force form update to ensure UI reflects new card
+      // Force form update to ensure UI reflects new card and properly registers for submission
       setTimeout(() => {
-        // Force a re-render by updating form state
-        const currentCards = multipleForm.getValues('cards');
-        multipleForm.setValue('cards', [...currentCards], { 
-          shouldValidate: true,
-          shouldDirty: true,
-          shouldTouch: true
-        });
+        // Force re-validation and re-render
+        multipleForm.trigger();
         
         // Log updated card count for debugging
-        console.log('Updated card count after re-render:', multipleForm.getValues('cards').length);
+        console.log('Updated card count after adding alternative:', multipleForm.getValues('cards').length);
       }, 50);
       
       // Remove from alternatives list to prevent duplicates
@@ -492,7 +492,6 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
         a.question !== alternative.question || a.answer !== alternative.answer
       ));
       
-      console.log('Updated cards after adding alternative:', updatedCards.length);
       toast.success("Alternative added as a new card");
       
       // Scroll to the new card after a moment for DOM update
@@ -505,6 +504,49 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
     } catch (error) {
       console.error('Error adding AI alternative:', error);
       toast.error('Failed to add alternative card. Please try again.');
+    }
+  };
+
+  // Function to add all AI alternatives at once
+  const addAllAIAlternatives = () => {
+    if (!multipleForm || aiAlternatives.length === 0) {
+      return;
+    }
+
+    try {
+      // Get current cards
+      const existingCards = multipleForm.getValues('cards') || [];
+      if (!Array.isArray(existingCards)) {
+        return;
+      }
+
+      // Create new cards from all alternatives
+      const newCards = aiAlternatives.map(alt => ({
+        question: alt.question,
+        answer: alt.answer,
+        difficultyLevel: 'medium' as "easy" | "medium" | "hard"
+      }));
+
+      // Combine existing and new cards
+      const updatedCards = JSON.parse(JSON.stringify([...existingCards, ...newCards]));
+
+      // Update form
+      multipleForm.setValue('cards', updatedCards, {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true
+      });
+
+      // Clear alternatives
+      setAiAlternatives([]);
+      
+      // Trigger validation
+      multipleForm.trigger();
+
+      toast.success(`Added ${newCards.length} alternative cards`);
+    } catch (error) {
+      console.error('Error adding all alternatives:', error);
+      toast.error('Failed to add alternative cards');
     }
   };
 
@@ -686,15 +728,26 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
               <CardContent className="space-y-6">
                 {/* AI-generated alternatives section */}
                 {aiAlternatives.length > 0 && (
-                  <div className="p-4 border rounded-md bg-secondary/10 space-y-4 mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Sparkles className="h-5 w-5 text-primary" />
-                      <h3 className="font-medium">AI-Generated Alternatives</h3>
+                  <div className="p-4 border rounded-md bg-secondary/10 space-y-4 mb-4 ai-alternatives-section" data-testid="ai-alternatives-section">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                        <h3 className="font-medium">AI-Generated Alternatives</h3>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addAllAIAlternatives}
+                        className="text-xs"
+                      >
+                        <Plus className="mr-1 h-3 w-3" /> Add All
+                      </Button>
                     </div>
                     
                     <div className="space-y-3">
                       {aiAlternatives.map((alternative, idx) => (
-                        <div key={idx} className="p-3 bg-background rounded-md border">
+                        <div key={`ai-alt-${idx}`} className="p-3 bg-background rounded-md border">
                           <div className="mb-2">
                             <p className="text-sm font-semibold">Question:</p>
                             <p className="text-sm">{alternative.question}</p>

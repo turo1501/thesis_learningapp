@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { format as dateFormat } from "date-fns";
@@ -32,6 +32,7 @@ export default function AssignmentDetailPage() {
   const params = useParams();
   const assignmentId = params.id as string;
   const formRef = useRef<HTMLFormElement>(null);
+  const [isClient, setIsClient] = useState(false);
   
   const { user, isLoaded } = useUser();
   const userId = user?.id;
@@ -40,6 +41,11 @@ export default function AssignmentDetailPage() {
   const [submitAssignment, { isLoading: isSubmitting }] = useSubmitAssignmentMutation();
   
   const [submissionContent, setSubmissionContent] = useState("");
+  
+  // Ensure client-side rendering for date formatting
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   // Get user's submission if it exists
   const userSubmission = assignment?.submissions?.find(
@@ -98,6 +104,15 @@ export default function AssignmentDetailPage() {
   
   const isOverdue = new Date(assignment.dueDate) < new Date() && !isSubmitted;
   
+  // Prevent hydration errors with dates
+  if (!isClient) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+  
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-5 mb-5">
@@ -112,16 +127,16 @@ export default function AssignmentDetailPage() {
       
       <Header 
         title={assignment.title} 
-        subtitle={`Assignment for ${assignment.courseName || 'your course'}`} 
+        subtitle="Assignment details" 
       />
       
       <Card className="bg-slate-800 border-slate-700">
         <CardHeader className="pb-2">
           <div className="flex flex-wrap gap-2 mb-2">
-            {assignment.courseName && (
+            {assignment.courseId && (
               <Badge className="bg-blue-600">
                 <BookOpen className="h-3 w-3 mr-1" />
-                {assignment.courseName}
+                Course Assignment
               </Badge>
             )}
             <Badge variant="outline" className="bg-slate-900 border-slate-700">
@@ -144,7 +159,7 @@ export default function AssignmentDetailPage() {
               <span className="font-semibold mr-1">Points:</span> {assignment.points}
             </div>
             <div className="flex items-center">
-              <span className="font-semibold mr-1">Teacher:</span> {assignment.teacherName || 'Unknown'}
+              <span className="font-semibold mr-1">Teacher:</span> {assignment.teacherId ? 'Assigned' : 'Unknown'}
             </div>
           </div>
         </CardHeader>

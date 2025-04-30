@@ -110,27 +110,77 @@ const customBaseQuery = fetchBaseQuery({
 const normalizeMemoryCardResponse = (responseData: any): any => {
   console.log('Normalizing memory card response:', responseData);
   
+  // Guard against null or undefined responses
+  if (!responseData) {
+    console.warn('Empty response data received');
+    return { cards: [] };
+  }
+  
   // If response has a data.data structure (common in some APIs)
-  if (responseData && typeof responseData === 'object' && 'data' in responseData) {
-    console.log('Response has data property, normalizing');
+  if (responseData && typeof responseData === 'object') {
+    // If this is an array of decks, ensure each deck has a cards array
+    if (Array.isArray(responseData)) {
+      console.log('Response is an array, normalizing each item');
+      return responseData.map((deck: any) => {
+        // Ensure each deck has a cards array
+        if (deck && typeof deck === 'object') {
+          return {
+            ...deck,
+            cards: Array.isArray(deck.cards) ? deck.cards : []
+          };
+        }
+        return deck;
+      });
+    }
     
-    // If data.data is a complete deck object
-    if (responseData.data && 
-        typeof responseData.data === 'object' && 
-        'deckId' in responseData.data &&
-        'cards' in responseData.data) {
+    // Handle data property
+    if ('data' in responseData) {
+      console.log('Response has data property, normalizing');
       
-      // Make sure cards is an array
-      if (!Array.isArray(responseData.data.cards)) {
-        console.warn('Cards is not an array in the response, setting to empty array');
-        responseData.data.cards = [];
+      // If data is an array (like multiple decks)
+      if (Array.isArray(responseData.data)) {
+        console.log('Data is an array, normalizing each item');
+        return responseData.data.map((deck: any) => {
+          if (deck && typeof deck === 'object') {
+            return {
+              ...deck,
+              cards: Array.isArray(deck.cards) ? deck.cards : []
+            };
+          }
+          return deck;
+        });
       }
       
+      // If data.data is a complete deck object
+      if (responseData.data && 
+          typeof responseData.data === 'object') {
+        
+        const normalizedData = { ...responseData.data };
+        
+        // Make sure cards is an array
+        if (!Array.isArray(normalizedData.cards)) {
+          console.warn('Cards is not an array in the response, setting to empty array');
+          normalizedData.cards = [];
+        }
+        
+        return normalizedData;
+      }
+      
+      // If data contains the main response we need
       return responseData.data;
     }
     
-    // If data contains the main response we need
-    return responseData.data;
+    // Direct object with potential cards property
+    if (responseData.cards !== undefined) {
+      // Ensure cards is an array
+      if (!Array.isArray(responseData.cards)) {
+        console.warn('Cards property exists but is not an array, converting to empty array');
+        return {
+          ...responseData,
+          cards: []
+        };
+      }
+    }
   }
   
   return responseData;
@@ -138,7 +188,16 @@ const normalizeMemoryCardResponse = (responseData: any): any => {
 
 // Modify the enhancedBaseQuery function to use the normalizeMemoryCardResponse helper for memory card endpoints
 const enhancedBaseQuery = async (args: string | FetchArgs, api: BaseQueryApi, extraOptions = {}) => {
-  console.log(`API Request: ${typeof args === 'string' ? args : args.url}`);
+  // Debug the actual URL 
+  const url = typeof args === 'string' ? args : args.url;
+  console.log(`API Request: ${url}`);
+  
+  // Check for malformed URLs
+  if (typeof args === 'object' && args.url && !args.url.startsWith('/')) {
+    // Add leading slash if missing to avoid root URL requests
+    console.log(`Fixing URL format: ${args.url}`);
+    args.url = `/${args.url}`;
+  }
   
   try {
     // Make the request
@@ -149,11 +208,11 @@ const enhancedBaseQuery = async (args: string | FetchArgs, api: BaseQueryApi, ex
       console.log(`API Response for ${typeof args === 'string' ? args : args.url}: `, result.data);
       
       // Check if this is a memory card related endpoint
-      const url = typeof args === 'string' ? args : args.url;
-      if (typeof url === 'string' && (
-          url.includes('/memory-cards/') || 
-          url.includes('/cards/') ||
-          url.includes('/due-cards')
+      const endpoint = typeof args === 'string' ? args : args.url;
+      if (typeof endpoint === 'string' && (
+          endpoint.includes('/memory-cards/') || 
+          endpoint.includes('/cards/') ||
+          endpoint.includes('/due-cards')
         )) {
         console.log('Memory card endpoint detected, normalizing response');
         return { data: normalizeMemoryCardResponse(result.data) };
@@ -198,7 +257,7 @@ const enhancedBaseQuery = async (args: string | FetchArgs, api: BaseQueryApi, ex
     return {
       error: {
         status: 'FETCH_ERROR',
-        error: String(error)
+        error
       }
     };
   }
@@ -1097,6 +1156,32 @@ export const api = createApi({
       },
     }),
     
+    addCardsBatch: build.mutation<
+      { deck: MemoryCardDeck; cardsAdded: number },
+      {
+        userId: string;
+        deckId: string;
+        cards: Array<{
+          question: string;
+          answer: string;
+          chapterId?: string;
+          sectionId?: string;
+          difficultyLevel?: number;
+        }>;
+      }
+    >({
+      query: ({ userId, deckId, cards }) => ({
+        url: `/memory-cards/${userId}/${deckId}/cards/batch`,
+        method: "POST",
+        body: { cards },
+      }),
+      invalidatesTags: (result, error, { deckId, userId }) => [
+        { type: "MemoryCardDeck", id: deckId },
+        { type: "MemoryCardDecks", id: userId },
+        "DueCards",
+      ],
+    }),
+    
     updateCard: build.mutation<
       MemoryCardDeck,
       {
@@ -1285,4 +1370,5 @@ export const {
   useSubmitCardReviewMutation,
   useGenerateCardsFromCourseMutation,
   useGenerateAIAlternativesMutation,
+  useAddCardsBatchMutation,
 } = api;

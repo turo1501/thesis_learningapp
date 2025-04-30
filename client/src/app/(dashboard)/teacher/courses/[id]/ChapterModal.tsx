@@ -66,12 +66,31 @@ const ChapterModal = () => {
   const onSubmit = (data: ChapterFormData) => {
     if (selectedSectionIndex === null) return;
 
+    if (data.title.startsWith('http') || data.content.startsWith('http')) {
+      toast.error('Chapter title and content should not be URLs');
+      return;
+    }
+
+    const validTitle = data.title.trim().substring(0, 100);
+    const validContent = data.content.trim().substring(0, 5000);
+
+    if (validTitle.length === 0) {
+      toast.error('Chapter title cannot be empty');
+      return;
+    }
+
+    let videoValue = data.video;
+    
+    if (chapter?.video && typeof data.video !== 'object' && !data.video) {
+      videoValue = chapter.video;
+    }
+
     const newChapter: Chapter = {
       chapterId: chapter?.chapterId || uuidv4(),
-      title: data.title,
-      content: data.content,
-      type: data.video ? "Video" : "Text",
-      video: data.video,
+      title: validTitle,
+      content: validContent,
+      type: videoValue ? "Video" : "Text",
+      video: videoValue,
     };
 
     if (selectedChapterIndex === null) {

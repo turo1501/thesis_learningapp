@@ -48,10 +48,23 @@ const SectionModal = () => {
   };
 
   const onSubmit = (data: SectionFormData) => {
+    if (data.title.startsWith('http') || data.description.startsWith('http')) {
+      toast.error('Section title and description should not be URLs');
+      return;
+    }
+
+    const validTitle = data.title.trim().substring(0, 100);
+    const validDescription = data.description.trim().substring(0, 500);
+
+    if (validTitle.length === 0) {
+      toast.error('Section title cannot be empty');
+      return;
+    }
+
     const newSection: Section = {
       sectionId: section?.sectionId || uuidv4(),
-      sectionTitle: data.title,
-      sectionDescription: data.description,
+      sectionTitle: validTitle,
+      sectionDescription: validDescription,
       chapters: section?.chapters || [],
     };
 

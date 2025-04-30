@@ -93,13 +93,13 @@ const AppSidebar = () => {
               <div className="app-sidebar__logo-container group">
                 <div className="app-sidebar__logo-wrapper">
                   <Image
-                    src="/logo.svg"
+                    src="/logo2.png"
                     alt="logo"
                     width={25}
                     height={20}
                     className="app-sidebar__logo"
                   />
-                  <p className="app-sidebar__title">EDROH</p>
+                  <p className="app-sidebar__title">    NAUT   </p>
                 </div>
                 <PanelLeft className="app-sidebar__collapse-icon" />
               </div>

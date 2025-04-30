@@ -12,6 +12,7 @@ import {
   submitReview,
   generateCardsFromCourse,
   generateAIAlternatives,
+  addCardsBatch,
 } from "../controllers/memoryCardController";
 import { authenticate } from "../middleware/authMiddleware";
 
@@ -29,6 +30,7 @@ router.delete("/:userId/:deckId", deleteDeck);
 
 // Card management routes
 router.post("/:userId/:deckId/cards", addCard);
+router.post("/:userId/:deckId/cards/batch", addCardsBatch as unknown as express.RequestHandler);
 router.put("/:userId/:deckId/cards/:cardId", updateCard);
 router.delete("/:userId/:deckId/cards/:cardId", deleteCard);
 

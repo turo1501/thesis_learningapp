@@ -7,6 +7,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import ReactPlayer from "react-player";
 import Loading from "@/components/Loading";
 import { useCourseProgressData } from "@/hooks/useCourseProgressData";
+import { toast } from "react-toastify";
 
 const Course = () => {
   const {
@@ -104,17 +105,36 @@ const Course = () => {
                 width="100%"
                 height="100%"
                 onProgress={handleProgress}
+                onError={(e) => {
+                  console.error("Video playback error:", e);
+                  toast.error("Error playing video. The file may be missing or in an unsupported format.");
+                }}
+                onReady={() => {
+                  console.log("Video ready for playback");
+                  toast.success("Video loaded successfully");
+                }}
+                fallback={
+                  <div className="flex items-center justify-center h-full w-full">
+                    <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-primary-600"></div>
+                  </div>
+                }
                 config={{
                   file: {
                     attributes: {
                       controlsList: "nodownload",
+                      onError: (e: any) => {
+                        console.error("HTML5 video error:", e);
+                      }
                     },
+                    forceVideo: true,
                   },
                 }}
               />
             ) : (
-              <div className="course__no-video">
-                No video available for this chapter.
+              <div className="course__no-video flex flex-col items-center justify-center h-full">
+                <div className="text-2xl mb-4">📄</div>
+                <p className="text-lg font-medium mb-2">No video available for this chapter</p>
+                <p className="text-sm text-gray-500">This chapter contains text content only.</p>
               </div>
             )}
           </CardContent>

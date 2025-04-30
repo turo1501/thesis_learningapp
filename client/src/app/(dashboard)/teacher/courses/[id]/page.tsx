@@ -10,6 +10,7 @@ import {
   createCourseFormData,
   uploadAllVideos,
 } from "@/lib/utils";
+import { handleApiError, refreshAuthToken } from "@/lib/api-error-handlers";
 import { openSectionModal, setSections } from "@/state";
 import {
   useGetCourseQuery,
@@ -27,12 +28,33 @@ import ChapterModal from "./ChapterModal";
 import SectionModal from "./SectionModal";
 import Loading from "@/components/Loading";
 import { toast } from "sonner";
+import { useAuth } from "@clerk/nextjs";
+
+// Define the CourseFormData interface
+interface CourseFormData {
+  courseTitle: string;
+  courseDescription: string;
+  courseCategory: string;
+  coursePrice: string;
+  courseStatus: boolean;
+}
 
 const CourseEditor = () => {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
   const [isInitialized, setIsInitialized] = useState(false);
+  const { userId, getToken } = useAuth();
+  
+  // Ensure auth token is refreshed
+  useEffect(() => {
+    const refreshToken = async () => {
+      if (getToken) {
+        await refreshAuthToken(getToken);
+      }
+    };
+    refreshToken();
+  }, [getToken]);
   
   // Redirect to courses page if ID is missing or invalid
   useEffect(() => {
@@ -43,7 +65,7 @@ const CourseEditor = () => {
   }, [id, router]);
   
   // Skip the query if ID is invalid
-  const { data: course, isLoading, refetch, error } = useGetCourseQuery(id, {
+  const { data: course, isLoading, refetch, error: courseError } = useGetCourseQuery(id, {
     skip: !id || id === "undefined",
   });
   const [updateCourse, { isLoading: isUpdating }] = useUpdateCourseMutation();
@@ -51,6 +73,13 @@ const CourseEditor = () => {
 
   const dispatch = useAppDispatch();
   const { sections } = useAppSelector((state) => state.global.courseEditor);
+
+  // Handle API errors
+  useEffect(() => {
+    if (courseError) {
+      handleApiError(courseError, "Failed to load course data");
+    }
+  }, [courseError]);
 
   const methods = useForm<CourseFormData>({
     resolver: zodResolver(courseSchema),
@@ -65,19 +94,34 @@ const CourseEditor = () => {
 
   // Initialize form values with course data when available
   useEffect(() => {
-    if (course && !isInitialized) {
+    if (course) {
       console.log("Setting form values from course data:", course);
+      
+      // We need to properly handle the data structure
+      // If the API returns nested data object, extract it
+      const courseData = typeof course === 'object' && course !== null && 'data' in course 
+        ? (course as any).data 
+        : course;
+      
+      // Validate that the course belongs to the current user
+      if (courseData.teacherId !== userId) {
+        toast.error("You don't have permission to edit this course");
+        router.push("/teacher/courses");
+        return;
+      }
+      
       methods.reset({
-        courseTitle: course.title || "",
-        courseDescription: course.description || "",
-        courseCategory: course.category || "",
-        coursePrice: centsToDollars(course.price) || "0",
-        courseStatus: course.status === "Published",
+        courseTitle: courseData.title || "",
+        courseDescription: courseData.description || "",
+        courseCategory: courseData.category || "",
+        coursePrice: centsToDollars(courseData.price) || "0",
+        courseStatus: courseData.status === "Published",
       });
-      dispatch(setSections(course.sections || []));
+      
+      dispatch(setSections(courseData.sections || []));
       setIsInitialized(true);
     }
-  }, [course, methods, dispatch, isInitialized]);
+  }, [course, methods, dispatch, userId, router]);
 
   const onSubmit = async (data: CourseFormData) => {
     try {
@@ -86,24 +130,48 @@ const CourseEditor = () => {
         return;
       }
 
-      const updatedSections = await uploadAllVideos(
-        sections,
-        id,
-        getUploadVideoUrl
-      );
-
+      // Refresh token before making API requests
+      if (getToken) {
+        await refreshAuthToken(getToken);
+      }
+      
+      let updatedSections = [...sections];
+      
+      try {
+        // First, attempt to process and upload all video files
+        toast.info("Processing videos...");
+        updatedSections = await uploadAllVideos(
+          sections,
+          id,
+          getUploadVideoUrl
+        );
+        
+        // Update the sections in the Redux store
+        dispatch(setSections(updatedSections));
+      } catch (uploadError) {
+        console.error("Video upload error:", uploadError);
+        toast.warning("Some videos may not have uploaded properly. Continuing with course update.");
+        // We continue with the course update even if video upload fails
+      }
+      
+      // Create form data with the sections (with video URLs when available)
       const formData = createCourseFormData(data, updatedSections);
+      
+      try {
+        // Update the course
+        toast.info("Saving course...");
+        await updateCourse({
+          courseId: id,
+          formData,
+        }).unwrap();
 
-      await updateCourse({
-        courseId: id,
-        formData,
-      }).unwrap();
-
-      toast.success("Course updated successfully");
-      await refetch(); // Refresh data after update
-    } catch (error) {
-      console.error("Failed to update course:", error);
-      toast.error("Failed to update course. Please try again.");
+        toast.success("Course updated successfully");
+        await refetch(); // Refresh data after update
+      } catch (updateError: any) {
+        handleApiError(updateError, "Failed to update course");
+      }
+    } catch (error: any) {
+      handleApiError(error, "An unexpected error occurred");
     }
   };
 
@@ -115,7 +183,7 @@ const CourseEditor = () => {
     );
   }
 
-  if (error) {
+  if (courseError) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <p className="text-red-500 mb-4">Error loading course data</p>
