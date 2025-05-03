@@ -114,7 +114,7 @@ export default function PublicBlogList() {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {data?.posts && data.posts.length > 0 ? (
+            {data?.posts && Array.isArray(data.posts) && data.posts.length > 0 ? (
               data.posts.map((post) => (
                 <Card key={post.postId} className="overflow-hidden flex flex-col h-full">
                   {post.featuredImage && (

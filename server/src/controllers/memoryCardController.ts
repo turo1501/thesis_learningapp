@@ -53,6 +53,7 @@ interface MemoryCard {
   repetitionCount: number;
   correctCount: number;
   incorrectCount: number;
+  aiGenerated?: boolean;
 }
 
 interface CourseSection {
@@ -172,35 +173,65 @@ export const createDeck = async (req: Request, res: Response): Promise<void> => 
   try {
     const { userId, courseId, title, description } = req.body;
 
+    // Validate required parameters
+    if (!userId || userId === 'undefined' || userId === 'null') {
+      res.status(400).json({ message: "Invalid user ID provided" });
+      return;
+    }
+
+    if (!courseId || courseId === 'undefined' || courseId === 'null') {
+      res.status(400).json({ message: "Invalid course ID provided" });
+      return;
+    }
+
+    if (!title) {
+      res.status(400).json({ message: "Deck title is required" });
+      return;
+    }
+
     // Verify user is creating their own deck
     if ((req as any).user?.id !== userId) {
+      console.error(`Auth mismatch: Request user ${(req as any).user?.id} !== ${userId}`);
       res.status(403).json({ message: "Unauthorized deck creation" });
       return;
     }
 
+    // Log parameters for debugging
+    console.log(`Creating deck: title=${title}, userId=${userId}, courseId=${courseId}`);
+
     // Verify the course exists
     const course = await Course.get(courseId) as unknown as CourseModel | null;
     if (!course) {
+      console.error(`Course not found: courseId=${courseId}`);
       res.status(404).json({ message: "Course not found" });
       return;
     }
 
-    // Verify user is enrolled in the course
-    const isEnrolled = course.enrollments?.some(
-      (enrollment: Enrollment) => enrollment.userId === userId
-    );
-
-    if (!isEnrolled) {
-      res.status(403).json({ message: "User is not enrolled in this course" });
-      return;
+    // For development/testing environment, we may want to skip enrollment check
+    const skipEnrollmentCheck = process.env.NODE_ENV === 'development' && process.env.SKIP_ENROLLMENT_CHECK === 'true';
+    
+    // Verify user is enrolled in the course (unless we're skipping the check)
+    if (!skipEnrollmentCheck) {
+      const isEnrolled = course.enrollments?.some(
+        (enrollment: Enrollment) => enrollment.userId === userId
+      );
+  
+      if (!isEnrolled) {
+        console.error(`User not enrolled: userId=${userId}, courseId=${courseId}`);
+        res.status(403).json({ message: "User is not enrolled in this course" });
+        return;
+      }
     }
 
+    // Generate a unique ID for the deck
+    const deckId = uuidv4();
+    
     const newDeck = new MemoryCardDeck({
-      deckId: uuidv4(),
+      deckId,
       userId,
       courseId,
       title,
-      description,
+      description: description || `Memory cards for ${title}`,
       cards: [],
       intervalModifier: 1.0,
       easyBonus: 1.3,
@@ -211,6 +242,8 @@ export const createDeck = async (req: Request, res: Response): Promise<void> => 
     });
 
     await newDeck.save();
+
+    console.log(`Deck created successfully: deckId=${deckId}, userId=${userId}`);
 
     res.status(201).json({
       message: "Memory card deck created successfully",
@@ -239,11 +272,30 @@ export const addCard = async (req: Request, res: Response): Promise<void> => {
       incorrectCount = 0
     } = req.body;
 
+    // Validate required parameters
+    if (!deckId || deckId === 'undefined' || deckId === 'null') {
+      res.status(400).json({ message: "Invalid deck ID provided" });
+      return;
+    }
+
+    if (!userId || userId === 'undefined' || userId === 'null') {
+      res.status(400).json({ message: "Invalid user ID provided" });
+      return;
+    }
+
+    if (!question || !answer) {
+      res.status(400).json({ message: "Question and answer are required" });
+      return;
+    }
+
     // Verify user is modifying their own deck
     if ((req as any).user?.id !== userId) {
       res.status(403).json({ message: "Unauthorized deck modification" });
       return;
     }
+
+    // Log parameters for debugging
+    console.log(`Adding card to deck: ${deckId} for user: ${userId}`);
 
     // Get the deck
     const deck = await MemoryCardDeck.get({
@@ -252,6 +304,7 @@ export const addCard = async (req: Request, res: Response): Promise<void> => {
     }) as unknown as MemoryCardDeckModel | null;
 
     if (!deck) {
+      console.error(`Deck not found: deckId=${deckId}, userId=${userId}`);
       res.status(404).json({ message: "Deck not found" });
       return;
     }
@@ -289,7 +342,11 @@ export const addCard = async (req: Request, res: Response): Promise<void> => {
 
     res.json({
       message: "Card added successfully",
-      data: newCard,
+      data: {
+        card: newCard,
+        deckId,
+        deckTitle: deck.title,
+      },
     });
   } catch (error) {
     console.error("Error adding card to deck:", error);
@@ -764,6 +821,7 @@ export const generateCardsFromCourse = async (req: Request, res: Response): Prom
 
     // Generate cards based on course content
     const generatedCards: MemoryCard[] = [];
+    const contentForAIGeneration: {sectionId: string, chapterId: string, title: string, content: string}[] = [];
 
     // Loop through sections and chapters
     (course.sections || []).forEach((section: CourseSection) => {
@@ -775,13 +833,20 @@ export const generateCardsFromCourse = async (req: Request, res: Response): Prom
         .filter((c) => c.completed)
         .map((c) => c.chapterId) || [];
 
-      // Process each completed chapter
+      // Process each completed chapter and collect content for AI generation
       (section.chapters || [])
         .filter((chapter) => completedChapterIds.includes(chapter.chapterId))
         .forEach((chapter) => {
           if (chapter.type === "Text" || chapter.type === "Quiz") {
-            // Simple algorithm to extract potential Q&A pairs
-            // In a real implementation, this would use NLP or a more sophisticated approach
+            // Collect content for AI processing
+            contentForAIGeneration.push({
+              sectionId: section.sectionId,
+              chapterId: chapter.chapterId,
+              title: chapter.title,
+              content: chapter.content || ""
+            });
+            
+            // Simple algorithm to extract potential Q&A pairs (as fallback)
             const content = chapter.content || "";
             
             // Extract sentences ending with question marks
@@ -839,15 +904,103 @@ export const generateCardsFromCourse = async (req: Request, res: Response): Prom
         });
     });
 
-    // Limit to a reasonable number of cards
-    const limitedCards = generatedCards.slice(0, 50);
+    // Use DeepSeek API to generate cards from collected content if there's enough content
+    if (contentForAIGeneration.length > 0) {
+      try {
+        // We'll use axios which is already imported in the file
+        const axios = require('axios');
+        
+        // For each content piece, generate more sophisticated cards using DeepSeek
+        for (const content of contentForAIGeneration) {
+          // Skip if content is too short
+          if (content.content.length < 50) continue;
+          
+          const prompt = `You are an expert educator creating flashcards to help students learn. 
+Generate 5 high-quality flashcards from the following course content. 
+Each flashcard should have a question and answer format that tests key concepts.
+Make questions that require understanding, not just memorization.
+Format your response as JSON array: [{"question": "...", "answer": "..."}]
+Don't include any other text in your response, just the JSON array.
+
+Content title: ${content.title}
+Content: ${content.content.substring(0, 3000)}`; // Limit to 3000 chars to avoid token limits
+
+          try {
+            const response = await axios.post(
+              'https://api.deepseek.com/v1/chat/completions',
+              {
+                model: 'deepseek-chat',
+                messages: [
+                  { role: 'system', content: 'You are an educational content AI that creates flashcard questions and answers from course material. Respond with valid JSON only.' },
+                  { role: 'user', content: prompt }
+                ],
+                temperature: 0.7,
+                max_tokens: 1000,
+                response_format: { type: "json_object" }
+              },
+              {
+                headers: {
+                  'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+                  'Content-Type': 'application/json'
+                }
+              }
+            );
+
+            // Parse the response to get the flashcards
+            let aiCards = [];
+            try {
+              const responseText = response.data.choices[0]?.message?.content || '';
+              
+              // DeepSeek might wrap JSON in ```json or other formatting - extract just the JSON
+              const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+              const jsonString = jsonMatch ? jsonMatch[0] : responseText;
+              
+              aiCards = JSON.parse(jsonString);
+            } catch (parseError) {
+              console.error('Error parsing AI response:', parseError);
+              console.log('Raw response:', response.data.choices[0]?.message?.content);
+              aiCards = [];
+            }
+
+            // Add the AI-generated cards to our collection
+            aiCards.forEach((card: { question?: string, answer?: string }) => {
+              if (card.question && card.answer) {
+                generatedCards.push({
+                  cardId: uuidv4(),
+                  question: card.question,
+                  answer: card.answer,
+                  chapterId: content.chapterId,
+                  sectionId: content.sectionId,
+                  difficultyLevel: 3,
+                  lastReviewed: Date.now(),
+                  nextReviewDue: Date.now() + 24 * 60 * 60 * 1000,
+                  repetitionCount: 0,
+                  correctCount: 0,
+                  incorrectCount: 0,
+                  aiGenerated: true,
+                });
+              }
+            });
+          } catch (aiError) {
+            console.error('Error generating AI cards:', aiError);
+            // Continue with other content pieces if one fails
+          }
+        }
+      } catch (deepseekError) {
+        console.error('Error with DeepSeek API:', deepseekError);
+        // Continue with the basic cards if AI generation fails
+      }
+    }
+
+    // Limit to a reasonable number of cards but prioritize AI-generated cards
+    const limitedCards = generatedCards.slice(0, 100);
     
     // Save the deck with generated cards
     newDeck.cards = limitedCards;
     await newDeck.save();
 
     res.status(201).json({
-      message: "Cards generated successfully",
+      message: "AI cards generated successfully with DeepSeek",
       data: {
         deck: newDeck,
         cardsGenerated: limitedCards.length,

@@ -174,14 +174,26 @@ const CreateAssignmentPage = () => {
           fileType: file.type,
         }).unwrap();
         
+        console.log("Upload URL response:", response);
+        
+        // Check if we received valid upload URL and file URL
+        if (!response.uploadUrl || !response.fileUrl) {
+          console.error("Invalid upload URL response", response);
+          throw new Error("Failed to get valid upload URL");
+        }
+        
         // Upload file directly to S3
-        await fetch(response.uploadUrl, {
+        const uploadResult = await fetch(response.uploadUrl, {
           method: "PUT",
           body: file,
           headers: {
             "Content-Type": file.type,
           },
         });
+        
+        if (!uploadResult.ok) {
+          throw new Error(`Failed to upload file: ${uploadResult.statusText}`);
+        }
         
         // Add file info to attachments
         uploadedAttachments.push({
@@ -190,11 +202,13 @@ const CreateAssignmentPage = () => {
         });
       }
       
-      setAttachments(uploadedAttachments);
+      console.log("All files uploaded successfully", uploadedAttachments);
       return uploadedAttachments;
     } catch (error) {
       console.error("Error uploading files:", error);
-      toast.error("Failed to upload one or more files");
+      toast.error(error instanceof Error 
+        ? `Failed to upload files: ${error.message}` 
+        : "Failed to upload files");
       throw error;
     } finally {
       setIsUploading(false);
@@ -209,20 +223,25 @@ const CreateAssignmentPage = () => {
         return;
       }
       
-      // First upload all files to S3
-      const uploadedAttachments = await uploadAllFiles();
+      let attachmentData = [];
+      
+      // First upload all files to S3 if there are any
+      if (files.length > 0) {
+        toast.info("Uploading files...");
+        attachmentData = await uploadAllFiles();
+      }
       
       const assignmentData = {
         ...data,
         teacherId: user.id,
         dueDate: format(new Date(data.dueDate), "yyyy-MM-dd"),
-        attachments: uploadedAttachments,
+        attachments: attachmentData,
       };
       
       console.log("Creating assignment with data:", assignmentData);
       
       // Submit to API
-      await createAssignment(assignmentData).unwrap();
+      const result = await createAssignment(assignmentData).unwrap();
       
       toast.success(
         data.status === "published" 
@@ -237,7 +256,8 @@ const CreateAssignmentPage = () => {
       }, 500);
       
     } catch (err: any) {
-      toast.error(`Failed to create assignment: ${err.message || "Unknown error"}`);
+      const errorMessage = err.data?.message || err.message || "Unknown error";
+      toast.error(`Failed to create assignment: ${errorMessage}`);
       console.error("Assignment creation error:", err);
     }
   };

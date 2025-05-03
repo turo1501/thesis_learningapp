@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { format as dateFormat } from "date-fns";
@@ -30,6 +30,47 @@ import {
 } from "@/state/api";
 import Loading from "@/components/Loading";
 
+// Define interfaces
+interface Course {
+  courseId: string;
+  userId: string;
+  title: string;
+  description?: string;
+  enrollmentDate: string;
+  status: string;
+  progress?: number;
+}
+
+interface Assignment {
+  assignmentId: string;
+  courseId: string;
+  teacherId: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  points: number;
+  status: "draft" | "published" | "archived";
+  submissions: AssignmentSubmission[];
+  attachments: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface AssignmentSubmission {
+  studentId: string;
+  studentName: string;
+  submissionDate: string;
+  content: string;
+  grade?: number;
+  feedback?: string;
+  status: "submitted" | "graded";
+}
+
+interface AssignmentWithCourse extends Assignment {
+  courseName: string;
+  uiStatus: "active" | "upcoming" | "past";
+}
+
 const StudentAssignments = () => {
   const [selectedTab, setSelectedTab] = useState("active");
   const [courseFilter, setCourseFilter] = useState("all");
@@ -41,21 +82,79 @@ const StudentAssignments = () => {
   );
 
   // State to store all assignments
-  const [allAssignments, setAllAssignments] = useState<any[]>([]);
+  const [allAssignments, setAllAssignments] = useState<AssignmentWithCourse[]>([]);
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
+  const [hasAssignmentError, setHasAssignmentError] = useState(false);
 
-  // Use separate queries for each course and combine the results
-  const courseQueries = useMemo(() => {
-    return enrolledCourses.map(course => {
-      // Skip if course ID is invalid
-      if (!course.courseId || course.courseId === "undefined") {
-        return { data: [], isLoading: false, isError: false };
-      }
-    return useGetCourseAssignmentsQuery(course.courseId);
+  // Individual course assignment queries - each hook must be called unconditionally at the top level
+  const course0Query = useGetCourseAssignmentsQuery(enrolledCourses[0]?.courseId || "", { 
+    skip: !enrolledCourses[0] || !enrolledCourses[0]?.courseId || enrolledCourses[0]?.courseId === "undefined"
   });
-  }, [enrolledCourses]);
+  const course1Query = useGetCourseAssignmentsQuery(enrolledCourses[1]?.courseId || "", { 
+    skip: !enrolledCourses[1] || !enrolledCourses[1]?.courseId || enrolledCourses[1]?.courseId === "undefined"
+  });
+  const course2Query = useGetCourseAssignmentsQuery(enrolledCourses[2]?.courseId || "", { 
+    skip: !enrolledCourses[2] || !enrolledCourses[2]?.courseId || enrolledCourses[2]?.courseId === "undefined"
+  });
+  const course3Query = useGetCourseAssignmentsQuery(enrolledCourses[3]?.courseId || "", { 
+    skip: !enrolledCourses[3] || !enrolledCourses[3]?.courseId || enrolledCourses[3]?.courseId === "undefined"
+  });
+  const course4Query = useGetCourseAssignmentsQuery(enrolledCourses[4]?.courseId || "", { 
+    skip: !enrolledCourses[4] || !enrolledCourses[4]?.courseId || enrolledCourses[4]?.courseId === "undefined"
+  });
+  const course5Query = useGetCourseAssignmentsQuery(enrolledCourses[5]?.courseId || "", { 
+    skip: !enrolledCourses[5] || !enrolledCourses[5]?.courseId || enrolledCourses[5]?.courseId === "undefined"
+  });
+  const course6Query = useGetCourseAssignmentsQuery(enrolledCourses[6]?.courseId || "", { 
+    skip: !enrolledCourses[6] || !enrolledCourses[6]?.courseId || enrolledCourses[6]?.courseId === "undefined"
+  });
+  const course7Query = useGetCourseAssignmentsQuery(enrolledCourses[7]?.courseId || "", { 
+    skip: !enrolledCourses[7] || !enrolledCourses[7]?.courseId || enrolledCourses[7]?.courseId === "undefined"
+  });
+  const course8Query = useGetCourseAssignmentsQuery(enrolledCourses[8]?.courseId || "", { 
+    skip: !enrolledCourses[8] || !enrolledCourses[8]?.courseId || enrolledCourses[8]?.courseId === "undefined"
+  });
+  const course9Query = useGetCourseAssignmentsQuery(enrolledCourses[9]?.courseId || "", { 
+    skip: !enrolledCourses[9] || !enrolledCourses[9]?.courseId || enrolledCourses[9]?.courseId === "undefined"
+  });
 
-  // Combine assignments from all courses when enrolledCourses or queries change
+  // Function to refetch all course assignments
+  const refetchAllAssignments = useCallback(() => {
+    // Refetch all course queries that are not skipped
+    if (enrolledCourses[0]) course0Query.refetch();
+    if (enrolledCourses[1]) course1Query.refetch();
+    if (enrolledCourses[2]) course2Query.refetch();
+    if (enrolledCourses[3]) course3Query.refetch();
+    if (enrolledCourses[4]) course4Query.refetch();
+    if (enrolledCourses[5]) course5Query.refetch();
+    if (enrolledCourses[6]) course6Query.refetch();
+    if (enrolledCourses[7]) course7Query.refetch();
+    if (enrolledCourses[8]) course8Query.refetch();
+    if (enrolledCourses[9]) course9Query.refetch();
+  }, [
+    enrolledCourses,
+    course0Query, course1Query, course2Query, course3Query, course4Query,
+    course5Query, course6Query, course7Query, course8Query, course9Query
+  ]);
+
+  // Refetch assignments when the component mounts or when returning to the page
+  useEffect(() => {
+    refetchAllAssignments();
+  }, [refetchAllAssignments]);
+
+  // Create an array of query results to process
+  const courseQueries = useMemo(() => {
+    return [
+      course0Query, course1Query, course2Query, course3Query, course4Query,
+      course5Query, course6Query, course7Query, course8Query, course9Query
+    ].slice(0, enrolledCourses.length);
+  }, [
+    course0Query, course1Query, course2Query, course3Query, course4Query,
+    course5Query, course6Query, course7Query, course8Query, course9Query,
+    enrolledCourses.length
+  ]);
+
+  // Combine assignments from all courses
   useEffect(() => {
     if (enrolledCourses.length === 0) {
       setAllAssignments([]);
@@ -66,21 +165,42 @@ const StudentAssignments = () => {
     // Check if all queries have loaded
     const isLoading = courseQueries.some(query => query.isLoading);
     setIsLoadingAssignments(isLoading);
+    
+    // Check if any query has an error
+    const hasError = courseQueries.some(query => query.isError);
+    setHasAssignmentError(hasError);
 
     if (!isLoading) {
-      let combinedAssignments: any[] = [];
+      let combinedAssignments: AssignmentWithCourse[] = [];
       
       enrolledCourses.forEach((course, index) => {
-        const courseAssignments = courseQueries[index].data || [];
-        
-        if (courseAssignments.length > 0) {
-          // Add course info to each assignment
-          const assignmentsWithCourse = courseAssignments.map((assignment: any) => ({
-            ...assignment,
-            courseName: course.title
-          }));
+        if (index < courseQueries.length) {
+          const courseAssignments = courseQueries[index].data || [];
           
-          combinedAssignments = [...combinedAssignments, ...assignmentsWithCourse];
+          if (courseAssignments.length > 0) {
+            // Add course info to each assignment and calculate UI status
+            const assignmentsWithCourse = courseAssignments.map((assignment: Assignment) => {
+              const dueDate = new Date(assignment.dueDate);
+              const now = new Date();
+              
+              let uiStatus: "active" | "upcoming" | "past";
+              if (dueDate < now) {
+                uiStatus = "past";
+              } else if (dueDate.getTime() - now.getTime() < 7 * 24 * 60 * 60 * 1000) { // Within next 7 days
+                uiStatus = "active";
+              } else {
+                uiStatus = "upcoming";
+              }
+              
+              return {
+                ...assignment,
+                courseName: course.title,
+                uiStatus
+              };
+            });
+            
+            combinedAssignments = [...combinedAssignments, ...assignmentsWithCourse];
+          }
         }
       });
       
@@ -90,28 +210,14 @@ const StudentAssignments = () => {
   
   // Filter assignments based on status and course
   const filteredAssignments = useMemo(() => {
-    // Current date for comparison
-    const now = new Date();
-    
     return allAssignments.filter(assignment => {
       // Filter by course if specified
       if (courseFilter !== "all" && assignment.courseId !== courseFilter) {
         return false;
       }
       
-      // Determine status based on due date
-      const dueDate = new Date(assignment.dueDate);
-      let status;
-      
-      if (dueDate < now) {
-        status = "past";
-      } else if (dueDate.getTime() - now.getTime() < 7 * 24 * 60 * 60 * 1000) { // Within next 7 days
-        status = "active";
-      } else {
-        status = "upcoming";
-      }
-      
-      return status === selectedTab;
+      // Filter by tab/status
+      return assignment.uiStatus === selectedTab;
     });
   }, [allAssignments, selectedTab, courseFilter]);
 
@@ -185,6 +291,20 @@ const StudentAssignments = () => {
                 </div>
                 <p className="text-slate-400">Loading assignments...</p>
               </Card>
+            ) : hasAssignmentError ? (
+              <Card className="p-8 text-center bg-slate-800 border-slate-700">
+                <div className="flex justify-center mb-4">
+                  <AlertCircle className="h-8 w-8 text-red-500" />
+                </div>
+                <p className="text-slate-400">Error loading assignments. Please try again.</p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4"
+                  onClick={refetchAllAssignments}
+                >
+                  Retry
+                </Button>
+              </Card>
             ) : (
               renderAssignmentsList(filteredAssignments, handleViewDetails, user?.id as string)
             )}
@@ -199,6 +319,20 @@ const StudentAssignments = () => {
                   <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
                 </div>
                 <p className="text-slate-400">Loading assignments...</p>
+              </Card>
+            ) : hasAssignmentError ? (
+              <Card className="p-8 text-center bg-slate-800 border-slate-700">
+                <div className="flex justify-center mb-4">
+                  <AlertCircle className="h-8 w-8 text-red-500" />
+                </div>
+                <p className="text-slate-400">Error loading assignments. Please try again.</p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4"
+                  onClick={refetchAllAssignments}
+                >
+                  Retry
+                </Button>
               </Card>
             ) : (
               renderAssignmentsList(filteredAssignments, handleViewDetails, user?.id as string)
@@ -215,6 +349,20 @@ const StudentAssignments = () => {
                 </div>
                 <p className="text-slate-400">Loading assignments...</p>
               </Card>
+            ) : hasAssignmentError ? (
+              <Card className="p-8 text-center bg-slate-800 border-slate-700">
+                <div className="flex justify-center mb-4">
+                  <AlertCircle className="h-8 w-8 text-red-500" />
+                </div>
+                <p className="text-slate-400">Error loading assignments. Please try again.</p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4"
+                  onClick={refetchAllAssignments}
+                >
+                  Retry
+                </Button>
+              </Card>
             ) : (
               renderAssignmentsList(filteredAssignments, handleViewDetails, user?.id as string)
             )}
@@ -226,7 +374,7 @@ const StudentAssignments = () => {
 };
 
 const renderAssignmentsList = (
-  assignments: any[], 
+  assignments: AssignmentWithCourse[], 
   onViewDetails: (id: string) => void,
   userId: string
 ) => {
@@ -290,7 +438,6 @@ const renderAssignmentsList = (
                   <div className="flex items-center text-yellow-500">
                     <Clock className="h-4 w-4 mr-1" />
                     <span>
-                      Submitted: {dateFormat(new Date(submissionDate), "MMM dd, yyyy")}
                     </span>
                   </div>
                   

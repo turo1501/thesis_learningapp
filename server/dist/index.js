@@ -70,6 +70,8 @@ const meetingRoutes_1 = __importDefault(require("./routes/meetingRoutes"));
 const dashboardRoutes_1 = __importDefault(require("./routes/dashboardRoutes"));
 const analyticsRoutes_1 = __importDefault(require("./routes/analyticsRoutes"));
 const memoryCardRoutes_1 = __importDefault(require("./routes/memoryCardRoutes"));
+const userNoteRoutes_1 = __importDefault(require("./routes/userNoteRoutes"));
+const commentRoutes_1 = __importDefault(require("./routes/commentRoutes"));
 const errorMiddleware_1 = require("./middleware/errorMiddleware");
 const authMiddleware_1 = require("./middleware/authMiddleware");
 const userClerkController_1 = require("./controllers/userClerkController");
@@ -108,6 +110,8 @@ app.use("/meetings", meetingRoutes_1.default);
 app.use("/dashboard", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, dashboardRoutes_1.default);
 app.use("/analytics", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, analyticsRoutes_1.default);
 app.use("/memory-cards", memoryCardRoutes_1.default);
+app.use("/user-notes", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, userNoteRoutes_1.default);
+app.use("/comments", commentRoutes_1.default);
 /* ERROR MIDDLEWARE */
 app.use(errorMiddleware_1.errorHandler);
 /* SERVER */

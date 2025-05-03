@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MemoryCardForm, MemoryCardFormValues } from '@/components/memory-cards/MemoryCardForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusIcon, FilterIcon, SearchIcon, Brain, BookOpen, Calendar, SortAscIcon, Loader2 } from 'lucide-react';
+import { PlusIcon, FilterIcon, SearchIcon, Brain, BookOpen, Calendar, SortAscIcon, Loader2, Target, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useMemoryCards } from '@/hooks/useMemoryCards';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -25,6 +25,7 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { useAddCardMutation, useAddCardsBatchMutation } from '@/state/api';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function MemoryCardsPage() {
   const { userId } = useCurrentUser();
@@ -36,6 +37,8 @@ export default function MemoryCardsPage() {
   const [addCard] = useAddCardMutation();
   const [addCardsBatch] = useAddCardsBatchMutation();
   const [batchInfo, setBatchInfo] = useState<{ count: number }>({ count: 0 });
+  const [hoveredDeckId, setHoveredDeckId] = useState<string | null>(null);
+  const [showCreateAnimation, setShowCreateAnimation] = useState(false);
   
   // Helper to ensure we have a valid userId
   const ensureUserId = (): string | null => {
@@ -387,56 +390,127 @@ export default function MemoryCardsPage() {
 
   return (
     <div className="container mx-auto py-8 max-w-7xl">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+      <motion.div 
+        className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
         <div>
-          <h1 className="text-3xl font-bold">Memory Cards</h1>
-          <p className="text-gray-500 mt-1">Create and manage your memory cards</p>
+          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">Memory Cards</h1>
+          <p className="text-gray-500 mt-1">Create and manage your flashcards for effective learning</p>
         </div>
         
         {/* Stats Cards */}
         {decks.length > 0 && (
           <div className="flex gap-4 w-full md:w-auto">
-            <Card key="total-cards-card" className="w-full md:w-auto">
-              <CardContent className="p-4 flex gap-3 items-center">
-                <div key="icon-container" className="bg-blue-500/20 p-2 rounded-full">
-                  <Brain className="h-5 w-5 text-blue-500" />
-                </div>
-                <div key="text-container">
-                  <p className="text-sm text-muted-foreground">Total Cards</p>
-                  <p className="text-xl font-bold">{totalCards}</p>
-                </div>
-              </CardContent>
-            </Card>
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              transition={{ type: "spring", stiffness: 300 }}
+              className="w-full md:w-auto"
+            >
+              <Card key="total-cards-card" className="w-full md:w-auto backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 border-none shadow-lg">
+                <CardContent className="p-4 flex gap-3 items-center">
+                  <div key="icon-container" className="bg-gradient-to-br from-blue-500 to-indigo-500 p-2 rounded-full">
+                    <Brain className="h-5 w-5 text-white" />
+                  </div>
+                  <div key="text-container">
+                    <p className="text-sm text-muted-foreground">Total Cards</p>
+                    <motion.p 
+                      className="text-xl font-bold"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      {totalCards}
+                    </motion.p>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
             
-            <Card key="success-rate-card" className="w-full md:w-auto">
-              <CardContent className="p-4 flex gap-3 items-center">
-                <div key="icon-container" className="bg-green-500/20 p-2 rounded-full">
-                  <SortAscIcon className="h-5 w-5 text-green-500" />
-                </div>
-                <div key="text-container">
-                  <p className="text-sm text-muted-foreground">Success Rate</p>
-                  <p className="text-xl font-bold">{overallSuccessRate}%</p>
-                </div>
-              </CardContent>
-            </Card>
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              transition={{ type: "spring", stiffness: 300 }}
+              className="w-full md:w-auto"
+            >
+              <Card key="success-rate-card" className="w-full md:w-auto backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 border-none shadow-lg">
+                <CardContent className="p-4 flex gap-3 items-center">
+                  <div key="icon-container" className="bg-gradient-to-br from-green-500 to-emerald-500 p-2 rounded-full">
+                    <SortAscIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <div key="text-container">
+                    <p className="text-sm text-muted-foreground">Success Rate</p>
+                    <div className="flex items-center gap-2">
+                      <motion.p 
+                        className="text-xl font-bold"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                      >
+                        {overallSuccessRate}%
+                      </motion.p>
+                      <motion.div 
+                        className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden"
+                        initial={{ width: 0 }}
+                        animate={{ width: "4rem" }}
+                        transition={{ delay: 0.4, duration: 0.5 }}
+                      >
+                        <div 
+                          className="h-full bg-gradient-to-r from-green-500 to-emerald-500" 
+                          style={{ width: `${overallSuccessRate}%` }}
+                        />
+                      </motion.div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
           </div>
         )}
-      </div>
+      </motion.div>
 
-      <Tabs defaultValue="all" onValueChange={setActiveTab}>
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-          <TabsList>
-            <TabsTrigger value="all">All Decks</TabsTrigger>
-            <TabsTrigger value="create">Create New</TabsTrigger>
+      <Tabs defaultValue="all" onValueChange={(value) => {
+        setActiveTab(value);
+        if (value === "create") {
+          setShowCreateAnimation(true);
+        } else {
+          setShowCreateAnimation(false);
+        }
+      }}>
+        <motion.div 
+          className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+        >
+          <TabsList className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-800 dark:to-gray-900 p-1 rounded-lg">
+            <TabsTrigger 
+              value="all"
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white transition-all duration-300"
+            >
+              All Decks
+            </TabsTrigger>
+            <TabsTrigger 
+              value="create"
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white transition-all duration-300"
+            >
+              Create New
+            </TabsTrigger>
           </TabsList>
           
           {activeTab === "all" && (
-            <div className="flex items-center gap-2 w-full md:w-auto">
+            <motion.div 
+              className="flex items-center gap-2 w-full md:w-auto"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
+            >
               <div className="relative flex-1 md:flex-initial">
                 <SearchIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input 
                   placeholder="Search decks..." 
-                  className="pl-8 w-full md:w-[250px]" 
+                  className="pl-8 w-full md:w-[250px] rounded-full focus:ring-2 ring-indigo-200 border-gray-200 transition-all duration-300" 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -444,158 +518,295 @@ export default function MemoryCardsPage() {
               
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon">
+                  <Button variant="outline" size="icon" className="rounded-full w-9 h-9 border-gray-200 hover:bg-indigo-50 transition-colors">
                     <FilterIcon className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Sort By</DropdownMenuLabel>
+                <DropdownMenuContent align="end" className="rounded-xl shadow-lg border-gray-200 w-48">
+                  <DropdownMenuLabel className="text-xs font-medium text-gray-500">Sort By</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     onClick={() => setSortOrder("newest")}
-                    className={sortOrder === "newest" ? "bg-accent" : ""}
+                    className={cn(
+                      "cursor-pointer transition-colors",
+                      sortOrder === "newest" ? "bg-indigo-50 text-indigo-600 font-medium" : ""
+                    )}
                   >
+                    <Calendar className="h-4 w-4 mr-2" />
                     Newest
                   </DropdownMenuItem>
                   <DropdownMenuItem 
                     onClick={() => setSortOrder("oldest")}
-                    className={sortOrder === "oldest" ? "bg-accent" : ""}
+                    className={cn(
+                      "cursor-pointer transition-colors",
+                      sortOrder === "oldest" ? "bg-indigo-50 text-indigo-600 font-medium" : ""
+                    )}
                   >
+                    <Calendar className="h-4 w-4 mr-2" />
                     Oldest
                   </DropdownMenuItem>
                   <DropdownMenuItem 
                     onClick={() => setSortOrder("name")}
-                    className={sortOrder === "name" ? "bg-accent" : ""}
+                    className={cn(
+                      "cursor-pointer transition-colors",
+                      sortOrder === "name" ? "bg-indigo-50 text-indigo-600 font-medium" : ""
+                    )}
                   >
+                    <BookOpen className="h-4 w-4 mr-2" />
                     Name (A-Z)
                   </DropdownMenuItem>
                   <DropdownMenuItem 
                     onClick={() => setSortOrder("success")}
-                    className={sortOrder === "success" ? "bg-accent" : ""}
+                    className={cn(
+                      "cursor-pointer transition-colors",
+                      sortOrder === "success" ? "bg-indigo-50 text-indigo-600 font-medium" : ""
+                    )}
                   >
+                    <Target className="h-4 w-4 mr-2" />
                     Success Rate
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
+            </motion.div>
           )}
-        </div>
+        </motion.div>
 
         <TabsContent value="all" className="space-y-6">
           {filteredDecks.length === 0 ? (
-            <NoResults
-              title="No memory card decks found"
-              description={searchTerm ? "Try adjusting your search terms" : "Create your first memory card deck"}
-              icon={Brain}
-              actionText="Create Deck"
-              onAction={() => setActiveTab("create")}
-            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
+            >
+              <NoResults
+                title="No memory card decks found"
+                description={searchTerm ? "Try adjusting your search terms" : "Create your first memory card deck"}
+                icon={Brain}
+                actionText="Create Deck"
+                onAction={() => setActiveTab("create")}
+              />
+            </motion.div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredDecks.map((deck) => {
-                const successRate = deck.totalReviews > 0 
-                  ? Math.round((deck.correctReviews / deck.totalReviews) * 100) 
-                  : 0;
-                
-                // Format date
-                const createdDate = new Date(deck.createdAt);
-                const formattedDate = createdDate.toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric'
-                });
-                
-                return (
-                  <Card 
-                    key={deck.deckId} 
-                    className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow border border-gray-800"
-                    onClick={() => router.push(`/user/memory-cards/${deck.deckId}`)}
-                  >
-                    <CardHeader className="pb-2">
-                      <CardTitle className="truncate text-lg font-medium">
-                        {deck.title}
-                      </CardTitle>
-                      {deck.description && (
-                        <CardDescription className="line-clamp-2">
-                          {deck.description}
-                        </CardDescription>
-                      )}
-                    </CardHeader>
-                    
-                    <CardContent className="pb-4">
-                      <div className="mb-4">
-                        <div className="flex justify-between text-sm text-muted-foreground mb-1">
-                          <span key="success-rate-label">Success Rate</span>
-                          <span key="success-rate-value">{successRate}%</span>
-                        </div>
-                        <Progress 
-                          value={successRate} 
-                          className={cn("h-2", {
-                            "bg-primary/20": deck.totalReviews === 0,
-                            "[&>div]:bg-green-500": successRate >= 80,
-                            "[&>div]:bg-yellow-500": successRate >= 60 && successRate < 80,
-                            "[&>div]:bg-orange-500": successRate >= 40 && successRate < 60,
-                            "[&>div]:bg-red-500": successRate < 40 && deck.totalReviews > 0,
-                          })}
-                        />
-                      </div>
-                      
-                      <div className="flex justify-between items-center">
-                        <div className="flex gap-4">
-                          <div key="cards-count" className="text-center">
-                            <p className="text-xl font-semibold">{deck.cards.length}</p>
-                            <p className="text-xs text-muted-foreground">Cards</p>
+            <motion.div 
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5 }}
+            >
+              <AnimatePresence>
+                {filteredDecks.map((deck) => {
+                  const successRate = deck.totalReviews > 0 
+                    ? Math.round((deck.correctReviews / deck.totalReviews) * 100) 
+                    : 0;
+                  
+                  const cardsCount = deck.cards && Array.isArray(deck.cards) ? deck.cards.length : 0;
+                  const isHovered = hoveredDeckId === deck.deckId;
+                  
+                  // Helper to determine if the deck has AI content
+                  const hasAIContent = deck.cards?.some(card => card.aiGenerated === true);
+                  
+                  return (
+                    <motion.div
+                      key={deck.deckId}
+                      layout
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      whileHover={{ y: -5 }}
+                      transition={{ duration: 0.3 }}
+                      onHoverStart={() => setHoveredDeckId(deck.deckId)}
+                      onHoverEnd={() => setHoveredDeckId(null)}
+                    >
+                      <Card className={cn(
+                        "h-full overflow-hidden relative group transition-all duration-300 cursor-pointer",
+                        isHovered ? "shadow-xl border-indigo-200" : "",
+                        hasAIContent ? "bg-gradient-to-br from-white to-indigo-50 dark:from-gray-800 dark:to-indigo-950" : ""
+                      )}>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="flex items-center gap-2 text-xl font-bold">
+                            {deck.title}
+                            {hasAIContent && (
+                              <motion.div
+                                animate={{ 
+                                  scale: [1, 1.1, 1],
+                                  rotate: [0, 5, 0, -5, 0]
+                                }}
+                                transition={{ duration: 3, repeat: Infinity }}
+                              >
+                                <Sparkles className="h-4 w-4 text-indigo-500" />
+                              </motion.div>
+                            )}
+                          </CardTitle>
+                          <CardDescription className="line-clamp-2">
+                            {deck.description || "Memory cards created from form"}
+                          </CardDescription>
+                        </CardHeader>
+                        
+                        <CardContent className="pb-2">
+                          <div className="flex justify-between items-center mb-2">
+                            <div className="text-xs font-medium text-gray-500">Success Rate</div>
+                            <div className="text-xs font-medium">{successRate}%</div>
+                          </div>
+                          <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden mb-4">
+                            <motion.div 
+                              className={cn(
+                                "h-full transition-all",
+                                successRate >= 80 ? "bg-green-500" : 
+                                successRate >= 50 ? "bg-yellow-500" : 
+                                "bg-red-500"
+                              )}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${successRate}%` }}
+                              transition={{ duration: 1, delay: 0.2 }}
+                            />
                           </div>
                           
-                          <div key="reviews-count" className="text-center">
-                            <p className="text-xl font-semibold">{deck.totalReviews}</p>
-                            <p className="text-xs text-muted-foreground">Reviews</p>
+                          <div className="grid grid-cols-2 gap-2 text-center">
+                            <div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-xl">
+                              <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{cardsCount}</div>
+                              <div className="text-xs text-gray-500">Cards</div>
+                            </div>
+                            <div className="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-xl">
+                              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{deck.totalReviews || 0}</div>
+                              <div className="text-xs text-gray-500">Reviews</div>
+                            </div>
                           </div>
+                        </CardContent>
+                        
+                        <CardFooter className="flex justify-between pt-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="text-xs bg-white hover:bg-indigo-50 transition-colors"
+                            onClick={() => router.push(`/user/memory-cards/${deck.deckId}`)}
+                          >
+                            View Deck
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="text-xs bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white transition-all"
+                            onClick={() => router.push(`/user/memory-cards/review?deckId=${deck.deckId}`)}
+                          >
+                            Review
+                          </Button>
+                        </CardFooter>
+                        
+                        {/* Animated background effect for AI-generated decks */}
+                        {hasAIContent && (
+                          <motion.div 
+                            className="absolute -bottom-10 -right-10 w-32 h-32 rounded-full opacity-20 z-0"
+                            animate={{ 
+                              scale: [1, 1.2, 1],
+                              rotate: [0, 180],
+                              background: [
+                                "radial-gradient(circle, rgba(99,102,241,0.8) 0%, rgba(99,102,241,0) 70%)",
+                                "radial-gradient(circle, rgba(79,70,229,0.8) 0%, rgba(79,70,229,0) 70%)",
+                                "radial-gradient(circle, rgba(99,102,241,0.8) 0%, rgba(99,102,241,0) 70%)"
+                              ]
+                            }}
+                            transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                          />
+                        )}
+                        
+                        {/* Creation date */}
+                        <div className="absolute top-2 right-2 text-xs text-gray-400 opacity-70">
+                          {new Date(deck.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                         </div>
-                      </div>
-                    </CardContent>
-                    
-                    <CardFooter className="pt-0 flex justify-between items-center border-t border-gray-800 pt-3">
-                      <div key="date-info" className="flex items-center text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        {formattedDate}
-                      </div>
-                      
-                      <Button 
-                        key="review-button"
-                        variant="outline" 
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/user/memory-cards/review?deckId=${deck.deckId}`);
-                        }}
-                        className="text-xs"
-                      >
-                        Review
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                );
-              })}
-            </div>
+                      </Card>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </motion.div>
           )}
         </TabsContent>
 
         <TabsContent value="create">
-          {isCreatingBatch ? (
-            <Card className="w-full max-w-md mx-auto p-6">
-              <div className="flex flex-col items-center justify-center gap-4">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <h3 className="text-xl font-medium">Creating Cards...</h3>
-                <p className="text-sm text-muted-foreground text-center">
-                  Please wait while we process {batchInfo.count > 0 ? `${batchInfo.count}` : 'your'} cards. 
-                  This may take a moment for AI-enhanced card sets.
-                </p>
-              </div>
-            </Card>
-          ) : (
-            <MemoryCardForm onSubmit={handleCreateCard} />
-          )}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ 
+              opacity: showCreateAnimation ? 1 : 0, 
+              y: showCreateAnimation ? 0 : 20
+            }}
+            transition={{ duration: 0.5 }}
+            className="flex flex-col lg:flex-row gap-6"
+          >
+            <div className="flex-1">
+              <MemoryCardForm onSubmit={handleCreateCard} />
+            </div>
+            
+            <div className="w-full lg:w-1/3">
+              <Card className="sticky top-24 bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-gray-800 dark:to-indigo-900/30 border-none shadow-lg overflow-hidden">
+                <div className="absolute top-0 right-0 w-40 h-40 -mt-20 -mr-20 rounded-full bg-indigo-100 dark:bg-indigo-900/20" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 -mb-12 -ml-12 rounded-full bg-blue-100 dark:bg-blue-900/20" />
+                
+                <CardHeader className="relative z-10">
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5 text-indigo-600" />
+                    Memory Card Tips
+                  </CardTitle>
+                </CardHeader>
+                
+                <CardContent className="relative z-10">
+                  <motion.ul 
+                    className="space-y-3 text-sm"
+                    initial="hidden"
+                    animate="visible"
+                    variants={{
+                      visible: {
+                        transition: {
+                          staggerChildren: 0.1
+                        }
+                      },
+                      hidden: {}
+                    }}
+                  >
+                    <motion.li 
+                      className="flex items-start gap-2"
+                      variants={{
+                        visible: { opacity: 1, x: 0 },
+                        hidden: { opacity: 0, x: -20 }
+                      }}
+                    >
+                      <div className="mt-0.5 flex-shrink-0 h-5 w-5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-xs font-bold text-indigo-700 dark:text-indigo-400">1</div>
+                      <p>Keep questions clear and concise to help with quick recall.</p>
+                    </motion.li>
+                    <motion.li 
+                      className="flex items-start gap-2"
+                      variants={{
+                        visible: { opacity: 1, x: 0 },
+                        hidden: { opacity: 0, x: -20 }
+                      }}
+                    >
+                      <div className="mt-0.5 flex-shrink-0 h-5 w-5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-xs font-bold text-indigo-700 dark:text-indigo-400">2</div>
+                      <p>Use our AI to generate multiple variations of cards and improve learning.</p>
+                    </motion.li>
+                    <motion.li 
+                      className="flex items-start gap-2"
+                      variants={{
+                        visible: { opacity: 1, x: 0 },
+                        hidden: { opacity: 0, x: -20 }
+                      }}
+                    >
+                      <div className="mt-0.5 flex-shrink-0 h-5 w-5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-xs font-bold text-indigo-700 dark:text-indigo-400">3</div>
+                      <p>Regular review sessions are more effective than cramming everything at once.</p>
+                    </motion.li>
+                    <motion.li 
+                      className="flex items-start gap-2"
+                      variants={{
+                        visible: { opacity: 1, x: 0 },
+                        hidden: { opacity: 0, x: -20 }
+                      }}
+                    >
+                      <div className="mt-0.5 flex-shrink-0 h-5 w-5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-xs font-bold text-indigo-700 dark:text-indigo-400">4</div>
+                      <p>Spaced repetition helps move information from short-term to long-term memory.</p>
+                    </motion.li>
+                  </motion.ul>
+                </CardContent>
+              </Card>
+            </div>
+          </motion.div>
         </TabsContent>
       </Tabs>
     </div>

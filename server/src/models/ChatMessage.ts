@@ -19,6 +19,15 @@ const ChatMessageSchema = new dynamoose.Schema(
       enum: ['user', 'bot'],
     },
     timestamp: Number,
+    feedback: {
+      type: Object,
+      schema: {
+        isPositive: Boolean,
+        timestamp: Number,
+        comment: String
+      },
+      required: false
+    }
   },
   {
     timestamps: true,
@@ -33,4 +42,9 @@ export interface ChatMessage {
   content: string;
   role: 'user' | 'bot';
   timestamp: number;
+  feedback?: {
+    isPositive: boolean;
+    timestamp: number;
+    comment?: string;
+  };
 } 

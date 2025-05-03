@@ -43,28 +43,29 @@ export default function BlogPostPage() {
   if (isLoading) {
     return (
       <div className="container mx-auto py-12 px-4">
-        <div className="max-w-3xl mx-auto space-y-6">
-          <Skeleton className="h-12 w-3/4 mx-auto" />
-          <div className="flex items-center justify-center gap-4">
-            <Skeleton className="h-10 w-10 rounded-full" />
-            <Skeleton className="h-6 w-32" />
-          </div>
-          <Skeleton className="h-6 w-48 mx-auto" />
-          <Skeleton className="h-64 w-full rounded-lg" />
-          <div className="space-y-4">
-            <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-6 w-3/4" />
-            <Skeleton className="h-6 w-full" />
-            <Skeleton className="h-6 w-full" />
-          </div>
+        <div className="max-w-3xl mx-auto space-y-4">
+          <Skeleton className="h-10 w-1/5" />
+          <Skeleton className="h-14 w-full" />
+          <Skeleton className="h-6 w-1/4 mx-auto" />
+          <Skeleton className="h-96 w-full" />
         </div>
       </div>
     );
   }
   
   if (!post) {
-    return null;
+    return (
+      <div className="container mx-auto py-12 px-4">
+        <div className="max-w-3xl mx-auto text-center p-8 bg-red-50 rounded-lg">
+          <Heading as="h1" className="text-red-600 mb-4">Post Not Found</Heading>
+          <Text className="mb-6">The blog post you're looking for could not be found.</Text>
+          <Button onClick={() => router.push('/blog')}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Blog
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (

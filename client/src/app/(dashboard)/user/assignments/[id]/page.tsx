@@ -225,20 +225,43 @@ export default function AssignmentDetailPage() {
                   </h3>
                   <Card className="bg-green-500/10 border border-green-500/20">
                     <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center">
-                          <div>
-                            <h5 className="font-medium text-green-400">Grade: {userSubmission.grade}/{assignment.points}</h5>
+                      <div className="mb-4">
+                        <h5 className="font-medium text-white mb-1">Grade</h5>
+                        <div className="flex items-center space-x-4">
+                          <div className="text-2xl font-bold text-green-400">
+                            {userSubmission.grade}/{assignment.points}
+                          </div>
+                          <div className="flex-1">
+                            <div className="w-full bg-slate-800 rounded-full h-2.5 mb-1">
+                              <div 
+                                className={`h-2.5 rounded-full ${
+                                  (userSubmission.grade / assignment.points) > 0.7 
+                                    ? 'bg-green-500' 
+                                    : (userSubmission.grade / assignment.points) > 0.4 
+                                      ? 'bg-yellow-500' 
+                                      : 'bg-red-500'
+                                }`}
+                                style={{ width: `${(userSubmission.grade / assignment.points) * 100}%` }}
+                              ></div>
+                            </div>
+                            <div className="flex justify-between text-xs text-slate-400">
+                              <span>0</span>
+                              <span>{assignment.points}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                      {userSubmission.feedback ? (
-                        <div className="bg-slate-800/50 p-3 rounded-md text-slate-300 whitespace-pre-wrap">
-                          {userSubmission.feedback}
-                        </div>
-                      ) : (
-                        <p className="text-slate-400">No written feedback provided.</p>
-                      )}
+                      
+                      <div>
+                        <h5 className="font-medium text-white mb-2">Teacher Comments</h5>
+                        {userSubmission.feedback ? (
+                          <div className="bg-slate-800/50 p-4 rounded-md text-slate-300 whitespace-pre-wrap">
+                            {userSubmission.feedback}
+                          </div>
+                        ) : (
+                          <p className="text-slate-400">No written feedback provided.</p>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
