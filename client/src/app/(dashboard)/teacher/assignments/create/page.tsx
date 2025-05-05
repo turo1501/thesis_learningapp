@@ -52,6 +52,12 @@ import { cn } from "@/lib/utils";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/dist/style.css";
 
+// Define attachment type
+interface Attachment {
+  name: string;
+  url: string;
+}
+
 // Define validation schema
 const assignmentSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters"),
@@ -81,10 +87,14 @@ interface ApiResponse<T> {
   success?: boolean;
 }
 
+interface UploadUrlResponse {
+  uploadUrl: string;
+  fileUrl: string;
+}
+
 const CreateAssignmentPage = () => {
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
-  const [attachments, setAttachments] = useState<{ name: string; url: string }[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const { user } = useUser();
   const { userId } = useAuth();
@@ -158,13 +168,13 @@ const CreateAssignmentPage = () => {
   };
   
   // Upload all files and get their URLs
-  const uploadAllFiles = async () => {
+  const uploadAllFiles = async (): Promise<Attachment[]> => {
     if (files.length === 0) {
       return [];
     }
     
     setIsUploading(true);
-    const uploadedAttachments = [];
+    const uploadedAttachments: Attachment[] = [];
     
     try {
       for (const file of files) {
@@ -172,13 +182,10 @@ const CreateAssignmentPage = () => {
         const response = await getUploadUrl({
           fileName: file.name,
           fileType: file.type,
-        }).unwrap();
-        
-        console.log("Upload URL response:", response);
+        }).unwrap() as UploadUrlResponse;
         
         // Check if we received valid upload URL and file URL
         if (!response.uploadUrl || !response.fileUrl) {
-          console.error("Invalid upload URL response", response);
           throw new Error("Failed to get valid upload URL");
         }
         
@@ -202,7 +209,6 @@ const CreateAssignmentPage = () => {
         });
       }
       
-      console.log("All files uploaded successfully", uploadedAttachments);
       return uploadedAttachments;
     } catch (error) {
       console.error("Error uploading files:", error);
@@ -223,7 +229,7 @@ const CreateAssignmentPage = () => {
         return;
       }
       
-      let attachmentData = [];
+      let attachmentData: Attachment[] = [];
       
       // First upload all files to S3 if there are any
       if (files.length > 0) {
@@ -238,10 +244,8 @@ const CreateAssignmentPage = () => {
         attachments: attachmentData,
       };
       
-      console.log("Creating assignment with data:", assignmentData);
-      
       // Submit to API
-      const result = await createAssignment(assignmentData).unwrap();
+      await createAssignment(assignmentData).unwrap();
       
       toast.success(
         data.status === "published" 
@@ -249,11 +253,8 @@ const CreateAssignmentPage = () => {
           : "Assignment saved as draft"
       );
       
-      // Navigate to the assignments list after a slight delay
-      // to allow the cache to invalidate
-      setTimeout(() => {
-        router.push("/teacher/assignments");
-      }, 500);
+      // Navigate to the assignments list
+      router.push("/teacher/assignments");
       
     } catch (err: any) {
       const errorMessage = err.data?.message || err.message || "Unknown error";
@@ -261,6 +262,15 @@ const CreateAssignmentPage = () => {
       console.error("Assignment creation error:", err);
     }
   };
+
+  if (!isClient) {
+    return (
+      <div className="container mx-auto py-10 flex justify-center items-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500 mr-2" />
+        <span>Loading form...</span>
+      </div>
+    );
+  }
 
   if (isLoadingCourses) {
     return (
@@ -277,16 +287,6 @@ const CreateAssignmentPage = () => {
           <p className="text-red-500 mb-2">Failed to load courses</p>
           <Button onClick={() => window.location.reload()}>Retry</Button>
         </div>
-      </div>
-    );
-  }
-
-  // Only render calendar components on the client to prevent hydration errors
-  if (!isClient) {
-    return (
-      <div className="container mx-auto py-10 flex justify-center items-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500 mr-2" />
-        <span>Loading form...</span>
       </div>
     );
   }
@@ -457,57 +457,57 @@ const CreateAssignmentPage = () => {
                 />
               </div>
 
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="files">Attachments</Label>
-                <div className="mt-2">
-                  <div className="flex items-center">
-                    <Label 
-                      htmlFor="file-upload" 
-                      className="cursor-pointer bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-4 py-2 rounded-md flex items-center"
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Add Files
-                    </Label>
-                    <Input 
-                      id="file-upload" 
-                      type="file" 
-                      multiple 
-                      onChange={handleFileChange} 
-                      className="hidden"
-                    />
-                  </div>
-                </div>
-                
-                {files.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    {files.map((file, index) => (
-                      <div 
-                        key={index}
-                        className="p-3 rounded-md bg-slate-800 border border-slate-700 flex items-center justify-between"
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="files">Attachments</Label>
+                  <div className="mt-2">
+                    <div className="flex items-center">
+                      <Label 
+                        htmlFor="file-upload" 
+                        className="cursor-pointer bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 px-4 py-2 rounded-md flex items-center transition-colors"
                       >
-                        <div className="flex items-center">
-                          <FilePlus className="h-5 w-5 text-blue-400 mr-2" />
-                          <span className="truncate max-w-[200px] md:max-w-md">{file.name}</span>
-                          <span className="text-xs text-slate-400 ml-2">
-                            {(file.size / 1024).toFixed(0)} KB
-                          </span>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeFile(index)}
-                          className="text-red-400 hover:text-red-300 hover:bg-transparent"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
+                        <Upload className="h-4 w-4 mr-2" />
+                        Add Files
+                      </Label>
+                      <Input 
+                        id="file-upload" 
+                        type="file" 
+                        multiple 
+                        onChange={handleFileChange} 
+                        className="hidden"
+                      />
+                    </div>
                   </div>
-                )}
+                  
+                  {files.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      {files.map((file, index) => (
+                        <div 
+                          key={index}
+                          className="p-3 rounded-md bg-slate-800 border border-slate-700 flex items-center justify-between"
+                        >
+                          <div className="flex items-center">
+                            <FilePlus className="h-5 w-5 text-blue-400 mr-2" />
+                            <span className="truncate max-w-[200px] md:max-w-md">{file.name}</span>
+                            <span className="text-xs text-slate-400 ml-2">
+                              {(file.size / 1024).toFixed(0)} KB
+                            </span>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeFile(index)}
+                            className="text-red-400 hover:text-red-300 hover:bg-transparent"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
               
               <div className="flex justify-end space-x-4 pt-4">
                 <Button 
@@ -520,6 +520,7 @@ const CreateAssignmentPage = () => {
                 <Button 
                   type="submit"
                   disabled={isCreating || isUploading}
+                  className="bg-blue-600 hover:bg-blue-700"
                 >
                   {(isCreating || isUploading) && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

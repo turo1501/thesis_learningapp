@@ -106,23 +106,15 @@ export const getAnalyticsSummary = async (req: Request, res: Response): Promise<
     
     // Generate sample data if no real data is available
     if (totalEnrollments === 0) {
-      const samplePopularCategories = [
-        { name: "Web Development", count: 35 },
-        { name: "Data Science", count: 28 },
-        { name: "Mobile Development", count: 22 },
-        { name: "UI/UX Design", count: 18 },
-        { name: "DevOps", count: 15 }
-      ];
-      
-      res.json({
+    res.json({
         enrollments: {
-          total: 118,
-          growth: "+15.7%",
-          growthValue: 15.7
+          total: 0,
+          growth: "+0%",
+          growthValue: 0
         },
-        completionRate: "67.8",
-        averageProgress: 72,
-        popularCategories: samplePopularCategories
+        completionRate: "0",
+        averageProgress: 0,
+        popularCategories: await getPopularCategories([])
       });
       return;
     }
@@ -140,25 +132,9 @@ export const getAnalyticsSummary = async (req: Request, res: Response): Promise<
     });
   } catch (error) {
     console.error("Error getting analytics summary:", error);
-    
-    // Return realistic sample data if error occurs
-    const samplePopularCategories = [
-      { name: "Web Development", count: 35 },
-      { name: "Data Science", count: 28 },
-      { name: "Mobile Development", count: 22 },
-      { name: "UI/UX Design", count: 18 },
-      { name: "DevOps", count: 15 }
-    ];
-    
-    res.json({
-      enrollments: {
-        total: 118,
-        growth: "+15.7%",
-        growthValue: 15.7
-      },
-      completionRate: "67.8",
-      averageProgress: 72,
-      popularCategories: samplePopularCategories
+    res.status(500).json({
+      message: "Failed to get analytics summary",
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 };
@@ -260,18 +236,7 @@ export const getCourseAnalytics = async (req: Request, res: Response): Promise<v
     const progressEntries = await UserCourseProgress.scan().exec();
     
     // Calculate enrollment by category
-    let enrollmentsByCategory = await calculateEnrollmentsByCategory(progressEntries, courses);
-    
-    // If no enrollment data found, provide sample data
-    if (!enrollmentsByCategory || enrollmentsByCategory.length === 0) {
-      enrollmentsByCategory = [
-        { name: "Web Development", value: 45 },
-        { name: "Data Science", value: 32 },
-        { name: "Mobile Development", value: 28 },
-        { name: "UI/UX Design", value: 22 },
-        { name: "DevOps", value: 18 }
-      ];
-    }
+    const enrollmentsByCategory = await calculateEnrollmentsByCategory(progressEntries, courses);
     
     // Calculate course creation trend
     const creationTrend = createCourseCreationTrend(courses, startDate, endDate);
@@ -286,37 +251,15 @@ export const getCourseAnalytics = async (req: Request, res: Response): Promise<v
     // Return the course analytics data
     res.json({
       enrollmentByCategory: enrollmentsByCategory,
-      creationTrend,
-      completionRates,
+        creationTrend,
+        completionRates,
       courseRatings
     });
   } catch (error) {
     console.error("Error getting course analytics:", error);
-    
-    // Return sample data instead of error
-    res.json({
-      enrollmentByCategory: [
-        { name: "Web Development", value: 45 },
-        { name: "Data Science", value: 32 },
-        { name: "Mobile Development", value: 28 },
-        { name: "UI/UX Design", value: 22 },
-        { name: "DevOps", value: 18 }
-      ],
-      creationTrend: generateSampleCreationTrend(),
-      completionRates: [
-        { name: "Web Development", completed: 78, enrolled: 100 },
-        { name: "Data Science", completed: 65, enrolled: 100 },
-        { name: "Mobile Development", completed: 82, enrolled: 100 },
-        { name: "UI/UX Design", completed: 73, enrolled: 100 },
-        { name: "DevOps", completed: 58, enrolled: 100 }
-      ],
-      courseRatings: [
-        { title: "Advanced JavaScript", rating: 4.8, reviewCount: 124 },
-        { title: "Python for Data Science", rating: 4.7, reviewCount: 98 },
-        { title: "React & Redux Masterclass", rating: 4.9, reviewCount: 156 },
-        { title: "Mobile App Development with Flutter", rating: 4.6, reviewCount: 87 },
-        { title: "UX Research Fundamentals", rating: 4.5, reviewCount: 75 }
-      ]
+    res.status(500).json({
+      message: "Failed to get course analytics",
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 };
@@ -354,33 +297,18 @@ export const getRevenueAnalytics = async (req: Request, res: Response): Promise<
     // Calculate revenue per user
     const revenuePerUser = await calculateRevenuePerUser(transactionsInRange);
     
-    // If no data, use sample data
-    if (transactions.length === 0 || transactionsInRange.length === 0) {
-      res.json({
-        revenueByCategory: generateSampleRevenueByCategory(),
-        revenueTrend: generateSampleRevenueTrend(),
-        avgTransactionValue: 68.50,
-        revenuePerUser: 125.75
-      });
-      return;
-    }
-    
     // Return the revenue analytics data
     res.json({
-      revenueByCategory,
+        revenueByCategory,
       revenueTrend,
       avgTransactionValue,
       revenuePerUser
     });
   } catch (error) {
     console.error("Error getting revenue analytics:", error);
-    
-    // Return sample data instead of error
-    res.json({
-      revenueByCategory: generateSampleRevenueByCategory(),
-      revenueTrend: generateSampleRevenueTrend(),
-      avgTransactionValue: 68.50,
-      revenuePerUser: 125.75
+    res.status(500).json({
+      message: "Failed to get revenue analytics",
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 };
@@ -404,18 +332,15 @@ export const getPlatformAnalytics = async (req: Request, res: Response): Promise
     
     // Return the platform analytics data
     res.json({
-      dailyActiveUsers,
+        dailyActiveUsers,
       sessionByDevice,
       engagementMetrics
     });
   } catch (error) {
     console.error("Error getting platform analytics:", error);
-    
-    // Return sample data instead of error
-    res.json({
-      dailyActiveUsers: simulateDailyActiveUsers(), // Re-generate simulated data
-      sessionByDevice: simulateSessionByDevice(),
-      engagementMetrics: simulateEngagementMetrics(req.query.timeRange as string || '6months')
+    res.status(500).json({
+      message: "Failed to get platform analytics",
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 };
@@ -853,67 +778,4 @@ const simulateEngagementMetrics = (timeRange: string): any => {
     videoWatchRate: Math.round(baseMultiplier * 79.5 * 10) / 10,
     quizCompletionRate: Math.round(baseMultiplier * 82.3 * 10) / 10
   };
-};
-
-/**
- * Generate sample course creation trend data
- */
-const generateSampleCreationTrend = (): any[] => {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  
-  return months.map((month, index) => {
-    // Create a trend with a peak around April-May and October-November
-    let value = 0;
-    if (index < currentMonth) {
-      if (index >= 3 && index <= 5) { // April-June
-        value = Math.floor(3 + Math.random() * 2);
-      } else if (index >= 9 && index <= 11) { // October-December
-        value = Math.floor(2 + Math.random() * 3);
-      } else {
-        value = Math.floor(Math.random() * 2); // Other months
-      }
-    }
-    
-    return {
-      month,
-      value
-    };
-  });
-};
-
-/**
- * Generate sample revenue by category data
- */
-const generateSampleRevenueByCategory = (): any[] => {
-  return [
-    { name: "Web Development", value: 18500 },
-    { name: "Data Science", value: 12800 },
-    { name: "Mobile Development", value: 9200 },
-    { name: "UI/UX Design", value: 7500 },
-    { name: "DevOps", value: 6200 }
-  ];
-};
-
-/**
- * Generate sample revenue trend data
- */
-const generateSampleRevenueTrend = (): any[] => {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  
-  return months.map((month, index) => {
-    // Create an upward trend with some fluctuations
-    if (index <= currentMonth) {
-      const baseValue = 3000 + (index * 500); // Increasing base value as months progress
-      const randomVariation = Math.floor(Math.random() * 1000) - 500; // Random variation between -500 and +500
-      return {
-        month,
-        value: Math.max(baseValue + randomVariation, 2000) // Ensure value doesn't go below 2000
-      };
-    }
-    return { month, value: 0 };
-  });
 }; 

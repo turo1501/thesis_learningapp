@@ -80,63 +80,6 @@ interface UserActivity {
   data?: any;
 }
 
-// Default data for charts when API returns empty data
-const defaultCompletionRates = [
-  { category: "Web Development", rate: 78 },
-  { category: "Data Science", rate: 65 },
-  { category: "Mobile Development", rate: 82 },
-  { category: "UI/UX Design", rate: 73 },
-  { category: "DevOps", rate: 58 }
-];
-
-const defaultRevenueByCategory = [
-  { category: "Web Development", revenue: 18500 },
-  { category: "Data Science", revenue: 12800 },
-  { category: "Mobile Development", revenue: 9200 },
-  { category: "UI/UX Design", revenue: 7500 },
-  { category: "DevOps", revenue: 6200 }
-];
-
-const defaultCreationTrend = [
-  { date: "Jan", count: 1 },
-  { date: "Feb", count: 2 },
-  { date: "Mar", count: 2 },
-  { date: "Apr", count: 4 },
-  { date: "May", count: 3 },
-  { date: "Jun", count: 5 },
-  { date: "Jul", count: 2 },
-  { date: "Aug", count: 3 },
-  { date: "Sep", count: 4 },
-  { date: "Oct", count: 5 },
-  { date: "Nov", count: 3 },
-  { date: "Dec", count: 2 }
-];
-
-const defaultRevenueForecast = [
-  { month: "Jan", actual: 8500, forecast: 8500 },
-  { month: "Feb", actual: 9200, forecast: 9200 },
-  { month: "Mar", actual: 10500, forecast: 10500 },
-  { month: "Apr", actual: 9800, forecast: 9800 },
-  { month: "May", actual: 11200, forecast: 11200 },
-  { month: "Jun", actual: 12000, forecast: 12000 },
-  { month: "Jul", actual: 10800, forecast: 10800 },
-  { month: "Aug", actual: 11500, forecast: 11500 },
-  { month: "Sep", actual: 13200, forecast: 13200 },
-  { month: "Oct", actual: 14500, forecast: 14500 },
-  { month: "Nov", actual: 0, forecast: 15200 },
-  { month: "Dec", actual: 0, forecast: 16000 }
-];
-
-const defaultDailyActiveUsers = [
-  { date: "Mon", users: 320 },
-  { date: "Tue", users: 380 },
-  { date: "Wed", users: 410 },
-  { date: "Thu", users: 390 },
-  { date: "Fri", users: 350 },
-  { date: "Sat", users: 290 },
-  { date: "Sun", users: 260 }
-];
-
 const AnalyticsPage = () => {
   const [timeRange, setTimeRange] = useState("6months");
 
@@ -167,10 +110,7 @@ const AnalyticsPage = () => {
     if (analyticsSummary) {
       console.log("Analytics summary:", analyticsSummary);
     }
-    if (courseAnalytics) {
-      console.log("Course analytics:", courseAnalytics);
-    }
-  }, [dashboardStats, analyticsSummary, courseAnalytics]);
+  }, [dashboardStats, analyticsSummary]);
 
   if (isLoading) {
     return <Loading />;
@@ -234,26 +174,7 @@ const AnalyticsPage = () => {
   const courseEnrollmentData = courseAnalytics?.enrollmentByCategory || [];
 
   // Prepare course activity data
-  const courseActivityData = (platformAnalytics?.dailyActiveUsers && platformAnalytics.dailyActiveUsers.length > 0) 
-    ? platformAnalytics.dailyActiveUsers 
-    : defaultDailyActiveUsers;
-
-  // Ensure charts always have data
-  const completionRates = (courseAnalytics?.completionRates && courseAnalytics.completionRates.length > 0) 
-    ? courseAnalytics.completionRates 
-    : defaultCompletionRates;
-    
-  const revenueByCat = (revenueAnalytics?.revenueByCategory && revenueAnalytics.revenueByCategory.length > 0)
-    ? revenueAnalytics.revenueByCategory
-    : defaultRevenueByCategory;
-    
-  const creationTrend = (courseAnalytics?.creationTrend && courseAnalytics.creationTrend.length > 0)
-    ? courseAnalytics.creationTrend
-    : defaultCreationTrend;
-    
-  const revenueForecast = (revenueAnalytics?.revenueForecast && revenueAnalytics.revenueForecast.length > 0)
-    ? revenueAnalytics.revenueForecast
-    : defaultRevenueForecast;
+  const courseActivityData = platformAnalytics?.dailyActiveUsers || [];
 
   return (
     <div className="analytics-dashboard pb-8">
@@ -615,7 +536,7 @@ const AnalyticsPage = () => {
                 <div className="h-[400px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
-                      data={creationTrend}
+                      data={courseAnalytics?.creationTrend || []}
                       margin={{
                         top: 5,
                         right: 30,
@@ -656,7 +577,7 @@ const AnalyticsPage = () => {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
                       layout="vertical"
-                      data={completionRates}
+                      data={courseAnalytics?.completionRates || []}
                       margin={{
                         top: 5,
                         right: 30,
@@ -696,7 +617,7 @@ const AnalyticsPage = () => {
                 <div className="h-[400px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
-                      data={revenueByCat}
+                      data={revenueAnalytics?.revenueByCategory || []}
                       margin={{
                         top: 5,
                         right: 30,
@@ -732,7 +653,7 @@ const AnalyticsPage = () => {
                 <div className="h-[400px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
-                      data={revenueForecast}
+                      data={revenueAnalytics?.revenueForecast || []}
                       margin={{
                         top: 5,
                         right: 30,

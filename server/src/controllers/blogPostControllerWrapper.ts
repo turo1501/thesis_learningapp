@@ -1,6 +1,17 @@
 import { Request, Response, RequestHandler } from 'express';
 import * as blogPostController from './blogPostController';
 
+// New wrapper for getPublishedPosts that ensures void return type
+export const getPublishedPosts: RequestHandler = async (req, res, next) => {
+  try {
+    // Add query param to ensure only published posts are returned
+    req.query.status = 'published';
+    await blogPostController.getPosts(req as Request, res as Response);
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Wrapper for getPosts that ensures void return type
 export const getPosts: RequestHandler = async (req, res, next) => {
   try {

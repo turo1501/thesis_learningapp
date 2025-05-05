@@ -125,17 +125,21 @@ const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
 const customBaseQuery = fetchBaseQuery({
   baseUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001",
-  prepareHeaders: (headers) => {
-    // Get token from localStorage if available
-    const token = typeof window !== "undefined" 
+  prepareHeaders: (headers, { endpoint }) => {
+    // Only add auth token for non-public endpoints
+    // Check if this is a public endpoint
+    const isPublicEndpoint = endpoint.includes('Published') || endpoint.includes('published');
+    
+    // Get token from localStorage if available and not a public endpoint
+    const token = (!isPublicEndpoint && typeof window !== "undefined")
       ? localStorage.getItem("clerk-auth-token")
       : null;
     
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
       console.log("Authorization header set with token:", token.substring(0, 15) + "...");
-    } else {
-      console.warn("No auth token found in localStorage");
+    } else if (!isPublicEndpoint) {
+      console.warn("No auth token found for non-public endpoint");
     }
     
     return headers;
@@ -720,12 +724,27 @@ export const api = createApi({
     */
     getBlogPosts: build.query<BlogPostsResponse, { 
       status?: string;
+      endpoint?: string;
       category?: string;
       userId?: string;
       limit?: number;
       lastKey?: string;
     }>({
       query: (params) => {
+        // Check if we're using the published endpoint
+        if (params.endpoint === 'published') {
+          return {
+            url: `/blog-posts/published`,
+            method: 'GET',
+            params: {
+              category: params.category,
+              limit: params.limit,
+              lastKey: params.lastKey
+            }
+          };
+        }
+        
+        // Standard endpoint with query params
         const queryParams = new URLSearchParams();
         if (params.status) queryParams.append('status', params.status);
         if (params.category) queryParams.append('category', params.category);

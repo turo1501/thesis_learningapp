@@ -210,8 +210,8 @@ const AdminDashboard = () => {
               </ResponsiveContainer>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-slate-500">
-                Loading revenue data...
-              </div>
+                No revenue data available
+            </div>
             )}
           </div>
         </Card>
