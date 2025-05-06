@@ -1,7 +1,7 @@
 "use client";
 
 import Loading from "@/components/Loading";
-import { useGetCoursesQuery } from "@/state/api";
+import { useGetCoursesQuery } from "@/state/api/courseApi";
 import { useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
@@ -21,7 +21,9 @@ const Search = () => {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
   const { data: coursesData, isLoading, isError } = useGetCoursesQuery({});
+
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
   const router = useRouter();
   const { isSignedIn, isLoaded } = useUser();
 
@@ -41,14 +43,15 @@ const Search = () => {
 
   useEffect(() => {
     if (courses.length > 0) {
+
       if (id) {
-        const course = courses.find((c) => c.courseId === id);
-        setSelectedCourse(course || courses[0]);
+        const course = transformedCourses.find((c) => c.courseId === id);
+        setSelectedCourse(course || transformedCourses[0]);
       } else {
-        setSelectedCourse(courses[0]);
+        setSelectedCourse(transformedCourses[0]);
       }
     }
-  }, [courses, id]);
+  }, [apiCourses, id]);
 
   if (isLoading) return <Loading />;
   if (isError || !courses) return <div>Failed to fetch courses</div>;
@@ -69,6 +72,7 @@ const Search = () => {
     
     // Always set showSignUp to false for consistent behavior
     router.push(`/checkout?step=${step}&id=${courseId}&showSignUp=false`, {
+
       scroll: false,
     });
   };
