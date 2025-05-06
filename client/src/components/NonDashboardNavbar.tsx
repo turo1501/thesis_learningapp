@@ -24,6 +24,7 @@ const NonDashboardNavbar = () => {
                            pathname.includes("/user/") || 
                            pathname.includes("/admin/");
 
+
   return (
     <nav className="nondashboard-navbar">
       <div className="nondashboard-navbar__container">
@@ -46,6 +47,7 @@ const NonDashboardNavbar = () => {
               <Link
                 href={getDashboardUrl()}
                 className={`flex items-center gap-2 ${isDashboardActive ? 'text-white-100' : 'text-customgreys-dirtyGrey hover:text-white-100'} transition-colors`}
+
                 scroll={false}
               >
                 <LayoutDashboard size={18} />
@@ -59,8 +61,8 @@ const NonDashboardNavbar = () => {
                 className="nondashboard-navbar__search-input"
                 scroll={false}
               >
-                <span className="hidden sm:inline">Search Courses</span>
-                <span className="sm:hidden">Search</span>
+                <span className="hidden sm:inline">Homepage</span>
+                <span className="sm:hidden">Home</span>
               </Link>
               <BookOpen
                 className="nondashboard-navbar__search-icon"
@@ -92,6 +94,7 @@ const NonDashboardNavbar = () => {
                   : userRole === "admin"
                     ? "/admin/profile"
                     : "/user/profile"
+
               }
             />
           </SignedIn>
@@ -113,6 +116,11 @@ const NonDashboardNavbar = () => {
           </SignedOut>
         </div>
       </div>
+    </nav>
+  );
+};
+
+export default NonDashboardNavbar;
     </nav>
   );
 };

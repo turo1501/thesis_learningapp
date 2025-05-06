@@ -98,7 +98,7 @@ const AdminCoursesPage = () => {
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
 
   const router = useRouter();
-  const { data: coursesData = [], isLoading, isError } = useGetCoursesQuery({ category: "" });
+  const { data: coursesData = [], isLoading, isError } = useGetCoursesQuery({});
   const [deleteCourse] = useDeleteCourseMutation();
 
   // Debug data structure

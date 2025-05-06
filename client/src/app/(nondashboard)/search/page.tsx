@@ -1,7 +1,7 @@
 "use client";
 
 import Loading from "@/components/Loading";
-import { useGetCoursesQuery } from "@/state/api";
+import { useGetCoursesQuery } from "@/state/api/courseApi";
 import { useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
@@ -12,21 +12,41 @@ import { useUser } from "@clerk/nextjs";
 const Search = () => {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
-  const { data: courses, isLoading, isError } = useGetCoursesQuery({});
+  const { data: apiCourses, isLoading, isError } = useGetCoursesQuery({});
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
   const router = useRouter();
   const { isSignedIn, isLoaded } = useUser();
 
+
   useEffect(() => {
-    if (courses) {
+    if (apiCourses) {
+      // Transform the API courses to match the global Course interface
+      const transformedCourses: Course[] = apiCourses.map(course => ({
+        courseId: course.id,
+        title: course.title,
+        description: course.description,
+        teacherId: course.teacherId,
+        teacherName: course.teacherId, // Using teacherId as teacherName temporarily
+        category: course.subject,
+        level: course.level as "Beginner" | "Intermediate" | "Advanced",
+        status: course.status as "Draft" | "Published",
+        sections: [],
+        price: 0, // Default price
+        image: course.imageUrl,
+        enrollments: []
+      }));
+      
+      setCourses(transformedCourses);
+      
       if (id) {
-        const course = courses.find((c) => c.courseId === id);
-        setSelectedCourse(course || courses[0]);
+        const course = transformedCourses.find((c) => c.courseId === id);
+        setSelectedCourse(course || transformedCourses[0]);
       } else {
-        setSelectedCourse(courses[0]);
+        setSelectedCourse(transformedCourses[0]);
       }
     }
-  }, [courses, id]);
+  }, [apiCourses, id]);
 
   if (isLoading) return <Loading />;
   if (isError || !courses) return <div>Failed to fetch courses</div>;
@@ -47,6 +67,7 @@ const Search = () => {
     
     // Always set showSignUp to false for consistent behavior
     router.push(`/checkout?step=${step}&id=${courseId}&showSignUp=false`, {
+
       scroll: false,
     });
   };
