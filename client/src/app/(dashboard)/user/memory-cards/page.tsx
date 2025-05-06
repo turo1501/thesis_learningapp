@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
-import { useAddCardMutation } from '@/state/api';
+import { useAddCardMutation, useAddCardsBatchMutation } from '@/state/api';
 
 export default function MemoryCardsPage() {
   const { userId } = useCurrentUser();
@@ -34,6 +34,8 @@ export default function MemoryCardsPage() {
   const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "name" | "success">("newest");
   const [isCreatingBatch, setIsCreatingBatch] = useState(false);
   const [addCard] = useAddCardMutation();
+  const [addCardsBatch] = useAddCardsBatchMutation();
+  const [batchInfo, setBatchInfo] = useState<{ count: number }>({ count: 0 });
   
   // Helper to ensure we have a valid userId
   const ensureUserId = (): string | null => {
@@ -187,15 +189,28 @@ export default function MemoryCardsPage() {
     // Use common metadata from the first card for the deck
     const firstCard = values[0];
     const courseId = firstCard.courseId ?? '';
-    const deckTitle = firstCard.question.length > 20 
-      ? `${firstCard.question.substring(0, 20)}...` 
-      : firstCard.question;
+    
+    // Create a better title for the deck based on card count 
+    let deckTitle = '';
+    if (values.length === 1) {
+      deckTitle = firstCard.question.length > 20 
+        ? `${firstCard.question.substring(0, 20)}...` 
+        : firstCard.question;
+    } else {
+      // If we have multiple cards, include how many are in the deck
+      const baseTitle = firstCard.question.length > 15
+        ? `${firstCard.question.substring(0, 15)}...`
+        : firstCard.question;
+      deckTitle = `${baseTitle} (${values.length} cards)`;
+    }
+    
+    console.log(`Creating deck "${deckTitle}" with ${values.length} cards`);
     
     // Create a deck with generateCards flag set to false since we'll add cards manually
     const createDeckResult = await handleCreateDeck({
       courseId,
-      title: `${deckTitle} (${values.length} cards)`,
-      description: 'Batch created memory cards',
+      title: deckTitle,
+      description: values.length > 1 ? 'AI-enhanced memory cards' : 'Memory cards created from form',
       generateCards: false,
     });
     
@@ -218,7 +233,7 @@ export default function MemoryCardsPage() {
       }
     }
     
-    console.log('Extracted deckId from batch creation:', deckId);
+    console.log('Extracted deckId:', deckId);
     
     if (!deckId) {
       toast.error("Failed to create deck");
@@ -226,76 +241,52 @@ export default function MemoryCardsPage() {
       return;
     }
     
-    // Add each card to the deck
-    let addedCount = 0;
-    let failedCount = 0;
-    
-    // Display loading message
-    toast.loading(`Adding ${values.length} cards to deck...`);
-    
+    // Add cards using batch API
     try {
-      // Use Promise.all to add all cards in parallel
-      const addPromises = values.map(async (card) => {
-        try {
-          // Convert difficultyLevel from string enum to number
-          const difficultyMap: Record<string, number> = {
-            'easy': 1,
-            'medium': 3,
-            'hard': 5
-          };
-          
-          const numericDifficulty = card.difficultyLevel ? 
-            difficultyMap[card.difficultyLevel as string] || 3 : 3;
-          
-          // Add the card to the deck
-          await addCard({
-            userId: validUserId,
-            deckId,
-            question: card.question,
-            answer: card.answer,
-            sectionId: card.sectionId || 'default',
-            chapterId: card.chapterId || 'default',
-            difficultyLevel: numericDifficulty,
-            lastReviewed: Date.now(),
-            nextReviewDue: Date.now() + 24 * 60 * 60 * 1000,
-            repetitionCount: 0,
-            correctCount: 0,
-            incorrectCount: 0
-          }).unwrap();
-          
-          addedCount++;
-        } catch (error) {
-          console.error('Error adding card:', error);
-          failedCount++;
-        }
+      // Display loading message
+      toast.loading(`Adding ${values.length} cards to deck...`);
+      
+      // Prepare cards for batch API
+      const cardsForBatch = values.map(card => {
+        // Convert difficultyLevel from string enum to number
+        const difficultyMap: Record<string, number> = {
+          'easy': 1,
+          'medium': 3,
+          'hard': 5
+        };
+        
+        const numericDifficulty = card.difficultyLevel ? 
+          difficultyMap[card.difficultyLevel as string] || 3 : 3;
+        
+        return {
+          question: card.question,
+          answer: card.answer,
+          sectionId: card.sectionId || 'default',
+          chapterId: card.chapterId || 'default',
+          difficultyLevel: numericDifficulty,
+        };
       });
       
-      // Wait for all cards to be added
-      await Promise.all(addPromises);
+      // Send batch request
+      const result = await addCardsBatch({
+        userId: validUserId,
+        deckId,
+        cards: cardsForBatch
+      }).unwrap();
       
       toast.dismiss();
       
-      if (failedCount > 0) {
-        toast.warning(`Created deck with ${addedCount} cards. ${failedCount} cards failed.`);
-      } else {
-        toast.success(`Created deck with ${addedCount} cards`);
-      }
+      const cardsAdded = result.cardsAdded || values.length;
+      toast.success(`Created deck with ${cardsAdded} cards`);
       
       // Add a small delay to ensure the cards are processed before navigating
       setTimeout(() => {
         router.push(`/user/memory-cards/${deckId}`);
-      }, 1200); // Increased delay to give API more time
+      }, 1000);
     } catch (error) {
       toast.dismiss();
       console.error('Error in batch card creation:', error);
-      toast.error(`Error creating cards. Successfully added: ${addedCount}`);
-      
-      // Navigate to the deck anyway so the user can see what was created
-      if (addedCount > 0) {
-        setTimeout(() => {
-          router.push(`/user/memory-cards/${deckId}`);
-        }, 1000);
-      }
+      toast.error(`Error creating cards batch. Please try again.`);
     }
   };
 
@@ -307,10 +298,47 @@ export default function MemoryCardsPage() {
     try {
       // Check if we have an array of cards (batch mode) or a single card
       if (Array.isArray(values)) {
+        // Verify the array is not empty
+        if (values.length === 0) {
+          toast.error("No cards found to create. Please add at least one card.");
+          return;
+        }
+        
+        console.log(`Creating batch of ${values.length} cards`);
+        
+        // If we have more than one card but we detect they're from AI generation (same metadata),
+        // we want to add them to the same deck instead of creating multiple decks
+        if (values.length > 1) {
+          // Check if they all have same metadata
+          const sameMetadata = values.every(card => 
+            card.courseId === values[0].courseId &&
+            card.chapterId === values[0].chapterId &&
+            card.sectionId === values[0].sectionId
+          );
+          
+          if (sameMetadata) {
+            console.log('Detected multiple cards with same metadata - likely AI generated alternatives');
+            
+            setIsCreatingBatch(true);
+            setBatchInfo({ count: values.length });
+            await handleBatchCardCreation(values);
+            setIsCreatingBatch(false);
+            return;
+          }
+        }
+        
         setIsCreatingBatch(true);
+        setBatchInfo({ count: values.length });
         await handleBatchCardCreation(values);
         setIsCreatingBatch(false);
       } else {
+        // Verify the single card has required fields
+        if (!values.question || !values.answer) {
+          toast.error("Question and answer are required fields.");
+          return;
+        }
+        
+        console.log('Creating single card');
         // Single card flow
         await handleSingleCardCreation(values);
       }
@@ -322,9 +350,13 @@ export default function MemoryCardsPage() {
   };
 
   // Calculate overall statistics
-  const totalCards = decks.reduce((total, deck) => total + deck.cards.length, 0);
-  const totalReviews = decks.reduce((total, deck) => total + deck.totalReviews, 0);
-  const correctReviews = decks.reduce((total, deck) => total + deck.correctReviews, 0);
+  const totalCards = decks.reduce((total, deck) => {
+    // Ensure deck.cards is an array before accessing length
+    const cardsCount = deck.cards && Array.isArray(deck.cards) ? deck.cards.length : 0;
+    return total + cardsCount;
+  }, 0);
+  const totalReviews = decks.reduce((total, deck) => total + (deck.totalReviews || 0), 0);
+  const correctReviews = decks.reduce((total, deck) => total + (deck.correctReviews || 0), 0);
   const overallSuccessRate = totalReviews > 0 
     ? Math.round((correctReviews / totalReviews) * 100) 
     : 0;
@@ -364,24 +396,24 @@ export default function MemoryCardsPage() {
         {/* Stats Cards */}
         {decks.length > 0 && (
           <div className="flex gap-4 w-full md:w-auto">
-            <Card className="w-full md:w-auto">
+            <Card key="total-cards-card" className="w-full md:w-auto">
               <CardContent className="p-4 flex gap-3 items-center">
-                <div className="bg-blue-500/20 p-2 rounded-full">
+                <div key="icon-container" className="bg-blue-500/20 p-2 rounded-full">
                   <Brain className="h-5 w-5 text-blue-500" />
                 </div>
-                <div>
+                <div key="text-container">
                   <p className="text-sm text-muted-foreground">Total Cards</p>
                   <p className="text-xl font-bold">{totalCards}</p>
                 </div>
               </CardContent>
             </Card>
             
-            <Card className="w-full md:w-auto">
+            <Card key="success-rate-card" className="w-full md:w-auto">
               <CardContent className="p-4 flex gap-3 items-center">
-                <div className="bg-green-500/20 p-2 rounded-full">
+                <div key="icon-container" className="bg-green-500/20 p-2 rounded-full">
                   <SortAscIcon className="h-5 w-5 text-green-500" />
                 </div>
-                <div>
+                <div key="text-container">
                   <p className="text-sm text-muted-foreground">Success Rate</p>
                   <p className="text-xl font-bold">{overallSuccessRate}%</p>
                 </div>
@@ -493,8 +525,8 @@ export default function MemoryCardsPage() {
                     <CardContent className="pb-4">
                       <div className="mb-4">
                         <div className="flex justify-between text-sm text-muted-foreground mb-1">
-                          <span>Success Rate</span>
-                          <span>{successRate}%</span>
+                          <span key="success-rate-label">Success Rate</span>
+                          <span key="success-rate-value">{successRate}%</span>
                         </div>
                         <Progress 
                           value={successRate} 
@@ -510,12 +542,12 @@ export default function MemoryCardsPage() {
                       
                       <div className="flex justify-between items-center">
                         <div className="flex gap-4">
-                          <div className="text-center">
+                          <div key="cards-count" className="text-center">
                             <p className="text-xl font-semibold">{deck.cards.length}</p>
                             <p className="text-xs text-muted-foreground">Cards</p>
                           </div>
                           
-                          <div className="text-center">
+                          <div key="reviews-count" className="text-center">
                             <p className="text-xl font-semibold">{deck.totalReviews}</p>
                             <p className="text-xs text-muted-foreground">Reviews</p>
                           </div>
@@ -524,12 +556,13 @@ export default function MemoryCardsPage() {
                     </CardContent>
                     
                     <CardFooter className="pt-0 flex justify-between items-center border-t border-gray-800 pt-3">
-                      <div className="flex items-center text-xs text-muted-foreground">
+                      <div key="date-info" className="flex items-center text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3 mr-1" />
                         {formattedDate}
                       </div>
                       
                       <Button 
+                        key="review-button"
                         variant="outline" 
                         size="sm"
                         onClick={(e) => {
@@ -555,7 +588,8 @@ export default function MemoryCardsPage() {
                 <Loader2 className="h-12 w-12 animate-spin text-primary" />
                 <h3 className="text-xl font-medium">Creating Cards...</h3>
                 <p className="text-sm text-muted-foreground text-center">
-                  Please wait while we process your cards. This may take a moment.
+                  Please wait while we process {batchInfo.count > 0 ? `${batchInfo.count}` : 'your'} cards. 
+                  This may take a moment for AI-enhanced card sets.
                 </p>
               </div>
             </Card>

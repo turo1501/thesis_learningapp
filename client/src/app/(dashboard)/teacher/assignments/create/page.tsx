@@ -49,6 +49,8 @@ import {
 } from "@/components/ui/popover";
 import { CalendarIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DayPicker } from "react-day-picker";
+import "react-day-picker/dist/style.css";
 
 // Define validation schema
 const assignmentSchema = z.object({
@@ -86,11 +88,15 @@ const CreateAssignmentPage = () => {
   const [isUploading, setIsUploading] = useState(false);
   const { user } = useUser();
   const { userId } = useAuth();
+  const [isClient, setIsClient] = useState(false);
+  
+  // Ensure client-side only rendering for date pickers
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   // Fetch courses for the dropdown
-  const { data: coursesData, isLoading: isLoadingCourses, error: coursesError } = useGetCoursesQuery({
-    teacherId: user?.id || "",
-  });
+  const { data: coursesData, isLoading: isLoadingCourses, error: coursesError } = useGetCoursesQuery({});
   
   // For file upload
   const [getUploadUrl] = useGetUploadAssignmentFileUrlMutation();
@@ -255,6 +261,16 @@ const CreateAssignmentPage = () => {
     );
   }
 
+  // Only render calendar components on the client to prevent hydration errors
+  if (!isClient) {
+    return (
+      <div className="container mx-auto py-10 flex justify-center items-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500 mr-2" />
+        <span>Loading form...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto py-10">
       <Card className="max-w-5xl mx-auto">
@@ -360,10 +376,10 @@ const CreateAssignmentPage = () => {
                           </FormControl>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
+                          <DayPicker
                             mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
+                            selected={field.value ? new Date(field.value) : undefined}
+                            onSelect={(date) => field.onChange(date ? format(date, "yyyy-MM-dd") : "")}
                             disabled={(date) => date < new Date()}
                             initialFocus
                           />

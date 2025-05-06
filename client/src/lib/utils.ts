@@ -347,21 +347,49 @@ export const createCourseFormData = (
   sections: Section[]
 ): FormData => {
   const formData = new FormData();
-  formData.append("title", data.courseTitle);
-  formData.append("description", data.courseDescription);
-  formData.append("category", data.courseCategory);
+  formData.append("title", data.courseTitle.trim() || "Untitled Course");
+  formData.append("description", data.courseDescription.trim());
+  formData.append("category", data.courseCategory || "Uncategorized");
   formData.append("price", data.coursePrice.toString());
   formData.append("status", data.courseStatus ? "Published" : "Draft");
 
-  const sectionsWithVideos = sections.map((section) => ({
-    ...section,
-    chapters: section.chapters.map((chapter) => ({
-      ...chapter,
-      video: chapter.video,
-    })),
-  }));
+  // Ensure sections with videos are properly formatted for JSON
+  const sectionsForAPI = sections.map((section) => {
+    // Ensure section has title and description
+    const sanitizedSection = {
+      ...section,
+      sectionId: section.sectionId,
+      sectionTitle: section.sectionTitle?.trim() || "Untitled Section",
+      sectionDescription: section.sectionDescription?.trim() || "",
+      chapters: section.chapters?.map((chapter) => {
+        // Convert video to a URL string if it exists
+        let videoValue = "";
+        
+        if (typeof chapter.video === 'string') {
+          videoValue = chapter.video.trim();
+        } else if (chapter.video && typeof chapter.video === 'object') {
+          if ('url' in chapter.video && chapter.video.url) {
+            videoValue = chapter.video.url?.toString().trim();
+          }
+        }
+        
+        // Return sanitized chapter data
+        return {
+          chapterId: chapter.chapterId,
+          title: chapter.title?.trim() || "Untitled Chapter",
+          content: chapter.content?.trim() || "",
+          type: videoValue ? "Video" : "Text",
+          video: videoValue,
+        };
+      }) || [],
+    };
+    
+    // Log sanitized section for debugging
+    console.log("Sanitized section for API:", sanitizedSection);
+    return sanitizedSection;
+  });
 
-  formData.append("sections", JSON.stringify(sectionsWithVideos));
+  formData.append("sections", JSON.stringify(sectionsForAPI));
 
   return formData;
 };
@@ -371,35 +399,122 @@ export const uploadAllVideos = async (
   courseId: string,
   getUploadVideoUrl: any
 ) => {
-  const updatedSections = localSections.map((section) => ({
-    ...section,
-    chapters: section.chapters.map((chapter) => ({
-      ...chapter,
-    })),
-  }));
+  if (!Array.isArray(localSections) || localSections.length === 0) {
+    return [];
+  }
+
+  // Create a deep copy to avoid mutating the original objects
+  const updatedSections = JSON.parse(JSON.stringify(localSections));
+
+  // Detect File objects after JSON.stringify/parse by checking for specific properties
+  const isFileObject = (obj: any): boolean => 
+    obj && 
+    typeof obj === 'object' && 
+    'name' in obj && 
+    'type' in obj && 
+    'size' in obj &&
+    typeof obj.type === 'string' && 
+    obj.type.startsWith('video/');
+
+  // Before processing, log what we've received
+  console.log("Sections before video processing:", updatedSections);
 
   for (let i = 0; i < updatedSections.length; i++) {
+    if (!updatedSections[i].chapters || !Array.isArray(updatedSections[i].chapters)) {
+      updatedSections[i].chapters = [];
+      continue;
+    }
+
     for (let j = 0; j < updatedSections[i].chapters.length; j++) {
       const chapter = updatedSections[i].chapters[j];
-      if (chapter.video instanceof File && chapter.video.type === "video/mp4") {
-        try {
-          const updatedChapter = await uploadVideo(
-            chapter,
-            courseId,
-            updatedSections[i].sectionId,
-            getUploadVideoUrl
-          );
-          updatedSections[i].chapters[j] = updatedChapter;
-        } catch (error) {
-          console.error(
-            `Failed to upload video for chapter ${chapter.chapterId}:`,
-            error
-          );
+      if (!chapter) continue;
+      
+      try {
+        // Check if we have a valid video object to process
+        if (isFileObject(chapter.video)) {
+          console.log(`Found video file in chapter ${chapter.chapterId || j}:`, chapter.video);
+          
+          try {
+            // Extract file information before it's lost in serialization
+            const fileInfo = {
+              name: chapter.video.name,
+              type: chapter.video.type,
+              size: chapter.video.size
+            };
+            
+            // We need to access the actual File object from the original sections
+            const originalChapter = localSections[i]?.chapters[j];
+            if (!originalChapter || !(originalChapter.video instanceof File)) {
+              console.warn(`No matching File object found for chapter ${chapter.chapterId || j}`);
+              updatedSections[i].chapters[j].video = "";
+              continue;
+            }
+
+            console.log(`Uploading video for chapter ${chapter.chapterId || j}`);
+            
+            // Get presigned URL
+            const response = await getUploadVideoUrl({
+              courseId,
+              sectionId: updatedSections[i].sectionId,
+              chapterId: chapter.chapterId,
+              fileName: fileInfo.name,
+              fileType: fileInfo.type,
+            }).unwrap();
+            
+            // Extract URLs from response with proper error handling
+            const uploadUrl = response?.data?.uploadUrl;
+            const videoUrl = response?.data?.videoUrl;
+            
+            if (!uploadUrl || !videoUrl) {
+              console.error(`Invalid upload URL response for chapter ${chapter.chapterId || j}:`, response);
+              throw new Error("Invalid upload URL response");
+            }
+
+            // Upload the actual file
+            await fetch(uploadUrl, {
+              method: "PUT",
+              headers: {
+                "Content-Type": fileInfo.type,
+              },
+              body: originalChapter.video,
+            });
+            
+            console.log(`Upload successful for chapter ${chapter.chapterId || j}, URL:`, videoUrl);
+            toast.success(`Video uploaded successfully for ${chapter.title || `Chapter ${j+1}`}`);
+            
+            // Set the video URL as a string in our updated section
+            updatedSections[i].chapters[j].video = videoUrl;
+          } catch (error) {
+            console.error(`Failed to upload video for chapter ${chapter.chapterId || j}:`, error);
+            // Set a placeholder URL to avoid type mismatch
+            updatedSections[i].chapters[j].video = "";
+            toast.error(`Failed to upload video for ${chapter.title || `Chapter ${j+1}`}`);
+          }
+        } else if (typeof chapter.video === 'string' && chapter.video) {
+          // Keep existing video URL
+          console.log(`Keeping existing video URL for chapter ${chapter.chapterId || j}:`, chapter.video);
+        } else if (typeof chapter.video === 'object' && chapter.video !== null) {
+          // Handle case where video is an object but not a proper File
+          console.warn(`Non-file object detected for chapter ${chapter.chapterId || j}:`, chapter.video);
+          // Convert to a string URL if possible or empty string
+          if ('url' in chapter.video && typeof chapter.video.url === 'string') {
+            updatedSections[i].chapters[j].video = chapter.video.url;
+          } else {
+            updatedSections[i].chapters[j].video = "";
+          }
+        } else if (typeof chapter.video !== 'string') {
+          // Ensure all non-string videos are converted to empty strings
+          console.warn(`Invalid video value for chapter ${chapter.chapterId || j}:`, chapter.video);
+          updatedSections[i].chapters[j].video = "";
         }
+      } catch (chapterError) {
+        console.error(`Error processing chapter ${j} in section ${i}:`, chapterError);
+        updatedSections[i].chapters[j].video = "";
       }
     }
   }
 
+  console.log("Sections after video processing:", updatedSections);
   return updatedSections;
 };
 
@@ -408,18 +523,47 @@ async function uploadVideo(
   courseId: string,
   sectionId: string,
   getUploadVideoUrl: any
-) {
-  const file = chapter.video as File;
+): Promise<string> {
+  // Safety check for File instance
+  if (!chapter.video || typeof chapter.video === 'string') {
+    return chapter.video as string || "";
+  }
+  
+  // Ensure we have a File object
+  let file: File;
+  try {
+    file = chapter.video as File;
+    
+    // Validate that it's actually a File with expected properties
+    if (!(file instanceof File) || !file.name || !file.type) {
+      console.warn(`Invalid file object for chapter ${chapter.chapterId}`);
+      return "";
+    }
+  } catch (error) {
+    console.error(`Error processing file for chapter ${chapter.chapterId}:`, error);
+    return "";
+  }
 
   try {
-    const { uploadUrl, videoUrl } = await getUploadVideoUrl({
+    // Call the API to get the upload URL
+    const response = await getUploadVideoUrl({
       courseId,
       sectionId,
       chapterId: chapter.chapterId,
       fileName: file.name,
       fileType: file.type,
     }).unwrap();
+    
+    // Extract URLs from response with proper error handling
+    const uploadUrl = response?.data?.uploadUrl;
+    const videoUrl = response?.data?.videoUrl;
+    
+    if (!uploadUrl || !videoUrl) {
+      console.error(`Invalid response format for chapter ${chapter.chapterId}:`, response);
+      throw new Error("Invalid upload URL response");
+    }
 
+    // Upload the file using the presigned URL
     await fetch(uploadUrl, {
       method: "PUT",
       headers: {
@@ -427,16 +571,13 @@ async function uploadVideo(
       },
       body: file,
     });
-    toast.success(
-      `Video uploaded successfully for chapter ${chapter.chapterId}`
-    );
+    
+    toast.success(`Video uploaded successfully for chapter ${chapter.title || chapter.chapterId}`);
 
-    return { ...chapter, video: videoUrl };
+    // Return just the URL string
+    return videoUrl;
   } catch (error) {
-    console.error(
-      `Failed to upload video for chapter ${chapter.chapterId}:`,
-      error
-    );
+    console.error(`Failed to upload video for chapter ${chapter.chapterId}:`, error);
     throw error;
   }
 }

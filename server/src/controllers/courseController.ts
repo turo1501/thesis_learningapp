@@ -106,19 +106,60 @@ export const updateCourse = async (
     }
 
     if (updateData.sections) {
-      const sectionsData =
-        typeof updateData.sections === "string"
-          ? JSON.parse(updateData.sections)
-          : updateData.sections;
+      try {
+        const sectionsData =
+          typeof updateData.sections === "string"
+            ? JSON.parse(updateData.sections)
+            : updateData.sections;
 
-      updateData.sections = sectionsData.map((section: any) => ({
-        ...section,
-        sectionId: section.sectionId || uuidv4(),
-        chapters: section.chapters.map((chapter: any) => ({
-          ...chapter,
-          chapterId: chapter.chapterId || uuidv4(),
-        })),
-      }));
+        // Validate the sections data structure
+        if (!Array.isArray(sectionsData)) {
+          throw new Error("Sections must be an array");
+        }
+
+        updateData.sections = sectionsData.map((section: any) => {
+          // Validate chapters
+          if (!Array.isArray(section.chapters)) {
+            section.chapters = [];
+          }
+
+          return {
+            ...section,
+            sectionId: section.sectionId || uuidv4(),
+            sectionTitle: section.sectionTitle || "",
+            sectionDescription: section.sectionDescription || "",
+            chapters: section.chapters.map((chapter: any) => {
+              // Ensure video is a string, never null
+              let videoValue = "";
+
+              // Process video field
+              if (chapter.video) {
+                if (typeof chapter.video === 'string') {
+                  videoValue = chapter.video;
+                } else if (typeof chapter.video === 'object' && 'url' in chapter.video) {
+                  videoValue = chapter.video.url || "";
+                }
+              }
+
+              // Set default values for missing fields
+              return {
+                ...chapter,
+                chapterId: chapter.chapterId || uuidv4(),
+                title: chapter.title || "",
+                content: chapter.content || "",
+                type: videoValue ? "Video" : "Text",
+                video: videoValue,
+              };
+            }),
+          };
+        });
+      } catch (error) {
+        res.status(400).json({
+          message: "Invalid sections data",
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+        return;
+      }
     }
 
     Object.assign(course, updateData);
@@ -170,25 +211,47 @@ export const getUploadVideoUrl = async (
     return;
   }
 
+  const bucketName = process.env.S3_BUCKET_NAME;
+  const cloudfrontDomain = process.env.CLOUDFRONT_DOMAIN;
+  
+  if (!bucketName) {
+    console.error("S3_BUCKET_NAME environment variable is not set");
+    res.status(500).json({ 
+      message: "Server configuration error", 
+      error: "S3 bucket name is not configured" 
+    });
+    return;
+  }
+  
+  if (!cloudfrontDomain) {
+    console.error("CLOUDFRONT_DOMAIN environment variable is not set");
+    res.status(500).json({ 
+      message: "Server configuration error", 
+      error: "CloudFront domain is not configured" 
+    });
+    return;
+  }
+
   try {
     const uniqueId = uuidv4();
     const s3Key = `videos/${uniqueId}/${fileName}`;
 
     const s3Params = {
-      Bucket: process.env.S3_BUCKET_NAME || "",
+      Bucket: bucketName,
       Key: s3Key,
       Expires: 60,
       ContentType: fileType,
     };
 
     const uploadUrl = s3.getSignedUrl("putObject", s3Params);
-    const videoUrl = `${process.env.CLOUDFRONT_DOMAIN}/videos/${uniqueId}/${fileName}`;
+    const videoUrl = `${cloudfrontDomain}/videos/${uniqueId}/${fileName}`;
 
     res.json({
       message: "Upload URL generated successfully",
       data: { uploadUrl, videoUrl },
     });
   } catch (error) {
+    console.error("Error generating upload URL:", error);
     res.status(500).json({ message: "Error generating upload URL", error });
   }
 };

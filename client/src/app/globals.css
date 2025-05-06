@@ -1438,7 +1438,7 @@ input[type="color"] {
 }
 
 .app-sidebar__title {
-  @apply text-lg font-extrabold group-data-[collapsible=icon]:hidden;
+  @apply text-2xl font-extrabold tracking-wide text-gray-600 leading-snug group-data-[collapsible=icon]:hidden;
 }
 
 .app-sidebar__collapse-icon {
