@@ -415,11 +415,15 @@ const renderAssignmentsList = (
   return assignments.map((assignment) => {
     const submittedCount = assignment.submissions.length;
     const gradedCount = assignment.submissions.filter(sub => sub.status === "graded").length;
+    const pendingCount = submittedCount - gradedCount;
+    
+    // Determine if there are pending submissions that need attention
+    const hasPendingSubmissions = pendingCount > 0;
     
     return (
     <Card
         key={assignment.assignmentId}
-      className="p-6 bg-slate-900 border-slate-700 hover:border-blue-600/40 transition-colors cursor-pointer"
+      className={`p-6 bg-slate-900 border-slate-700 ${hasPendingSubmissions ? 'border-orange-500' : 'hover:border-blue-600/40'} transition-colors cursor-pointer`}
         onClick={() => onViewAssignment(assignment.assignmentId)}
     >
       <div className="flex flex-col md:flex-row gap-4 justify-between">
@@ -463,28 +467,60 @@ const renderAssignmentsList = (
                   {submittedCount} Submitted
               </span>
             </div>
-              {submittedCount > 0 && (
-            <div className="flex items-center text-orange-500">
-              <FileText className="h-4 w-4 mr-1" />
-              <span>
-                    {gradedCount} Graded ({Math.round((gradedCount / submittedCount) * 100)}%)
-              </span>
-            </div>
-              )}
+            {submittedCount > 0 && (
+              <>
+                <div className="flex items-center text-green-400">
+                  <FileText className="h-4 w-4 mr-1" />
+                  <span>
+                    {gradedCount} Graded
+                  </span>
+                </div>
+                {hasPendingSubmissions && (
+                  <div className="flex items-center text-orange-400 font-medium">
+                    <AlertCircle className="h-4 w-4 mr-1" />
+                    <span>
+                      {pendingCount} Pending
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
+
+          {submittedCount > 0 && (
+            <div className="mt-3 w-full bg-slate-800 rounded-full h-1.5">
+              <div 
+                className={`h-1.5 rounded-full ${gradedCount === 0 ? 'bg-orange-500' : 'bg-green-500'}`}
+                style={{ width: `${(gradedCount / submittedCount) * 100}%` }}
+              ></div>
+            </div>
+          )}
         </div>
         <div className="flex flex-row md:flex-col gap-2 self-end md:self-center">
-          <Button
-            variant="outline"
+          {hasPendingSubmissions ? (
+            <Button
+              size="sm"
+              className="bg-orange-600 text-white hover:bg-orange-700"
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewAssignment(`${assignment.assignmentId}/submissions`);
+              }}
+            >
+              Grade Submissions ({pendingCount})
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
               size="sm"
               className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
               onClick={(e) => {
                 e.stopPropagation();
                 onViewAssignment(assignment.assignmentId);
               }}
-          >
-            View Details
+            >
+              View Details
             </Button>
+          )}
         </div>
       </div>
     </Card>

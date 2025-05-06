@@ -62,6 +62,7 @@ export interface MemoryCard {
   deckId?: string;
   deckTitle?: string;
   courseId?: string;
+  aiGenerated?: boolean;
 }
 
 export interface MemoryCardDeck {
@@ -91,20 +92,62 @@ export interface AIAlternativesResponse {
   originalAnswer: string;
 }
 
+// Add a chat feedback interface
+export interface ChatFeedbackData {
+  messageId: string;
+  isPositive: boolean;
+  comment?: string;
+}
+
+// Add course recommendations interface
+export interface CourseRecommendationsResponse {
+  userId: string;
+  recommendations: string;
+  timestamp: number;
+}
+
+// Add these interfaces for Comments and Notes
+export interface Comment {
+  commentId: string;
+  userId: string;
+  text: string;
+  timestamp: string;
+  userName?: string;
+  userAvatar?: string;
+}
+
+export interface UserNote {
+  noteId: string;
+  userId: string;
+  courseId: string;
+  sectionId: string;
+  chapterId: string;
+  content: string;
+  color: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // Sửa lỗi liên quan đến replace method
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
 const customBaseQuery = fetchBaseQuery({
   baseUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001",
-  prepareHeaders: (headers) => {
-    // Get token from localStorage if available
-    const token = typeof window !== "undefined" 
+  prepareHeaders: (headers, { endpoint }) => {
+    // Only add auth token for non-public endpoints
+    // Check if this is a public endpoint
+    const isPublicEndpoint = endpoint.includes('Published') || endpoint.includes('published');
+    
+    // Get token from localStorage if available and not a public endpoint
+    const token = (!isPublicEndpoint && typeof window !== "undefined")
       ? localStorage.getItem("clerk-auth-token")
       : null;
     
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
-      console.log("Authorization header set with token");
+      console.log("Authorization header set with token:", token.substring(0, 15) + "...");
+    } else if (!isPublicEndpoint) {
+      console.warn("No auth token found for non-public endpoint");
 
     }
     
@@ -236,6 +279,8 @@ const enhancedBaseQuery = async (args: string | FetchArgs, api: BaseQueryApi, ex
           return { data: result.data.data };
         }
       }
+      
+      return result;
     }
     
     // Handle error response
@@ -247,13 +292,24 @@ const enhancedBaseQuery = async (args: string | FetchArgs, api: BaseQueryApi, ex
         const responseData = result.error.data;
         console.error(`Parsing error with original status 200. Raw response:`, responseData);
         
-        // Try to provide a more informative error message
+        // Try to gracefully handle non-JSON responses
+        if (typeof responseData === 'string') {
+          // If it's a string response, try to use it as a message
+          return {
+            data: {
+              message: responseData,
+              status: 'success'
+            }
+          };
+        }
+        
+        // Return a standardized error that's more helpful
         return {
           error: {
             status: 'CUSTOM_ERROR',
             data: {
-              message: 'Server returned a non-JSON response with status 200',
-              originalData: responseData
+              message: 'Server returned a non-JSON response',
+              originalResponse: responseData
             }
           }
         };
@@ -266,7 +322,10 @@ const enhancedBaseQuery = async (args: string | FetchArgs, api: BaseQueryApi, ex
     return {
       error: {
         status: 'FETCH_ERROR',
-        error
+        error: String(error),
+        data: {
+          message: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        }
       }
     };
   }
@@ -302,6 +361,8 @@ export const api = createApi({
     "MemoryCardDecks",
     "MemoryCardDeck",
     "DueCards",
+    "CourseComments",
+    "UserNotes",
   ],
 
   endpoints: (build) => ({
@@ -634,6 +695,30 @@ export const api = createApi({
       ],
     }),
     
+    getChatHistory: build.query<
+      { messages: { content: string; role: "user" | "bot"; timestamp: number }[] },
+      string
+    >({
+      query: (userId) => `chat/history/${userId}`,
+      transformResponse: (response: any) => {
+        if (!response || !Array.isArray(response.messages)) {
+          return { messages: [] };
+        }
+        return response;
+      },
+    }),
+
+    // Add this endpoint somewhere in the api.endpoints section
+    sendChatFeedback: build.mutation<{ success: boolean; message: string }, ChatFeedbackData>({
+      query: (data) => ({
+        url: '/chat/feedback',
+        method: 'POST',
+        body: data,
+      }),
+      // Optional - add an onQueryStarted handler if you want to update the UI optimistically
+    }),
+
+
     /* 
     ===============
     BLOG POSTS
@@ -641,12 +726,27 @@ export const api = createApi({
     */
     getBlogPosts: build.query<BlogPostsResponse, { 
       status?: string;
+      endpoint?: string;
       category?: string;
       userId?: string;
       limit?: number;
       lastKey?: string;
     }>({
       query: (params) => {
+        // Check if we're using the published endpoint
+        if (params.endpoint === 'published') {
+          return {
+            url: `/blog-posts/published`,
+            method: 'GET',
+            params: {
+              category: params.category,
+              limit: params.limit,
+              lastKey: params.lastKey
+            }
+          };
+        }
+        
+        // Standard endpoint with query params
         const queryParams = new URLSearchParams();
         if (params.status) queryParams.append('status', params.status);
         if (params.category) queryParams.append('category', params.category);
@@ -660,7 +760,7 @@ export const api = createApi({
         };
       },
       providesTags: (result) => 
-        result 
+        result && result.posts && Array.isArray(result.posts)
           ? [
               ...result.posts.map(post => ({ type: 'BlogPost' as const, id: post.postId })),
               { type: 'BlogPosts' as const, id: 'LIST' }
@@ -756,14 +856,9 @@ export const api = createApi({
       providesTags: (result, error, courseId) => [{ type: "Assignments", id: courseId }],
     }),
 
-    getAssignment: build.query<Assignment, string>({
-      query: (assignmentId) => {
-        if (!assignmentId || assignmentId === "undefined") {
-          throw new Error("Assignment ID is required");
-        }
-        return `assignments/${assignmentId}`;
-      },
-      providesTags: (result, error, id) => [{ type: "Assignments", id }],
+    getAssignment: build.query<any, string>({
+      query: (assignmentId) => `assignments/${assignmentId}`,
+      providesTags: (result, error, assignmentId) => [{ type: 'Assignments', id: assignmentId }],
     }),
 
     createAssignment: build.mutation<
@@ -790,27 +885,15 @@ export const api = createApi({
       ],
     }),
 
-    updateAssignment: build.mutation<
-      Assignment,
-      {
-        assignmentId: string;
-        courseId: string;
-        title?: string;
-        description?: string;
-        dueDate?: string;
-        points?: number;
-        status?: string;
-        attachments?: string[];
-      }
-    >({
-      query: ({ assignmentId, ...body }) => ({
-        url: `assignments/${assignmentId}`,
-        method: "PUT",
-        body,
+    updateAssignment: build.mutation<any, any>({
+      query: (assignment) => ({
+        url: `assignments/${assignment.assignmentId}`,
+        method: 'PUT',
+        body: assignment,
       }),
       invalidatesTags: (result, error, { assignmentId, courseId }) => [
-        { type: "Assignments", id: assignmentId },
-        { type: "Assignments", id: courseId },
+        { type: 'Assignments', id: assignmentId },
+        { type: 'Assignments', id: courseId }
       ],
     }),
 
@@ -1050,11 +1133,16 @@ export const api = createApi({
       { uploadUrl: string; fileUrl: string },
       { fileName: string; fileType: string }
     >({
-      query: (body) => ({
+      query: (data) => ({
         url: 'assignments/get-upload-file-url',
         method: 'POST',
-        body,
+        body: data,
       }),
+      // Improved error handling
+      transformErrorResponse: (response) => {
+        console.error('Error getting upload URL:', response);
+        return response;
+      },
     }),
 
     /* 
@@ -1076,12 +1164,49 @@ export const api = createApi({
       MemoryCardDeck,
       { userId: string; courseId: string; title: string; description?: string }
     >({
-      query: (data) => ({
-        url: "/memory-cards",
-        method: "POST",
-        body: data,
-      }),
+      query: (data) => {
+        // Validate userId to prevent 'undefined' errors
+        if (!data.userId || data.userId === 'undefined') {
+          throw new Error('Valid user ID is required for deck creation');
+        }
+        
+        // Validate courseId to prevent 'undefined' errors
+        if (!data.courseId || data.courseId === 'undefined') {
+          throw new Error('Valid course ID is required for deck creation');
+        }
+        
+        // Ensure title is provided
+        if (!data.title) {
+          throw new Error('Deck title is required');
+        }
+        
+        return {
+          url: "/memory-cards",
+          method: "POST",
+          body: data,
+        };
+      },
       invalidatesTags: ["MemoryCardDecks"],
+      // Transform the response to ensure we have a consistent format
+      transformResponse: (response: any) => {
+        console.log('Create deck response:', response);
+        
+        // If response is nested under data property, extract it
+        const deck = response.data || response;
+        
+        // Ensure the deck has a valid deckId
+        if (!deck || !deck.deckId) {
+          console.error('Invalid deck response:', deck);
+          throw new Error('Server returned an invalid deck object');
+        }
+        
+        return deck;
+      },
+      // Add error handling
+      transformErrorResponse: (response) => {
+        console.error('Error creating memory card deck:', response);
+        return response;
+      }
     }),
 
     deleteDeck: build.mutation<
@@ -1112,11 +1237,27 @@ export const api = createApi({
         incorrectCount: number;
       }
     >({
-      query: ({ userId, deckId, ...cardData }) => ({
-        url: `/memory-cards/${userId}/${deckId}/cards`,
-        method: "POST",
-        body: cardData,
-      }),
+      query: ({ userId, deckId, ...cardData }) => {
+        // Validate userId and deckId to prevent 'undefined' errors
+        if (!userId || userId === 'undefined') {
+          throw new Error('Valid user ID is required');
+        }
+        
+        if (!deckId || deckId === 'undefined') {
+          throw new Error('Valid deck ID is required');
+        }
+        
+        // Validate required card data
+        if (!cardData.question || !cardData.answer) {
+          throw new Error('Question and answer are required');
+        }
+        
+        return {
+          url: `/memory-cards/${userId}/${deckId}/cards`,
+          method: "POST",
+          body: cardData,
+        };
+      },
       invalidatesTags: (result, error, { deckId, userId }) => [
         { type: "MemoryCardDeck", id: deckId },
         { type: "MemoryCardDecks", id: userId },
@@ -1159,6 +1300,11 @@ export const api = createApi({
           console.error("Error optimistically updating card:", error);
         }
       },
+      // Add error handling
+      transformErrorResponse: (response) => {
+        console.error('Error adding card to deck:', response);
+        return response;
+      }
     }),
     
     addCardsBatch: build.mutation<
@@ -1300,6 +1446,90 @@ export const api = createApi({
         body: data,
       }),
     }),
+
+    // Add this new endpoint
+    getChatCourseRecommendations: build.query<CourseRecommendationsResponse, string>({
+      query: (userId) => `chat/recommendations/${userId}`,
+      transformResponse: (response: any) => {
+        if (!response) {
+          return { 
+            userId: '',
+            recommendations: 'No recommendations available at this time.',
+            timestamp: Date.now()
+          };
+        }
+        return response;
+      },
+    }),
+
+    // Comment endpoints
+    getChapterComments: build.query<Comment[], { courseId: string; sectionId: string; chapterId: string }>({
+      query: ({ courseId, sectionId, chapterId }) => ({
+        url: `/comments/${courseId}/sections/${sectionId}/chapters/${chapterId}/comments`,
+        method: "GET",
+      }),
+      providesTags: ["CourseComments"],
+    }),
+
+    addComment: build.mutation<Comment, { courseId: string; sectionId: string; chapterId: string; text: string }>({
+      query: ({ courseId, sectionId, chapterId, text }) => ({
+        url: `/comments/${courseId}/sections/${sectionId}/chapters/${chapterId}/comments`,
+        method: "POST",
+        body: { text },
+      }),
+      invalidatesTags: ["CourseComments"],
+    }),
+
+    deleteComment: build.mutation<void, { courseId: string; sectionId: string; chapterId: string; commentId: string }>({
+      query: ({ courseId, sectionId, chapterId, commentId }) => ({
+        url: `/comments/${courseId}/sections/${sectionId}/chapters/${chapterId}/comments/${commentId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["CourseComments"],
+    }),
+
+    // Note endpoints
+    getUserCourseNotes: build.query<UserNote[], { courseId: string }>({
+      query: ({ courseId }) => ({
+        url: `/user-notes/${courseId}`,
+        method: "GET",
+      }),
+      providesTags: ["UserNotes"],
+    }),
+
+    getChapterNotes: build.query<UserNote[], { courseId: string; sectionId: string; chapterId: string }>({
+      query: ({ courseId, sectionId, chapterId }) => ({
+        url: `/user-notes/${courseId}/sections/${sectionId}/chapters/${chapterId}`,
+        method: "GET",
+      }),
+      providesTags: ["UserNotes"],
+    }),
+
+    createNote: build.mutation<UserNote, { courseId: string; sectionId: string; chapterId: string; content: string; color?: string }>({
+      query: (noteData) => ({
+        url: `/user-notes`,
+        method: "POST",
+        body: noteData,
+      }),
+      invalidatesTags: ["UserNotes"],
+    }),
+
+    updateNote: build.mutation<UserNote, { noteId: string; content?: string; color?: string }>({
+      query: ({ noteId, ...data }) => ({
+        url: `/user-notes/${noteId}`,
+        method: "PUT",
+        body: data,
+      }),
+      invalidatesTags: ["UserNotes"],
+    }),
+
+    deleteNote: build.mutation<void, { noteId: string }>({
+      query: ({ noteId }) => ({
+        url: `/user-notes/${noteId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["UserNotes"],
+    }),
   }),
 });
 
@@ -1378,5 +1608,15 @@ export const {
   useGenerateCardsFromCourseMutation,
   useGenerateAIAlternativesMutation,
   useAddCardsBatchMutation,
+  useSendChatFeedbackMutation,
+  useGetChatCourseRecommendationsQuery,
+  useGetChapterCommentsQuery,
+  useAddCommentMutation,
+  useDeleteCommentMutation,
+  useGetUserCourseNotesQuery,
+  useGetChapterNotesQuery,
+  useCreateNoteMutation,
+  useUpdateNoteMutation,
+  useDeleteNoteMutation,
 
 } = api;

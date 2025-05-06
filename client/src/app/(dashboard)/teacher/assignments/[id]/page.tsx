@@ -10,7 +10,7 @@ import {
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Calendar,
@@ -26,6 +26,10 @@ import {
   Download,
   Eye,
   Send,
+  Users,
+  Pencil,
+  Trash,
+  Link as LinkIcon,
 } from "lucide-react";
 import { format } from "date-fns";
 import { 
@@ -46,6 +50,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import Link from "next/link";
+import GradingSummary from "@/components/assignment/GradingSummary";
 
 // Define Assignment type 
 interface Assignment {
@@ -132,7 +137,8 @@ const AssignmentDetailPage = () => {
 
   // Handle edit
   const handleEdit = () => {
-    router.push(`/teacher/assignments/edit/${assignmentId}`);
+    // Navigate to the edit page for this assignment
+    router.push(`/teacher/assignments/${assignmentId}/edit`);
   };
 
   if (isLoading) {
@@ -163,7 +169,7 @@ const AssignmentDetailPage = () => {
   }
 
   const submittedCount = assignment.submissions.length;
-  const gradedCount = assignment.submissions.filter(sub => sub.status === "graded").length;
+  const gradedCount = assignment.submissions.filter((sub: AssignmentSubmission) => sub.status === "graded").length;
   const isPastDue = new Date(assignment.dueDate) < new Date();
   const daysLeft = Math.ceil((new Date(assignment.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
 
@@ -261,13 +267,13 @@ const AssignmentDetailPage = () => {
                   <div className="mb-6">
                     <h3 className="text-xl font-semibold mb-4">Attachments</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {assignment.attachments.map((attachment, index) => (
+                      {assignment.attachments.map((attachment: string, index: number) => (
                         <div 
                           key={index}
                           className="p-3 rounded-md bg-slate-800 border border-slate-700 flex items-center justify-between"
                         >
                           <div className="flex items-center">
-                            <FileText className="h-5 w-5 text-blue-400 mr-2" />
+                            <LinkIcon className="h-5 w-5 text-blue-400 mr-2" />
                             <span className="truncate">{attachment.split('/').pop()}</span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -317,7 +323,7 @@ const AssignmentDetailPage = () => {
                     </div>
                     
                     <div className="space-y-4">
-                      {assignment.submissions.map((submission) => (
+                      {assignment.submissions.map((submission: AssignmentSubmission) => (
                         <div 
                           key={submission.studentId}
                           className="p-4 rounded-md bg-slate-800 border border-slate-700 flex flex-col sm:flex-row justify-between"
@@ -427,6 +433,18 @@ const AssignmentDetailPage = () => {
             </div>
           </Card>
         </div>
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <Card className="bg-slate-800 border-slate-700 col-span-2">
+          {/* Existing content */}
+        </Card>
+
+        <GradingSummary 
+          assignmentId={assignment.assignmentId}
+          points={assignment.points}
+          submissions={assignment.submissions}
+        />
       </div>
       
       {/* Delete Confirmation Dialog */}

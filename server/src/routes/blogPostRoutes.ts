@@ -6,6 +6,12 @@ import { authenticate } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
+// New endpoint: Get published posts (public access)
+router.get(
+  '/published',
+  blogPostController.getPublishedPosts
+);
+
 // Get all posts (needs authentication to access user role)
 router.get(
   '/',

@@ -546,24 +546,65 @@ export const useMemoryCards = ({ userId, deckId, skipInitialFetch = false }: Use
     if (!userId) return null;
     
     try {
+      // Set loading state for better UI feedback
+      setIsGeneratingCards(true);
+      
       if (data.generateCards) {
         // Generate cards from course content
-        return await handleGenerateCards({
-          courseId: data.courseId,
-          chapterIds: [],
+        console.log("Initiating AI card generation for courseId:", data.courseId);
+        
+        // Show longer toast for better UX during AI processing
+        toast.loading("Generating AI cards... This may take up to 1 minute.", {
+          id: "ai-generation-toast",
+          duration: 60000, // 60 seconds, but we'll dismiss it manually on success
         });
+        
+        const result = await generateCards({
+          userId,
+          courseId: data.courseId,
+          deckTitle: data.title || `Generated Cards - ${new Date().toLocaleDateString()}`,
+          deckDescription: data.description || `AI-generated cards for your course`,
+        }).unwrap();
+        
+        console.log("AI card generation complete:", result);
+        
+        // Clear the loading toast
+        toast.dismiss("ai-generation-toast");
+        
+        // Create a proper success message
+        const cardCount = result?.cardsGenerated || 0;
+        toast.success(`${cardCount} ${cardCount === 1 ? 'card' : 'cards'} successfully generated with AI!`);
+        
+        // Ensure result has proper format for return
+        if (result && result.deck) {
+          return {
+            deck: result.deck,
+            cardsGenerated: result.cardsGenerated || 0,
+            type: "generated"
+          } as DeckWithGeneratedCards;
+        } else {
+          // Handle unexpected result format
+          console.error("Unexpected result format from generateCards:", result);
+          toast.error("Generated cards have unexpected format. Please try again.");
+          return null;
+        }
       } else {
         // Create an empty deck
-        return await handleAddDeck({
+        const emptyDeck = await handleAddDeck({
           courseId: data.courseId,
           title: data.title,
           description: data.description,
         });
+        
+        return emptyDeck;
       }
     } catch (error) {
       console.error("Error creating deck:", error);
-      toast.error("Failed to create deck");
+      toast.dismiss("ai-generation-toast"); // Clear loading toast if there was an error
+      toast.error("Failed to create deck. Please try again.");
       return null;
+    } finally {
+      setIsGeneratingCards(false);
     }
   };
   

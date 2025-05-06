@@ -18,7 +18,9 @@ const nextConfig = {
       'res.cloudinary.com',
       'avatars.githubusercontent.com',
       'lh3.googleusercontent.com',
-      'graph.facebook.com'
+      'graph.facebook.com',
+      'localhost',
+      'img.clerk.com'
     ],
     remotePatterns: [
       {

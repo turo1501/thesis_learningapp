@@ -326,31 +326,63 @@ export const getUploadAssignmentFileUrl = async (
 ): Promise<void> => {
   const { fileName, fileType } = req.body;
 
+  // Validate required parameters
   if (!fileName || !fileType) {
     res.status(400).json({ message: "File name and type are required" });
     return;
   }
 
   try {
+    // Get bucket name from environment variable
+    const bucketName = process.env.S3_BUCKET_NAME;
+    
+    // Make sure the bucket name is valid
+    if (!bucketName || bucketName.trim() === '') {
+      console.error("S3_BUCKET_NAME environment variable is missing or empty");
+      res.status(500).json({ 
+        message: "Server configuration error - S3 bucket not configured" 
+      });
+      return;
+    }
+    
+    // Create a unique file path
     const uniqueId = uuidv4();
     const s3Key = `assignments/${uniqueId}/${fileName}`;
 
+    console.log(`Generating S3 upload URL: Bucket=${bucketName}, Key=${s3Key}`);
+
+    // Generate the pre-signed URL
     const s3Params = {
-      Bucket: process.env.S3_BUCKET_NAME || "",
+      Bucket: bucketName,
       Key: s3Key,
       Expires: 60,
       ContentType: fileType,
     };
 
     const uploadUrl = s3.getSignedUrl("putObject", s3Params);
-    const fileUrl = `${process.env.CLOUDFRONT_DOMAIN}/assignments/${uniqueId}/${fileName}`;
+    
+    // Determine the file URL based on environment config
+    let fileUrl;
+    if (process.env.CLOUDFRONT_DOMAIN) {
+      fileUrl = `${process.env.CLOUDFRONT_DOMAIN}/assignments/${uniqueId}/${fileName}`;
+    } else {
+      fileUrl = `https://${bucketName}.s3.amazonaws.com/assignments/${uniqueId}/${fileName}`;
+    }
+    
+    console.log(`Generated upload URL successfully for: ${fileName}`);
 
-    res.json({
-      message: "Upload URL generated successfully",
-      data: { uploadUrl, fileUrl },
+    // Return the upload URL and file URL to the client
+    res.status(200).json({
+      uploadUrl,
+      fileUrl,
+      fileName
     });
-  } catch (error) {
-    res.status(500).json({ message: "Error generating upload URL", error });
+  } catch (error: any) {
+    console.error("Error generating upload URL:", error);
+    res.status(500).json({ 
+      message: "Error generating upload URL", 
+      error: error.message || String(error) 
+    });
   }
 };
 

@@ -83,7 +83,21 @@ export const getPostById = async (req: AuthenticatedRequest, res: Response): Pro
       return;
     }
 
-    // Check if user has access to this post
+    // Handle public requests (no authentication)
+    if (!userId && !userRole) {
+      // Public users can only view published posts
+      if (post.status !== 'published') {
+        res.status(403).json({ 
+          message: 'This post is not published yet' 
+        });
+        return;
+      }
+      
+      res.status(200).json(post);
+      return;
+    }
+
+    // Check if authenticated user has access to this post
     // If post is not published, only author and teachers/admins can view it
     if (post.status !== 'published' && 
         post.userId !== userId && 
@@ -239,8 +253,19 @@ export const getPosts = async (req: AuthenticatedRequest, res: Response): Promis
 
     let postsQuery;
 
+    // Handle public requests (no authentication)
+    if (!userId && !userRole) {
+      if (status === 'published') {
+        console.log("Public access: returning only published posts");
+        postsQuery = BlogPostModel.query('status').eq('published');
+      } else {
+        // Default to published for public access
+        console.log("Public access with no status specified: defaulting to published");
+        postsQuery = BlogPostModel.query('status').eq('published');
+      }
+    } 
     // Different query logic based on user role
-    if (userRole === 'teacher' || userRole === 'admin') {
+    else if (userRole === 'teacher' || userRole === 'admin') {
       console.log("User is teacher or admin, applying appropriate filters");
       // Teachers and admins can see all posts, with optional filtering
       if (status) {

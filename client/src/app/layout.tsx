@@ -24,8 +24,9 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProvider>
-      <html lang="en" className="mdl-js" >
-        <body className={`${dmSans.className}`} suppressHydrationWarning>
+      <html lang="en" className="mdl-js">
+        <body className={dmSans.className} suppressHydrationWarning>
+
           <Providers>
             <Suspense fallback={null}>
               <div className="root-layout">{children}</div>

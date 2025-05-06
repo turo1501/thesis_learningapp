@@ -8,6 +8,8 @@ import ReactPlayer from "react-player";
 import Loading from "@/components/Loading";
 import { useCourseProgressData } from "@/hooks/useCourseProgressData";
 import { toast } from "react-toastify";
+import CommentSection from "@/components/CommentSection";
+import NoteSection from "@/components/NoteSection";
 
 const Course = () => {
   const {
@@ -188,7 +190,35 @@ const Course = () => {
             </TabsContent>
           </Tabs>
 
-          <Card className="course__instructor-card">
+          {/* New tabs for Comments and Take Notes */}
+          <Tabs defaultValue="Comments" className="course__tabs-extended mt-8">
+            <TabsList className="course__tabs-list-extended">
+              <TabsTrigger className="course__tab-extended" value="Comments">
+                Comments
+              </TabsTrigger>
+              <TabsTrigger className="course__tab-extended" value="TakeNotes">
+                Take Notes
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent className="course__tab-content-extended" value="Comments">
+              <CommentSection 
+                courseId={course.courseId} 
+                sectionId={currentSection.sectionId} 
+                chapterId={currentChapter.chapterId} 
+              />
+            </TabsContent>
+
+            <TabsContent className="course__tab-content-extended" value="TakeNotes">
+              <NoteSection 
+                courseId={course.courseId} 
+                sectionId={currentSection.sectionId} 
+                chapterId={currentChapter.chapterId} 
+              />
+            </TabsContent>
+          </Tabs>
+
+          <Card className="course__instructor-card mt-8">
             <CardContent className="course__instructor-info">
               <div className="course__instructor-header">
                 <Avatar className="course__instructor-avatar">

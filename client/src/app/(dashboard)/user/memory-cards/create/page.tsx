@@ -2,7 +2,7 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, BookOpen, Sparkles } from "lucide-react";
+import { ChevronLeft, BookOpen, Sparkles, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { 
   Card,
@@ -40,6 +40,7 @@ import Loading from "@/components/Loading";
 import Header from "@/components/Header";
 import { useMemoryCards } from "@/hooks/useMemoryCards";
 import { useGetUserEnrolledCoursesQuery } from "@/state/api";
+import { cn } from "@/lib/utils";
 
 // Form validation schema
 const formSchema = z.object({
@@ -87,6 +88,9 @@ const CreateDeckPage = () => {
       generateCards: false,
     },
   });
+
+  // Watch the generateCards field to conditionally render UI
+  const generateCards = form.watch("generateCards");
   
   const onSubmit = async (values: FormValues) => {
     if (!user) {
@@ -111,7 +115,6 @@ const CreateDeckPage = () => {
       
       if (result.type === "generated") {
         // Handle generated cards result
-        toast.success(`Deck created with ${result.cardsGenerated} auto-generated cards`);
         router.push(`/user/memory-cards/${result.deck.deckId}`, { scroll: false });
       } else {
         // Handle simple deck result
@@ -242,13 +245,16 @@ const CreateDeckPage = () => {
                 
                 <div className="memory-cards-create__ai-section">
                   <div className="memory-cards-create__ai-header">
-                    <Sparkles className="memory-cards-create__ai-icon" />
+                    <Sparkles className={cn(
+                      "memory-cards-create__ai-icon",
+                      generateCards && "text-yellow-400 animate-pulse"
+                    )} />
                     <div>
                       <h3 className="memory-cards-create__ai-title">
-                        Auto-generate cards
+                        AI Memory Card Generation
                       </h3>
                       <p className="memory-cards-create__ai-description">
-                        Automatically generate memory cards from your course content
+                        Let our DeepSeek AI analyze your course content and generate high-quality flashcards
                       </p>
                     </div>
                   </div>
@@ -257,7 +263,10 @@ const CreateDeckPage = () => {
                     control={form.control}
                     name="generateCards"
                     render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
+                      <FormItem className={cn(
+                        "flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4",
+                        field.value && "bg-indigo-50 border-indigo-200"
+                      )}>
                         <FormControl>
                           <input
                             type="checkbox"
@@ -267,31 +276,55 @@ const CreateDeckPage = () => {
                           />
                         </FormControl>
                         <div className="space-y-1 leading-none">
-                          <FormLabel className="memory-cards-create__checkbox-label">
-                            Enable auto-generation
+                          <FormLabel className={cn(
+                            "memory-cards-create__checkbox-label",
+                            field.value && "font-bold text-indigo-700"
+                          )}>
+                            Enable AI card generation
                           </FormLabel>
                           <FormDescription>
-                            Cards will be generated based on the content you've already completed in the course
+                            Our DeepSeek AI model will analyze your completed course content and generate 
+                            flashcards tailored to your learning needs
                           </FormDescription>
                         </div>
                       </FormItem>
                     )}
                   />
+
+                  {generateCards && (
+                    <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-md">
+                      <div className="flex items-start">
+                        <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 mr-2 flex-shrink-0" />
+                        <div>
+                          <h4 className="font-medium text-amber-800">About AI Generation</h4>
+                          <p className="text-sm text-amber-700 mt-1">
+                            AI card generation analyzes your completed course materials and creates flashcards 
+                            automatically. This process can take up to 1 minute as our DeepSeek AI model works 
+                            to create high-quality learning materials.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
               
               <CardFooter>
                 <Button 
                   type="submit" 
-                  className="memory-cards-create__submit-button"
+                  className={cn(
+                    "memory-cards-create__submit-button",
+                    generateCards && "bg-gradient-to-r from-indigo-600 to-purple-600"
+                  )}
                   disabled={isSubmitting || isCreatingDeck || isGeneratingCards || isLoadingCourses}
                 >
-                  {isSubmitting ? (
-                    <>
-                      {form.getValues("generateCards") ? "Generating Cards..." : "Creating Deck..."}
-                    </>
+                  {isSubmitting || isGeneratingCards ? (
+                    <div className="flex items-center">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {generateCards ? "Generating AI Cards..." : "Creating Deck..."}
+                    </div>
                   ) : (
-                    "Create Deck"
+                    generateCards ? "Create Deck with AI Cards" : "Create Empty Deck"
                   )}
                 </Button>
               </CardFooter>
@@ -320,9 +353,11 @@ const CreateDeckPage = () => {
                 <li>Easily recall important information during assignments and exams</li>
               </ul>
               
-              <h4 className="memory-cards-create__info-subtitle">Auto-generation:</h4>
+              <h4 className="memory-cards-create__info-subtitle">AI Generation:</h4>
               <p className="memory-cards-create__info-text">
-                Our system can analyze course content you've completed and automatically generate relevant memory cards to test your knowledge.
+                Our DeepSeek AI system analyzes course content you've completed and automatically generates 
+                relevant memory cards to test your knowledge. The AI creates questions that promote deeper 
+                understanding rather than simple memorization.
               </p>
             </CardContent>
           </Card>
