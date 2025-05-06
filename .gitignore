@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -12,30 +12,103 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/cypress/videos/
+/cypress/screenshots/
 
-# next.js
+# build outputs
 /.next/
 /out/
+/dist/
+/build/
+server/dist/
+client/build/
 
-# production
-/build
+# local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
 
-# misc
-.DS_Store
-*.pem
-
-# debug
+# logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# database
+*.sqlite
+*.sqlite3
+dynamodb_local/
+shared-local-instance.db
+
+# cache
+.cache/
+.eslintcache
+.stylelintcache
+
+# IDE specific files
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.sublime-project
+*.sublime-workspace
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# next.js
+.next
+next-env.d.ts
 
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
+
+# misc
+*.pem
+.npmrc
+
+# Generated files
+*.generated.*
+
+# AWS
+.aws-sam/
+.serverless/
+
+# CDK
+cdk.out/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Project specific files to ignore
+setup-DynamoDB-local-AWS.png
+shared-local-instance.db
+d
+*.rar
+*.zip

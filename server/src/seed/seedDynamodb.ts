@@ -49,6 +49,17 @@ async function createTables() {
 
   for (const model of models) {
     const tableName = model.name;
+    
+    // Check if table already exists
+    const listTablesCommand = new ListTablesCommand({});
+    const { TableNames } = await client.send(listTablesCommand);
+    const tableExists = TableNames && TableNames.includes(tableName);
+    
+    if (tableExists) {
+      console.log(`Table already exists: ${tableName}, skipping creation`);
+      continue;
+    }
+    
     const table = new dynamoose.Table(tableName, [model], {
       create: true,
       update: true,
@@ -61,11 +72,15 @@ async function createTables() {
       await table.initialize();
       console.log(`Table created and initialized: ${tableName}`);
     } catch (error: any) {
-      console.error(
-        `Error creating table ${tableName}:`,
-        error.message,
-        error.stack
-      );
+      if (error.message && error.message.includes("Table already exists")) {
+        console.log(`Table already exists: ${tableName}`);
+      } else {
+        console.error(
+          `Error creating table ${tableName}:`,
+          error.message,
+          error.stack
+        );
+      }
     }
   }
 }

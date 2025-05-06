@@ -8,7 +8,7 @@
     "category": "Computer Science",
     "image": "https://images.pexels.com/photos/5905888/pexels-photo-5905888.jpeg",
     "price": 4999,
-    "level": "Beginner",
+    "level": "beginner",
     "status": "Published",
     "enrollments": [
       { "userId": "user_2ntu96pUCljUV2T9W0AThzjacQB" },
@@ -120,7 +120,7 @@
     "category": "Artificial Intelligence",
     "image": "https://images.pexels.com/photos/6303596/pexels-photo-6303596.jpeg",
     "price": 9999,
-    "level": "Advanced",
+    "level": "advanced",
     "status": "Published",
     "enrollments": [
       { "userId": "user_2ntu96pUCljUV2T9W0AThzjacQB" },
@@ -234,7 +234,7 @@
     "category": "Web Development",
     "image": "https://images.pexels.com/photos/6001397/pexels-photo-6001397.jpeg",
     "price": 7999,
-    "level": "Beginner",
+    "level": "beginner",
     "status": "Published",
     "enrollments": [
       { "userId": "user_6tHm89QwNpKj3Fx5Vy2RdLcBs" },
@@ -310,7 +310,7 @@
     "category": "Data Science",
     "image": "https://images.pexels.com/photos/4491461/pexels-photo-4491461.jpeg",
     "price": 8999,
-    "level": "Intermediate",
+    "level": "intermediate",
     "status": "Published",
     "enrollments": [
       { "userId": "user_6tHm89QwNpKj3Fx5Vy2RdLcBs" },
@@ -350,7 +350,7 @@
     "category": "Mobile Development",
     "image": "https://images.pexels.com/photos/1181244/pexels-photo-1181244.jpeg",
     "price": 12999,
-    "level": "Advanced",
+    "level": "advanced",
     "status": "Published",
     "enrollments": [{ "userId": "user_6tHm89QwNpKj3Fx5Vy2RdLcBs" }],
     "sections": [
