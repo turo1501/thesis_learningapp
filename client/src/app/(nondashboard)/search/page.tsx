@@ -3,42 +3,47 @@
 import Loading from "@/components/Loading";
 import { useGetCoursesQuery } from "@/state/api/courseApi";
 import { useRouter, useSearchParams } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import CourseCardSearch from "@/components/CourseCardSearch";
 import SelectedCourse from "./SelectedCourse";
 import { useUser } from "@clerk/nextjs";
 
+// Interface for API response structure
+interface CoursesResponse {
+  data?: Course[];
+  message?: string;
+  success?: boolean;
+  [key: string]: any;
+}
+
 const Search = () => {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
-  const { data: apiCourses, isLoading, isError } = useGetCoursesQuery({});
+  const { data: coursesData, isLoading, isError } = useGetCoursesQuery({});
+
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const router = useRouter();
   const { isSignedIn, isLoaded } = useUser();
 
+  // Extract courses from API response correctly
+  const courses = useMemo(() => {
+    // If coursesData is an array, return it directly
+    if (coursesData && Array.isArray(coursesData)) {
+      return coursesData as Course[];
+    } 
+    // If coursesData has a data property that is an array, return that
+    else if (coursesData && 'data' in coursesData && Array.isArray((coursesData as CoursesResponse).data)) {
+      return (coursesData as CoursesResponse).data || [];
+    }
+    // Default fallback to empty array
+    return [] as Course[];
+  }, [coursesData]);
 
   useEffect(() => {
-    if (apiCourses) {
-      // Transform the API courses to match the global Course interface
-      const transformedCourses: Course[] = apiCourses.map(course => ({
-        courseId: course.id,
-        title: course.title,
-        description: course.description,
-        teacherId: course.teacherId,
-        teacherName: course.teacherId, // Using teacherId as teacherName temporarily
-        category: course.subject,
-        level: course.level as "Beginner" | "Intermediate" | "Advanced",
-        status: course.status as "Draft" | "Published",
-        sections: [],
-        price: 0, // Default price
-        image: course.imageUrl,
-        enrollments: []
-      }));
-      
-      setCourses(transformedCourses);
-      
+    if (courses.length > 0) {
+
       if (id) {
         const course = transformedCourses.find((c) => c.courseId === id);
         setSelectedCourse(course || transformedCourses[0]);
@@ -88,14 +93,18 @@ const Search = () => {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="search__courses-grid"
         >
-          {courses.map((course) => (
+          {courses.length > 0 ? (
+            courses.map((course) => (
             <CourseCardSearch
               key={course.courseId}
               course={course}
               isSelected={selectedCourse?.courseId === course.courseId}
               onClick={() => handleCourseSelect(course)}
             />
-          ))}
+            ))
+          ) : (
+            <p>No courses available</p>
+          )}
         </motion.div>
 
         {selectedCourse && (

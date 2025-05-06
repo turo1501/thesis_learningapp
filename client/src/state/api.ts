@@ -50,50 +50,69 @@ export interface UpdateUserCourseProgressData {
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
 const customBaseQuery = fetchBaseQuery({
-  baseUrl: apiBaseUrl,
-  prepareHeaders: async (headers, { getState }) => {
-    // Add common headers
-    headers.set('Content-Type', 'application/json');
-   
-    try {
-      // Sử dụng Clerk API để lấy token đúng cách
-      const token = await window.Clerk?.session?.getToken();
-      if (token) {
-        console.log("Authorization header set with token");
-        headers.set('Authorization', `Bearer ${token}`);
-      }
-    } catch (error) {
-      console.error("Error getting auth token:", error);
+  baseUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001",
+  prepareHeaders: (headers) => {
+    // Get token from localStorage if available
+    const token = typeof window !== "undefined" 
+      ? localStorage.getItem("clerk-auth-token")
+      : null;
+    
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+      console.log("Authorization header set with token");
 
     }
- 
-    return headers;
-  },
-  // Add validation and error handling
-  async responseHandler(response) {
-    console.log(`API Request: ${response.url.replace(apiBaseUrl, '')}`);
     
-    if (!response.ok) {
-      // Log error details
-      const errorText = await response.text();
-      console.error(`API Error (${response.status}): ${errorText}`);
+    return headers;
+  }
+});
+
+// Add request and response handling for better debugging and error management
+const enhancedBaseQuery = async (args: string | FetchArgs, api: BaseQueryApi, extraOptions = {}) => {
+  console.log(`API Request: ${typeof args === 'string' ? args : args.url}`);
+  
+  try {
+    // Make the request
+    const result = await customBaseQuery(args, api, extraOptions);
+    
+    // Handle successful response
+    if (result.data) {
+      console.log(`API Response for ${typeof args === 'string' ? args : args.url}: `, result.data);
       
-      // Rethrow as error for RTK Query to handle
-      throw {
-        status: response.status,
-        data: errorText,
-      };
+      // Normalize response structure
+      // If the response is an object with a 'data' property and not an array itself
+      if (!Array.isArray(result.data) && typeof result.data === 'object' && result.data !== null && 'data' in result.data) {
+        // If data.data is an array, return it directly to maintain consistent structure
+        if (Array.isArray(result.data.data)) {
+          console.log('Normalizing response: Returning data.data array directly');
+          return { data: result.data.data };
+        }
+      }
     }
     
-    const result = await response.json();
-    console.log(`API Response for ${response.url.replace(apiBaseUrl, '')}: `, result);
+    // Handle error response
+    if (result.error) {
+      console.error(`API Error (${result.error.status}): ${JSON.stringify(result.error.data)}`);
+      
+      // You can add custom error transformation here if needed
+      // For example, standardizing error messages
+    }
+    
     return result;
-  },
-});
+  } catch (error) {
+    console.error(`API Request failed: ${error}`);
+    return {
+      error: {
+        status: 'FETCH_ERROR',
+        error: String(error)
+      }
+    };
+  }
+};
 
 // Define our API service
 export const api = createApi({
-  baseQuery: customBaseQuery,
+  baseQuery: enhancedBaseQuery,
   reducerPath: "api",
   tagTypes: ["Courses", "Users", "UserCourseProgress", "BlogPosts", "BlogPost", "Assignments", "Meetings", "Analytics"],
 
@@ -247,22 +266,61 @@ export const api = createApi({
     COURSES
     =============== 
     */
-    getCourses: build.query<Course[], { category?: string }>({
-      query: ({ category }) => ({
-        url: "courses",
-        params: { category },
+    getCourses: build.query<Course[], { category?: string } | void>({
+      query: (params = {}) => {
+        const { category } = params || {};
+        return {
+          url: "courses",
+          params: category ? { category } : undefined,
+        };
+      },
+      providesTags: ["Courses"],
+    }),
+
+    getCourse: build.query<Course, string>({
+      query: (id) => {
+        // Return a placeholder URL if ID is undefined or empty
+        if (!id) {
+          throw new Error("Course ID is required");
+        }
+        return `courses/${id}`;
+      },
+      providesTags: (result, error, id) => [{ type: "Courses", id }],
+    }),
+
+    createCourse: build.mutation<
+      Course,
+      { teacherId: string; teacherName: string }
+    >({
+      query: (body) => ({
+        url: `courses`,
+        method: "POST",
+        body,
 
       }),
       providesTags: (_result, _error, chatId) => [{ type: 'Chat', id: chatId }],
     }),
-    
-    createChat: build.mutation<Chat, { users: string[]; type: 'direct' | 'group'; name?: string }>({
-      query: (data) => ({
-        url: '/chats',
-        method: 'POST',
-        body: data,
-      }),
-      invalidatesTags: [{ type: 'Chat', id: 'LIST' }],
+
+    updateCourse: build.mutation<
+      Course,
+      { courseId: string; formData: FormData }
+    >({
+      query: ({ courseId, formData }) => {
+        // Validate courseId
+        if (!courseId || courseId === "undefined") {
+          throw new Error("Valid course ID is required for updates");
+        }
+        
+        return {
+          url: `courses/${courseId}`,
+          method: "PUT",
+          body: formData,
+        };
+      },
+      invalidatesTags: (result, error, { courseId }) => [
+        { type: "Courses", id: courseId },
+      ],
+
     }),
     
     getMessages: build.query<{ messages: Message[]; hasMore: boolean }, { chatId: string; limit?: number; before?: string }>({
@@ -497,12 +555,22 @@ export const api = createApi({
     =============== 
     */
     getCourseAssignments: build.query<Assignment[], string>({
-      query: (courseId) => `assignments/course/${courseId}`,
+      query: (courseId) => {
+        if (!courseId || courseId === "undefined") {
+          throw new Error("Course ID is required for assignment listing");
+        }
+        return `assignments/course/${courseId}`;
+      },
       providesTags: (result, error, courseId) => [{ type: "Assignments", id: courseId }],
     }),
 
     getAssignment: build.query<Assignment, string>({
-      query: (assignmentId) => `assignments/${assignmentId}`,
+      query: (assignmentId) => {
+        if (!assignmentId || assignmentId === "undefined") {
+          throw new Error("Assignment ID is required");
+        }
+        return `assignments/${assignmentId}`;
+      },
       providesTags: (result, error, id) => [{ type: "Assignments", id }],
     }),
 
@@ -514,7 +582,9 @@ export const api = createApi({
         description: string;
         dueDate: string;
         points: number;
-        attachments?: string[];
+        status?: "draft" | "published";
+        attachments?: any[];
+        teacherId?: string;
       }
     >({
       query: (body) => ({
@@ -524,6 +594,7 @@ export const api = createApi({
       }),
       invalidatesTags: (result, error, { courseId }) => [
         { type: "Assignments", id: courseId },
+        { type: "Assignments", id: "LIST" },
       ],
     }),
 
@@ -782,6 +853,17 @@ export const api = createApi({
       query: (timeRange) => `/analytics/platform?timeRange=${timeRange}`,
       providesTags: ["Analytics"],
     }),
+
+    getUploadAssignmentFileUrl: build.mutation<
+      { uploadUrl: string; fileUrl: string },
+      { fileName: string; fileType: string }
+    >({
+      query: (body) => ({
+        url: 'assignments/get-upload-file-url',
+        method: 'POST',
+        body,
+      }),
+    }),
   }),
 });
 
@@ -847,5 +929,6 @@ export const {
   useGetCourseAnalyticsQuery,
   useGetRevenueAnalyticsQuery,
   useGetPlatformAnalyticsQuery,
+  useGetUploadAssignmentFileUrlMutation,
 
 } = api;

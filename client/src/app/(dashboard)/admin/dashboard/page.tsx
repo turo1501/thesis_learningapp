@@ -211,7 +211,7 @@ const AdminDashboard = () => {
             ) : (
               <div className="w-full h-full flex items-center justify-center text-slate-500">
                 No revenue data available
-              </div>
+            </div>
             )}
           </div>
         </Card>
@@ -308,7 +308,7 @@ const AdminDashboard = () => {
                     <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 </Link>
-              </div>
+            </div>
             )}
           </div>
         </Card>

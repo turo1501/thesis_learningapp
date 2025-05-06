@@ -45,6 +45,8 @@ const AppSidebar = () => {
       { icon: PenTool, label: "Blog", href: "/user/blog" },
       { icon: Briefcase, label: "Billing", href: "/user/billing" },
       { icon: User, label: "Profile", href: "/user/profile" },
+      { icon: VideoIcon, label: "Meetings", href: "/user/meetings" },
+
 
       { icon: Settings, label: "Settings", href: "/user/settings" },
     ],
@@ -61,6 +63,7 @@ const AppSidebar = () => {
     admin: [
       { icon: LayoutDashboard, label: "Dashboard", href: "/admin/dashboard" },
       { icon: UserCog, label: "Users", href: "/admin/user-management" },
+      { icon: VideoIcon, label: "Meetings", href: "/admin/meetings" },
       { icon: BookOpen, label: "Courses", href: "/admin/courses" },
       { icon: FileText, label: "Blog Approval", href: "/admin/blog-approval" },
       { icon: BarChart3, label: "Analytics", href: "/admin/analytics" },

@@ -1,774 +1,477 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { format } from "date-fns";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-
+import React, { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { 
+  useGetAssignmentQuery, 
+  useUpdateAssignmentMutation, 
+  useDeleteAssignmentMutation 
+} from "@/state/api";
+import Header from "@/components/Header";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ArrowLeft,
-  CalendarDays,
+  Calendar,
   Clock,
+  Loader2,
+  BookOpen,
   FileText,
   CheckCircle,
-  X,
-  Edit2,
-  Eye,
-  Download,
-  MoreVertical,
+  AlertCircle,
   Trash2,
-  Users,
-  Link as LinkIcon,
-  Pencil,
-  Shield,
-  MoreHorizontal,
+  Edit,
+  ArrowLeft,
+  Download,
+  Eye,
+  Send,
 } from "lucide-react";
+import { format } from "date-fns";
+import { 
 
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Progress } from "@/components/ui/progress";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import Link from "next/link";
 
-import {
-  useGetAssignmentByIdQuery,
-  useUpdateAssignmentMutation,
-  useGetAssignmentSubmissionsQuery,
-  useGradeSubmissionMutation,
-  Assignment,
-  Submission,
-  Attachment,
-} from "@/state/api/assignmentApi";
+// Define Assignment type 
+interface Assignment {
+  assignmentId: string;
+  courseId: string;
+  teacherId: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  points: number;
+  status: "draft" | "published" | "archived";
+  submissions: AssignmentSubmission[];
+  attachments: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
 
-// Status Badges
-const StatusBadge = ({ status }: { status: string }) => {
-  const getStatusBadgeProps = () => {
-    switch (status) {
-      case "active":
-        return { variant: "default", label: "Active", className: "bg-green-600" };
-      case "closed":
-        return { variant: "secondary", label: "Closed", className: "bg-gray-600" };
-      case "draft":
-        return { variant: "outline", label: "Draft", className: "bg-amber-600" };
-      default:
-        return { variant: "secondary", label: status, className: "" };
+interface AssignmentSubmission {
+  studentId: string;
+  studentName: string;
+  submissionDate: string;
+  content: string;
+  grade?: number;
+  feedback?: string;
+  status: "submitted" | "graded";
+}
+
+const AssignmentDetailPage = () => {
+  const params = useParams();
+  const router = useRouter();
+  const assignmentId = params.id as string;
+  const [selectedTab, setSelectedTab] = useState("details");
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  // Redirect if assignment ID is invalid
+  useEffect(() => {
+    if (!assignmentId || assignmentId === "undefined") {
+      router.push("/teacher/assignments");
+      return;
+    }
+  }, [assignmentId, router]);
+
+  // Fetch assignment details (skip if ID is invalid)
+  const { data: assignment, isLoading, error, refetch } = useGetAssignmentQuery(assignmentId, {
+    skip: !assignmentId || assignmentId === "undefined"
+  });
+  
+  // Mutations
+  const [updateAssignment, { isLoading: isUpdating }] = useUpdateAssignmentMutation();
+  const [deleteAssignment, { isLoading: isDeleting }] = useDeleteAssignmentMutation();
+
+  // Handle status change
+  const handleStatusChange = async (newStatus: "draft" | "published" | "archived") => {
+    if (!assignment) return;
+    
+    try {
+      await updateAssignment({
+        assignmentId: assignment.assignmentId,
+        courseId: assignment.courseId,
+        status: newStatus
+      }).unwrap();
+      
+      toast.success(`Assignment ${newStatus === "published" ? "published" : newStatus === "archived" ? "archived" : "saved as draft"}`);
+      refetch();
+    } catch (err) {
+      toast.error("Failed to update assignment status");
+      console.error(err);
     }
   };
 
-  const { label, className } = getStatusBadgeProps();
-
-  return <Badge className={className}>{label}</Badge>;
-};
-
-// Submission Status Badge
-const SubmissionStatusBadge = ({ status }: { status: string }) => {
-  switch (status) {
-    case "submitted":
-      return <Badge className="bg-green-600">Submitted</Badge>;
-    case "late":
-      return <Badge className="bg-amber-600">Late</Badge>;
-    case "graded":
-      return <Badge className="bg-blue-600">Graded</Badge>;
-    case "not_submitted":
-      return <Badge variant="outline" className="text-gray-400">Not Submitted</Badge>;
-    default:
-      return null;
-  }
-};
-
-// Form schema for grading
-const gradeFormSchema = z.object({
-  grade: z.number().min(0, "Grade must be positive"),
-  feedback: z.string().optional(),
-});
-
-// Main component
-const AssignmentDetail = () => {
-  const params = useParams();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const assignmentId = params.id as string;
-  const isEditMode = searchParams.get("edit") === "true";
-
-  const [activeTab, setActiveTab] = useState("submissions");
-  const [gradeDialogOpen, setGradeDialogOpen] = useState(false);
-  const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
-  const [isFormChanged, setIsFormChanged] = useState(false);
-  const [editTitle, setEditTitle] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editPoints, setEditPoints] = useState(0);
-  const [editStatus, setEditStatus] = useState<"active" | "closed" | "draft">("active");
-
-  // Fetch assignment data
-  const {
-    data: assignment,
-    isLoading,
-    isError,
-    refetch: refetchAssignment,
-  } = useGetAssignmentByIdQuery(assignmentId);
-
-  // Fetch submissions
-  const {
-    data: submissionsData = [],
-    isLoading: isLoadingSubmissions,
-    refetch: refetchSubmissions,
-  } = useGetAssignmentSubmissionsQuery(assignmentId);
-
-  // Mutations
-  const [updateAssignment, { isLoading: isUpdating }] = useUpdateAssignmentMutation();
-  const [updateGrade, { isLoading: isGrading }] = useGradeSubmissionMutation();
-
-  // Form for grading
-  const gradeForm = useForm<z.infer<typeof gradeFormSchema>>({
-    resolver: zodResolver(gradeFormSchema),
-    defaultValues: {
-      grade: 0,
-      feedback: "",
-    },
-  });
-
-  useEffect(() => {
-    if (assignment) {
-      setEditTitle(assignment.title);
-      setEditDescription(assignment.description);
-      setEditPoints(assignment.points);
-      setEditStatus(assignment.status);
+  // Handle delete
+  const handleDelete = async () => {
+    if (!assignment) return;
+    
+    try {
+      await deleteAssignment(assignment.assignmentId).unwrap();
+      toast.success("Assignment deleted successfully");
+      router.push("/teacher/assignments");
+    } catch (err) {
+      toast.error("Failed to delete assignment");
+      console.error(err);
     }
-  }, [assignment]);
+  };
+
+  // Handle edit
+  const handleEdit = () => {
+    router.push(`/teacher/assignments/edit/${assignmentId}`);
+  };
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
+      </div>
+    );
   }
 
-  if (isError || !assignment) {
+  if (error || !assignment) {
     return (
-      <div className="flex flex-col items-center justify-center h-[70vh]">
-        <h2 className="text-xl font-semibold mb-2">Assignment Not Found</h2>
-        <p className="text-gray-400 mb-6">The assignment you are looking for doesn't exist or you don't have access to it.</p>
-        <Button onClick={() => router.push("/teacher/assignments")}>
+      <div className="p-8">
+        <div className="text-red-500 bg-red-100 p-4 rounded-md flex items-center">
+          <AlertCircle className="h-5 w-5 mr-2" />
+          <span>Error loading assignment details. Please try again later.</span>
+        </div>
+        <Button 
+          variant="outline" 
+          className="mt-4"
+          onClick={() => router.push("/teacher/assignments")}
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Assignments
         </Button>
       </div>
     );
   }
 
-  const submissions = submissionsData || [];
-  const submissionRate = assignment.totalStudents 
-    ? Math.round((submissions.length / assignment.totalStudents) * 100) 
-    : 0;
-
-  const handleStatusChange = async (newStatus: "active" | "closed" | "draft") => {
-    try {
-      await updateAssignment({
-        id: assignmentId,
-        data: { status: newStatus },
-      }).unwrap();
-      
-      toast.success(`Assignment ${newStatus === 'active' ? 'activated' : newStatus === 'closed' ? 'closed' : 'saved as draft'}`);
-      refetchAssignment();
-    } catch (error) {
-      toast.error("Failed to update assignment status");
-    }
-  };
-
-  const handleSaveEdit = async () => {
-    try {
-      await updateAssignment({
-        id: assignmentId,
-        data: {
-          title: editTitle,
-          description: editDescription,
-          points: editPoints,
-          status: editStatus,
-        },
-      }).unwrap();
-      
-      toast.success("Assignment updated successfully");
-      router.push(`/teacher/assignments/${assignmentId}`);
-    } catch (error) {
-      toast.error("Failed to update assignment");
-    }
-  };
-
-  const openGradeModal = (submission: Submission) => {
-    setSelectedSubmission(submission);
-    gradeForm.reset({
-      grade: submission.grade || 0,
-      feedback: submission.feedback || "",
-    });
-    setGradeDialogOpen(true);
-  };
-
-  // Type-safe implementation for the date format
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "No date";
-    return format(new Date(dateString), "MMM d, yyyy");
-  };
-
-  // Handle grading submission with proper error handling
-  const handleGradeSubmission = async (values: z.infer<typeof gradeFormSchema>) => {
-    if (!selectedSubmission) return;
-    
-    try {
-      await updateGrade({
-        submissionId: selectedSubmission.id,
-        grade: values.grade,
-        feedback: values.feedback,
-      }).unwrap();
-      
-      toast.success("Submission graded successfully");
-      setGradeDialogOpen(false);
-      refetchSubmissions();
-    } catch (error) {
-      console.error("Error grading submission:", error);
-      toast.error("Failed to grade submission");
-    }
-  };
-
-  // Helper function to format attachment name
-  const formatAttachmentName = (attachment: Attachment): string => {
-    return attachment.name || "Untitled";
-  };
+  const submittedCount = assignment.submissions.length;
+  const gradedCount = assignment.submissions.filter(sub => sub.status === "graded").length;
+  const isPastDue = new Date(assignment.dueDate) < new Date();
+  const daysLeft = Math.ceil((new Date(assignment.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header with back button and title */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="outline" 
-            size="icon" 
-            onClick={() => router.push("/teacher/assignments")}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Assignment Details</h1>
-            <p className="text-sm text-gray-400">{assignment.title}</p>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <StatusBadge status={assignment.status} />
-          {!isEditMode && (
+    <div className="assignment-detail-page">
+      <Header
+        title={assignment.title}
+        subtitle={`Assignment for course`}
+        rightElement={
+          <div className="flex items-center gap-2">
             <Button 
-              variant="outline" 
-              onClick={() => router.push(`/teacher/assignments/${assignmentId}?edit=true`)}
+              variant="outline"
+              className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+              onClick={() => router.push("/teacher/assignments")}
             >
-              <Edit2 className="mr-2 h-4 w-4" />
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            
+            <Button 
+              variant="outline"
+              className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+              onClick={handleEdit}
+            >
+              <Edit className="h-4 w-4 mr-2" />
               Edit
             </Button>
-          )}
-        </div>
-      </div>
-      
-      {/* Main content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Assignment details */}
-        <div className="lg:col-span-2 space-y-6">
-          {isEditMode ? (
-            <Card className="bg-customgreys-secondarybg border-gray-700">
-              <CardHeader>
-                <CardTitle>Edit Assignment</CardTitle>
-                <CardDescription>
-                  Make changes to the assignment details
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Title</label>
-                  <Input 
-                    value={editTitle}
-                    onChange={(e) => {
-                      setEditTitle(e.target.value);
-                      setIsFormChanged(true);
-                    }}
-                    className="bg-customgreys-primarybg border-gray-700"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Description</label>
-                  <Textarea 
-                    value={editDescription}
-                    onChange={(e) => {
-                      setEditDescription(e.target.value);
-                      setIsFormChanged(true);
-                    }}
-                    className="bg-customgreys-primarybg border-gray-700 min-h-[150px]"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Points</label>
-                    <Input 
-                      type="number"
-                      value={editPoints}
-                      onChange={(e) => {
-                        setEditPoints(Number(e.target.value));
-                        setIsFormChanged(true);
-                      }}
-                      className="bg-customgreys-primarybg border-gray-700"
-                      min={0}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Status</label>
-                    <Select 
-                      value={editStatus}
-                      onValueChange={(value: "active" | "closed" | "draft") => {
-                        setEditStatus(value);
-                        setIsFormChanged(true);
-                      }}
-                    >
-                      <SelectTrigger className="bg-customgreys-primarybg border-gray-700">
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-customgreys-primarybg border-gray-700">
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="closed">Closed</SelectItem>
-                        <SelectItem value="draft">Draft</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="border-t border-gray-700 pt-4 flex justify-between">
-                <Button 
-                  variant="outline" 
-                  onClick={() => router.push(`/teacher/assignments/${assignmentId}`)}
-                >
-                  Cancel
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700">
+                  Status: {assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)}
                 </Button>
-                <Button 
-                  onClick={handleSaveEdit}
-                  disabled={!isFormChanged || isUpdating}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem 
+                  onClick={() => handleStatusChange("draft")}
+                  disabled={assignment.status === "draft"}
                 >
-                  {isUpdating ? "Saving..." : "Save Changes"}
-                </Button>
-              </CardFooter>
-            </Card>
-          ) : (
-            <Card className="bg-customgreys-secondarybg border-gray-700">
-              <CardHeader>
-                <CardTitle>{assignment.title}</CardTitle>
-                <div className="flex flex-wrap gap-2 text-sm text-gray-400">
-                  <div className="flex items-center">
-                    <CalendarDays className="mr-2 h-4 w-4 text-primary-500" />
-                    <span>Created {formatDate(assignment.createdAt)}</span>
-                  </div>
-                  {assignment.deadline && (
-                    <div className="flex items-center">
-                      <Clock className="mr-2 h-4 w-4 text-amber-500" />
-                      <span>Due {formatDate(assignment.deadline)}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center">
-                    <FileText className="mr-2 h-4 w-4 text-blue-500" />
-                    <span>{assignment.points} points</span>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Description</h3>
-                  <div className="p-4 bg-customgreys-primarybg rounded-md">
-                    <p className="text-gray-300 whitespace-pre-line">{assignment.description}</p>
-                  </div>
+                  Save as Draft
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => handleStatusChange("published")}
+                  disabled={assignment.status === "published"}
+                >
+                  Publish
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => handleStatusChange("archived")}
+                  disabled={assignment.status === "archived"}
+                >
+                  Archive
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
+            <Button
+              variant="destructive"
+              onClick={() => setIsDeleteDialogOpen(true)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+          </div>
+        }
+      />
+
+      <div className="mt-6 flex flex-col md:flex-row gap-6">
+        <div className="md:w-2/3">
+          <Tabs value={selectedTab} onValueChange={setSelectedTab}>
+            <TabsList className="bg-slate-800">
+              <TabsTrigger 
+                value="details" 
+                className="data-[state=active]:bg-blue-600"
+              >
+                Details
+              </TabsTrigger>
+              <TabsTrigger 
+                value="submissions" 
+                className="data-[state=active]:bg-blue-600"
+              >
+                Submissions ({submittedCount})
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="details" className="mt-6">
+              <Card className="p-6 bg-slate-900 border-slate-700">
+                <div className="mb-6">
+                  <h3 className="text-xl font-semibold mb-4">Description</h3>
+                  <p className="text-slate-400 whitespace-pre-wrap">{assignment.description}</p>
                 </div>
                 
-                <div>
-                  <h3 className="text-sm font-medium mb-2">Attachments</h3>
-                  {assignment.attachments && assignment.attachments.length > 0 ? (
-                    <div className="space-y-2">
+                {assignment.attachments.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-xl font-semibold mb-4">Attachments</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {assignment.attachments.map((attachment, index) => (
                         <div 
-                          key={index} 
-                          className="flex items-center justify-between p-3 bg-customgreys-primarybg rounded-md"
+                          key={index}
+                          className="p-3 rounded-md bg-slate-800 border border-slate-700 flex items-center justify-between"
                         >
                           <div className="flex items-center">
-                            <FileText className="h-5 w-5 text-primary-500 mr-3" />
-                            <span className="text-sm truncate max-w-md">
-                              {formatAttachmentName(attachment)}
-                            </span>
+                            <FileText className="h-5 w-5 text-blue-400 mr-2" />
+                            <span className="truncate">{attachment.split('/').pop()}</span>
                           </div>
-                          <Button variant="ghost" size="sm">
-                            <Download className="h-4 w-4" />
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <button className="text-slate-400 hover:text-blue-400">
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button className="text-slate-400 hover:text-blue-400">
+                              <Download className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-gray-400 text-sm">No attachments</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
-          {!isEditMode && (
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="bg-customgreys-secondarybg border-b border-gray-700 rounded-none p-0 h-12 w-full">
-                <TabsTrigger
-                  value="submissions"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary-500 data-[state=active]:bg-transparent px-6 flex-1"
-                >
-                  Submissions
-                </TabsTrigger>
-                <TabsTrigger
-                  value="analytics"
-                  className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary-500 data-[state=active]:bg-transparent px-6 flex-1"
-                >
-                  Analytics
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="submissions" className="pt-6">
-                <Card className="bg-customgreys-secondarybg border-gray-700">
-                  <CardHeader>
-                    <CardTitle>Student Submissions</CardTitle>
-                    <CardDescription>
-                      {submissions.length} submission{submissions.length !== 1 ? 's' : ''} received
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {isLoadingSubmissions ? (
-                      <div className="text-center py-8">
-                        <p>Loading submissions...</p>
-                      </div>
-                    ) : submissions.length === 0 ? (
-                      <div className="text-center py-8">
-                        <p className="text-gray-400">No submissions yet</p>
-                      </div>
-                    ) : (
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="border-gray-700 hover:bg-transparent">
-                            <TableHead className="text-gray-400">Student</TableHead>
-                            <TableHead className="text-gray-400">Submitted</TableHead>
-                            <TableHead className="text-gray-400">Status</TableHead>
-                            <TableHead className="text-gray-400 text-right">Grade</TableHead>
-                            <TableHead className="w-[80px]"></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {submissions.map((submission: Submission) => (
-                            <TableRow 
-                              key={submission.id} 
-                              className="border-gray-700 hover:bg-customgreys-primarybg"
-                            >
-                              <TableCell className="font-medium">
-                                {submission.studentId}
-                              </TableCell>
-                              <TableCell>{formatDate(submission.submittedAt)}</TableCell>
-                              <TableCell>
-                                <SubmissionStatusBadge status={submission.status} />
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {submission.grade !== null ? `${submission.grade}/${assignment.points}` : "-"}
-                              </TableCell>
-                              <TableCell>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                      <MoreVertical className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent className="bg-customgreys-primarybg border-gray-700">
-                                    <DropdownMenuItem onClick={() => router.push(`/teacher/assignments/${assignmentId}/submission/${submission.id}`)}>
-                                      <Eye className="mr-2 h-4 w-4" />
-                                      View
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => openGradeModal(submission)}>
-                                      <Pencil className="mr-2 h-4 w-4" />
-                                      Grade
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                  </div>
+                )}
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="submissions" className="mt-6">
+              <Card className="p-6 bg-slate-900 border-slate-700">
+                {submittedCount === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-slate-400">No submissions yet.</p>
+                    {!isPastDue && (
+                      <p className="text-slate-500 mt-2">
+                        There are {daysLeft} days left until the due date.
+                      </p>
                     )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-              
-              <TabsContent value="analytics" className="pt-6">
-                <Card className="bg-customgreys-secondarybg border-gray-700">
-                  <CardHeader>
-                    <CardTitle>Assignment Analytics</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="space-y-2">
-                      <p className="text-sm text-gray-400 mb-2">Submission progress</p>
-                      <Progress value={submissionRate} className="h-2 bg-gray-700" 
-                        indicatorClassName={submissionRate >= 70 ? "bg-green-500" : submissionRate >= 30 ? "bg-amber-500" : "bg-red-500"} 
-                      />
-                      <p className="text-xs text-gray-500 mt-1">{submissionRate}% of students have submitted</p>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-xl font-semibold">Student Submissions</h3>
+                      <div className="flex items-center gap-4">
+                        <div className="text-sm text-slate-400">
+                          <span className="font-medium">{gradedCount}</span> of <span className="font-medium">{submittedCount}</span> graded
+                        </div>
+                        {submittedCount > 0 && gradedCount < submittedCount && (
+                          <Button
+                            className="bg-blue-600 hover:bg-blue-700"
+                            onClick={() => router.push(`/teacher/assignments/${assignmentId}/grade`)}
+                          >
+                            Grade All
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-400">Total Students</p>
-                        <p className="text-2xl font-medium">
-                          {assignment.totalStudents}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-400">Average Grade</p>
-                        <p className="text-2xl font-medium">
-                          {submissions.length > 0 && submissions.some((s: Submission) => s.status === "graded")
-                            ? `${Math.round(
-                                submissions
-                                  .filter((s: Submission) => s.status === "graded")
-                                  .reduce((acc: number, s: Submission) => acc + (s.grade || 0), 0) / 
-                                submissions.filter((s: Submission) => s.status === "graded").length
-                              )}/${assignment.points}`
-                            : "No grades yet"}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-400">On-time Submissions</p>
-                        <p className="text-2xl font-medium">
-                          {submissions.filter((s: Submission) => s.status !== "late").length} / {assignment.totalStudents}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-400">Late Submissions</p>
-                        <p className="text-2xl font-medium">
-                          {submissions.filter((s: Submission) => s.status === "late").length}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-400">Pending</p>
-                        <p className="text-2xl font-medium">
-                          {(assignment.totalStudents || 0) - submissions.length}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          )}
-        </div>
-        
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {!isEditMode && (
-            <>
-              <Card className="bg-customgreys-secondarybg border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-lg">Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {assignment.status === "active" ? (
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start"
-                      onClick={() => handleStatusChange("closed")}
-                    >
-                      <X className="mr-2 h-4 w-4" />
-                      Close Assignment
-                    </Button>
-                  ) : assignment.status === "closed" ? (
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start"
-                      onClick={() => handleStatusChange("active")}
-                    >
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      Reopen Assignment
-                    </Button>
-                  ) : (
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start"
-                      onClick={() => handleStatusChange("active")}
-                    >
-                      <CheckCircle className="mr-2 h-4 w-4" />
-                      Publish Assignment
-                    </Button>
-                  )}
-                  
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start"
-                    onClick={() => router.push(`/teacher/assignments/${assignmentId}?edit=true`)}
-                  >
-                    <Edit2 className="mr-2 h-4 w-4" />
-                    Edit Assignment
-                  </Button>
-                </CardContent>
-              </Card>
-              
-              <Card className="bg-customgreys-secondarybg border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-lg">Statistics</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-col">
-                    <div className="flex justify-between py-2 border-b border-gray-700">
-                      <span className="text-gray-400">Total Students</span>
-                      <span>{assignment.totalStudents}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-gray-700">
-                      <span className="text-gray-400">Submissions</span>
-                      <span>{submissions.length}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-gray-700">
-                      <span className="text-gray-400">Graded</span>
-                      <span>{submissions.filter((s: Submission) => s.status === "graded").length}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-gray-700">
-                      <span className="text-gray-400">Points</span>
-                      <span>{assignment.points}</span>
-                    </div>
-                    <div className="flex justify-between py-2">
-                      <span className="text-gray-400">Status</span>
-                      <StatusBadge status={assignment.status} />
+                    <div className="space-y-4">
+                      {assignment.submissions.map((submission) => (
+                        <div 
+                          key={submission.studentId}
+                          className="p-4 rounded-md bg-slate-800 border border-slate-700 flex flex-col sm:flex-row justify-between"
+                        >
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-medium">{submission.studentName}</h4>
+                              <Badge className={submission.status === "graded" ? "bg-green-600" : "bg-yellow-600"}>
+                                {submission.status === "graded" ? "Graded" : "Submitted"}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-slate-400">
+                              Submitted: {format(new Date(submission.submissionDate), "MMM dd, yyyy 'at' h:mm a")}
+                            </p>
+                            {submission.status === "graded" && (
+                              <p className="text-sm text-green-400 mt-1">
+                                Grade: {submission.grade} / {assignment.points} points
+                              </p>
+                            )}
+                          </div>
+                          <div className="mt-3 sm:mt-0">
+                            <Button
+                              variant="outline"
+                              className="bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600"
+                              onClick={() => router.push(`/teacher/assignments/${assignmentId}/submissions/${submission.studentId}`)}
+                            >
+                              {submission.status === "graded" ? "Review" : "Grade"}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </CardContent>
+                )}
               </Card>
-            </>
-          )}
+            </TabsContent>
+          </Tabs>
+        </div>
+        
+        <div className="md:w-1/3">
+          <Card className="p-6 bg-slate-900 border-slate-700">
+            <h3 className="text-lg font-medium mb-4">Assignment Details</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center mb-1">
+                  <Calendar className="h-4 w-4 text-slate-400 mr-2" />
+                  <span className="text-sm text-slate-400">Due Date</span>
+                </div>
+                <p className="font-medium">{format(new Date(assignment.dueDate), "MMM dd, yyyy 'at' h:mm a")}</p>
+                {!isPastDue && (
+                  <p className="text-sm text-slate-400 mt-1">
+                    {daysLeft} {daysLeft === 1 ? "day" : "days"} left
+                  </p>
+                )}
+                {isPastDue && (
+                  <p className="text-sm text-red-400 mt-1">
+                    Past due by {Math.abs(daysLeft)} {Math.abs(daysLeft) === 1 ? "day" : "days"}
+                  </p>
+                )}
+              </div>
+              
+              <div>
+                <div className="flex items-center mb-1">
+                  <FileText className="h-4 w-4 text-slate-400 mr-2" />
+                  <span className="text-sm text-slate-400">Points</span>
+                </div>
+                <p className="font-medium">{assignment.points} {assignment.points === 1 ? "point" : "points"}</p>
+              </div>
+              
+              <div>
+                <div className="flex items-center mb-1">
+                  <CheckCircle className="h-4 w-4 text-slate-400 mr-2" />
+                  <span className="text-sm text-slate-400">Submissions</span>
+                </div>
+                <p className="font-medium">{submittedCount} submitted</p>
+                {submittedCount > 0 && (
+                  <p className="text-sm text-slate-400 mt-1">{gradedCount} graded ({Math.round((gradedCount / submittedCount) * 100)}%)</p>
+                )}
+              </div>
+              
+              <div>
+                <div className="flex items-center mb-1">
+                  <BookOpen className="h-4 w-4 text-slate-400 mr-2" />
+                  <span className="text-sm text-slate-400">Course</span>
+                </div>
+                <Link 
+                  href={`/teacher/courses/${assignment.courseId}`}
+                  className="font-medium text-blue-400 hover:text-blue-300"
+                >
+                  View Course
+                </Link>
+              </div>
+              
+              <div>
+                <div className="flex items-center mb-1">
+                  <Clock className="h-4 w-4 text-slate-400 mr-2" />
+                  <span className="text-sm text-slate-400">Created</span>
+                </div>
+                <p className="font-medium">{format(new Date(assignment.createdAt || new Date()), "MMM dd, yyyy")}</p>
+                {assignment.updatedAt && assignment.updatedAt !== assignment.createdAt && (
+                  <p className="text-sm text-slate-400 mt-1">
+                    Updated: {format(new Date(assignment.updatedAt), "MMM dd, yyyy")}
+                  </p>
+                )}
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
       
-      {/* Grade submission dialog */}
-      <Dialog open={gradeDialogOpen} onOpenChange={setGradeDialogOpen}>
-        <DialogContent className="bg-customgreys-primarybg border-gray-700 max-w-md">
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="bg-slate-900 border-slate-700">
           <DialogHeader>
-            <DialogTitle>Grade Submission</DialogTitle>
+            <DialogTitle>Delete Assignment</DialogTitle>
             <DialogDescription>
-              Student's submission for {assignment.title}
+              Are you sure you want to delete this assignment? This action cannot be undone.
+              {submittedCount > 0 && (
+                <div className="mt-2 text-yellow-400">
+                  Warning: This assignment has {submittedCount} student submissions that will also be deleted.
+                </div>
+              )}
             </DialogDescription>
           </DialogHeader>
-          
-          <Form {...gradeForm}>
-            <form onSubmit={gradeForm.handleSubmit(handleGradeSubmission)} className="space-y-4">
-              <FormField
-                control={gradeForm.control}
-                name="grade"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Grade (out of {assignment.points})</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        className="bg-customgreys-secondarybg border-gray-700"
-                        min={0}
-                        max={assignment.points}
-                        {...field}
-                        onChange={(e) => field.onChange(Number(e.target.value))}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Enter a grade between 0 and {assignment.points}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={gradeForm.control}
-                name="feedback"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Feedback</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        className="bg-customgreys-secondarybg border-gray-700 min-h-[100px]"
-                        placeholder="Provide feedback to the student"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <DialogFooter>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setGradeDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isGrading}>
-                  {isGrading ? "Saving..." : "Save Grade"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDeleteDialogOpen(false)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete Assignment"
+              )}
+            </Button>
+          </DialogFooter>
+
         </DialogContent>
       </Dialog>
     </div>
   );
 };
 
-export default AssignmentDetail; 
+export default AssignmentDetailPage; 
+

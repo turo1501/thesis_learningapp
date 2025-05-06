@@ -2,6 +2,10 @@ import { Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
 import Assignment from "../models/assignmentModel";
 import { getAuth } from "@clerk/express";
+import AWS from "aws-sdk";
+
+// Initialize S3 client
+const s3 = new AWS.S3();
 
 // Type for extending Request to include authenticated user
 interface AuthenticatedRequest extends Request {
@@ -79,6 +83,7 @@ export const createAssignment = async (req: AuthenticatedRequest, res: Response)
       description, 
       dueDate, 
       points,
+      status,
       attachments 
     } = req.body;
     
@@ -103,7 +108,7 @@ export const createAssignment = async (req: AuthenticatedRequest, res: Response)
       description,
       dueDate,
       points,
-      status: "draft",
+      status: status || "draft",
       attachments: attachments || [],
       submissions: []
     });
@@ -309,6 +314,43 @@ export const gradeSubmission = async (req: AuthenticatedRequest, res: Response):
       message: "Failed to grade submission", 
       error: error.message 
     });
+  }
+};
+
+/**
+ * Generate upload URL for assignment files
+ */
+export const getUploadAssignmentFileUrl = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { fileName, fileType } = req.body;
+
+  if (!fileName || !fileType) {
+    res.status(400).json({ message: "File name and type are required" });
+    return;
+  }
+
+  try {
+    const uniqueId = uuidv4();
+    const s3Key = `assignments/${uniqueId}/${fileName}`;
+
+    const s3Params = {
+      Bucket: process.env.S3_BUCKET_NAME || "",
+      Key: s3Key,
+      Expires: 60,
+      ContentType: fileType,
+    };
+
+    const uploadUrl = s3.getSignedUrl("putObject", s3Params);
+    const fileUrl = `${process.env.CLOUDFRONT_DOMAIN}/assignments/${uniqueId}/${fileName}`;
+
+    res.json({
+      message: "Upload URL generated successfully",
+      data: { uploadUrl, fileUrl },
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error generating upload URL", error });
   }
 };
 

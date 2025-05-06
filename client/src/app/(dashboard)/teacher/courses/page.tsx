@@ -14,14 +14,22 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import React, { useMemo, useState } from "react";
 
+// Thêm interface CoursesResponse để xử lý dữ liệu API
+interface CoursesResponse {
+  data?: Course[];
+  success?: boolean;
+  message?: string;
+  [key: string]: any;
+}
+
 const Courses = () => {
   const router = useRouter();
   const { user } = useUser();
   const {
-    data: courses,
+    data: coursesData,
     isLoading,
     isError,
-  } = useGetCoursesQuery({ category: "all" });
+  } = useGetCoursesQuery({});
 
   const [createCourse] = useCreateCourseMutation();
   const [deleteCourse] = useDeleteCourseMutation();
@@ -29,9 +37,19 @@ const Courses = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
 
-  const filteredCourses = useMemo(() => {
-    if (!courses) return [];
+  // Extract courses array from API response
+  const courses = useMemo(() => {
+    // Kiểm tra xem coursesData có phải là mảng không
+    if (coursesData && Array.isArray(coursesData)) {
+      return coursesData as Course[]; // Nếu là mảng, trả về ngay
+    } else if (coursesData && 'data' in coursesData && Array.isArray((coursesData as CoursesResponse).data)) {
+      return (coursesData as CoursesResponse).data || []; // Nếu coursesData có thuộc tính data là mảng
+    } else {
+      return [] as Course[]; // Trả về mảng rỗng nếu không có dữ liệu hợp lệ
+    }
+  }, [coursesData]);
 
+  const filteredCourses = useMemo(() => {
     return courses.filter((course) => {
       const matchesSearch = course.title
         .toLowerCase()
@@ -88,15 +106,21 @@ const Courses = () => {
         onCategoryChange={setSelectedCategory}
       />
       <div className="teacher-courses__grid">
-        {filteredCourses.map((course) => (
-          <TeacherCourseCard
-            key={course.courseId}
-            course={course}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            isOwner={course.teacherId === user?.id}
-          />
-        ))}
+        {filteredCourses.length > 0 ? (
+          filteredCourses.map((course) => (
+            <TeacherCourseCard
+              key={course.courseId}
+              course={course}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              isOwner={course.teacherId === user?.id}
+            />
+          ))
+        ) : (
+          <p className="text-center w-full py-8 text-gray-500">
+            No courses found. Create a new course or adjust your filters.
+          </p>
+        )}
       </div>
     </div>
   );

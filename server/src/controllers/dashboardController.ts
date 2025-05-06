@@ -328,7 +328,7 @@ export const getRecentUserActivities = async (
           name: user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Unknown User',
           imageUrl: user.imageUrl
         });
-      } catch (error) {
+          } catch (error) {
         console.error(`Error fetching user ${userId}:`, error);
         usersMap.set(userId, {
           name: 'Unknown User',
@@ -376,4 +376,4 @@ export const getRecentUserActivities = async (
       data: activities
     });
   }
-}; 
+};

@@ -22,193 +22,146 @@ import {
   Clipboard,
   X,
   Check,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
+import { useGetTeacherMeetingsQuery, useUpdateMeetingMutation, useDeleteMeetingMutation } from "@/state/api";
+import { toast } from "sonner";
 
-type Meeting = {
-  id: string;
-  title: string;
-  date: string;
-  time: string;
-  duration: number;
-  type: "individual" | "group";
-  status: "upcoming" | "past" | "pending";
-  students: {
-    id: string;
-    name: string;
-    avatar?: string;
-  }[];
-  course?: {
-    id: string;
-    name: string;
-  };
-  meetingLink?: string;
-  notes?: string;
+// Define necessary types directly to avoid import errors
+type MeetingParticipant = {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  status: "confirmed" | "pending" | "cancelled";
 };
 
+type Meeting = {
+  meetingId: string;
+  teacherId: string;
+  teacherName: string;
+  title: string;
+  description?: string;
+  courseId?: string;
+  courseName?: string;
+  date: string;
+  startTime: string;
+  duration: number;
+  type: "individual" | "group";
+  status: "scheduled" | "completed" | "cancelled" | "pending";
+  meetingLink?: string;
+  location?: string;
+  notes?: string;
+  participants: MeetingParticipant[];
+  recordings?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+// Define the API response type
+interface ApiResponse<T> {
+  data: T;
+  status: number;
+  message?: string;
+}
+
 const TeacherMeetings = () => {
-  const [selectedTab, setSelectedTab] = useState("upcoming");
-
-  // Mock data - would be fetched from API
-  const meetings: Meeting[] = [
-    {
-      id: "1",
-      title: "Project Guidance Session",
-      date: "2023-05-10",
-      time: "14:00",
-      duration: 30,
-      type: "individual",
-      status: "upcoming",
-      students: [
-        {
-          id: "student_1",
-          name: "Alex Johnson",
-          avatar: "/avatars/student1.png",
-        },
-      ],
-      course: {
-        id: "course_123",
-        name: "Introduction to AI",
-      },
-      meetingLink: "https://meet.example.com/abc123",
-    },
-    {
-      id: "2",
-      title: "Final Project Discussion",
-      date: "2023-05-12",
-      time: "15:30",
-      duration: 45,
-      type: "group",
-      status: "upcoming",
-      students: [
-        {
-          id: "student_2",
-          name: "Michael Smith",
-          avatar: "/avatars/student2.png",
-        },
-        {
-          id: "student_3",
-          name: "Emily Davis",
-          avatar: "/avatars/student3.png",
-        },
-        {
-          id: "student_4",
-          name: "Robert Wilson",
-          avatar: "/avatars/student4.png",
-        },
-      ],
-      course: {
-        id: "course_456",
-        name: "Modern Web Development",
-      },
-      meetingLink: "https://meet.example.com/def456",
-    },
-    {
-      id: "3",
-      title: "Midterm Review Session",
-      date: "2023-04-25",
-      time: "13:00",
-      duration: 60,
-      type: "group",
-      status: "past",
-      students: [
-        {
-          id: "student_5",
-          name: "Sarah Thompson",
-          avatar: "/avatars/student5.png",
-        },
-        {
-          id: "student_6",
-          name: "James Brown",
-          avatar: "/avatars/student6.png",
-        },
-        {
-          id: "student_7",
-          name: "Jessica Martin",
-          avatar: "/avatars/student7.png",
-        },
-      ],
-      course: {
-        id: "course_123",
-        name: "Introduction to AI",
-      },
-      notes:
-        "Covered key concepts for midterm, students requested more practice problems.",
-    },
-    {
-      id: "4",
-      title: "Office Hours: Assignment Help",
-      date: "2023-04-28",
-      time: "16:00",
-      duration: 30,
-      type: "individual",
-      status: "past",
-      students: [
-        {
-          id: "student_8",
-          name: "David Lee",
-          avatar: "/avatars/student8.png",
-        },
-      ],
-      course: {
-        id: "course_789",
-        name: "Python Programming",
-      },
-      notes:
-        "Helped with debugging recursive functions and performance optimization.",
-    },
-    {
-      id: "5",
-      title: "Course Advising Session",
-      date: "2023-05-08",
-      time: "10:00",
-      duration: 20,
-      type: "individual",
-      status: "pending",
-      students: [
-        {
-          id: "student_9",
-          name: "Emma Wilson",
-          avatar: "/avatars/student9.png",
-        },
-      ],
-    },
-    {
-      id: "6",
-      title: "Group Project Progress Review",
-      date: "2023-05-15",
-      time: "11:30",
-      duration: 45,
-      type: "group",
-      status: "pending",
-      students: [
-        {
-          id: "student_10",
-          name: "Ryan Garcia",
-          avatar: "/avatars/student10.png",
-        },
-        {
-          id: "student_11",
-          name: "Olivia Moore",
-          avatar: "/avatars/student11.png",
-        },
-        {
-          id: "student_12",
-          name: "Daniel Kim",
-          avatar: "/avatars/student12.png",
-        },
-      ],
-      course: {
-        id: "course_456",
-        name: "Modern Web Development",
-      },
-    },
-  ];
-
-  const filteredMeetings = meetings.filter(
-    (meeting) => meeting.status === selectedTab
+  const [selectedTab, setSelectedTab] = useState("scheduled");
+  const router = useRouter();
+  const { user } = useUser();
+  const { data: meetingsData, isLoading, isError, refetch } = useGetTeacherMeetingsQuery(
+    user?.id || "",
+    { skip: !user?.id }
   );
+  const [updateMeeting] = useUpdateMeetingMutation();
+  const [deleteMeeting] = useDeleteMeetingMutation();
+
+  // Process meetings data
+  const meetings = useMemo(() => {
+    if (!meetingsData) return [] as Meeting[];
+    
+    // Handle both array responses and object responses with data property
+    if (Array.isArray(meetingsData)) {
+      return meetingsData as Meeting[];
+    } else if (typeof meetingsData === 'object' && meetingsData !== null) {
+      // For object responses that might have a data property
+      const data = (meetingsData as unknown as ApiResponse<Meeting[]>).data;
+      return Array.isArray(data) ? data : [] as Meeting[];
+    }
+    
+    return [] as Meeting[];
+  }, [meetingsData]);
+
+  // Group meetings by status
+  const groupedMeetings = useMemo(() => {
+    const upcoming = meetings.filter(meeting => 
+      meeting.status === "scheduled" && new Date(meeting.date) >= new Date()
+    );
+    
+    const pending = meetings.filter(meeting => 
+      meeting.status === "pending"
+    );
+    
+    const past = meetings.filter(meeting => 
+      meeting.status === "completed" || 
+      (meeting.status === "scheduled" && new Date(meeting.date) < new Date())
+    );
+    
+    return {
+      scheduled: upcoming,
+      pending,
+      completed: past,
+    };
+  }, [meetings]);
+
+  // Handler for joining meeting
+  const handleJoinMeeting = useCallback((meetingLink: string) => {
+    if (meetingLink) {
+      window.open(meetingLink, '_blank');
+    } else {
+      toast.error("No meeting link available");
+    }
+  }, []);
+
+  // Handler for accepting/declining meetings
+  const handleMeetingResponse = useCallback(async (meetingId: string, status: "scheduled" | "cancelled") => {
+    try {
+      await updateMeeting({
+        meetingId,
+        status
+      }).unwrap();
+      
+      toast.success(`Meeting ${status === "scheduled" ? "accepted" : "declined"}`);
+      refetch();
+    } catch (error) {
+      console.error("Failed to update meeting:", error);
+      toast.error("Failed to update meeting status");
+    }
+  }, [updateMeeting, refetch]);
+
+  // Handler for sending messages to students
+  const handleMessageStudents = useCallback((meetingId: string) => {
+    // This would typically open a messaging interface or send email
+    toast.info("Messaging functionality not yet implemented");
+  }, []);
+
+  // Handler for adding notes to a meeting
+  const handleAddNotes = useCallback((meetingId: string) => {
+    router.push(`/teacher/meetings/${meetingId}/notes`);
+  }, [router]);
+
+  if (isError) {
+    return (
+      <div className="p-8">
+        <div className="text-red-500 bg-red-100 p-4 rounded-md">
+          Error loading meetings. Please try again later.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="teacher-meetings">
@@ -216,7 +169,10 @@ const TeacherMeetings = () => {
         title="Meetings"
         subtitle="Schedule and manage meetings with students"
         rightElement={
-          <Button className="bg-blue-600 hover:bg-blue-700">
+          <Button 
+            className="bg-blue-600 hover:bg-blue-700"
+            onClick={() => router.push("/teacher/meetings/create")}
+          >
             <Plus size={16} className="mr-1" />
             Schedule Meeting
           </Button>
@@ -224,7 +180,7 @@ const TeacherMeetings = () => {
       />
 
       <Tabs
-        defaultValue="upcoming"
+        defaultValue="scheduled"
         value={selectedTab}
         onValueChange={setSelectedTab}
         className="mt-6"
@@ -232,7 +188,7 @@ const TeacherMeetings = () => {
         <div className="flex items-center justify-between mb-6">
           <TabsList className="bg-slate-800">
             <TabsTrigger
-              value="upcoming"
+              value="scheduled"
               className="data-[state=active]:bg-blue-600"
             >
               Upcoming
@@ -244,7 +200,7 @@ const TeacherMeetings = () => {
               Pending
             </TabsTrigger>
             <TabsTrigger
-              value="past"
+              value="completed"
               className="data-[state=active]:bg-blue-600"
             >
               Past
@@ -263,29 +219,63 @@ const TeacherMeetings = () => {
           </div>
         </div>
 
-        <TabsContent value="upcoming" className="mt-0">
+        {isLoading ? (
+          <div className="flex justify-center items-center p-12">
+            <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+            <span className="ml-3 text-slate-500">Loading meetings...</span>
+          </div>
+        ) : (
+          <>
+            <TabsContent value="scheduled" className="mt-0">
           <div className="space-y-4">
-            {renderMeetingsList(filteredMeetings, "upcoming")}
+                {renderMeetingsList(
+                  groupedMeetings.scheduled,
+                  "scheduled",
+                  handleJoinMeeting,
+                  handleMessageStudents
+                )}
           </div>
         </TabsContent>
 
         <TabsContent value="pending" className="mt-0">
           <div className="space-y-4">
-            {renderMeetingsList(filteredMeetings, "pending")}
+                {renderMeetingsList(
+                  groupedMeetings.pending,
+                  "pending",
+                  handleJoinMeeting,
+                  handleMessageStudents,
+                  handleMeetingResponse
+                )}
           </div>
         </TabsContent>
 
-        <TabsContent value="past" className="mt-0">
+            <TabsContent value="completed" className="mt-0">
           <div className="space-y-4">
-            {renderMeetingsList(filteredMeetings, "past")}
+                {renderMeetingsList(
+                  groupedMeetings.completed,
+                  "completed",
+                  handleJoinMeeting,
+                  handleMessageStudents,
+                  undefined,
+                  handleAddNotes
+                )}
           </div>
         </TabsContent>
+          </>
+        )}
       </Tabs>
     </div>
   );
 };
 
-const renderMeetingsList = (meetings: Meeting[], status: string) => {
+const renderMeetingsList = (
+  meetings: Meeting[],
+  status: string,
+  handleJoinMeeting: (meetingLink: string) => void,
+  handleMessageStudents: (meetingId: string) => void,
+  handleMeetingResponse?: (meetingId: string, status: "scheduled" | "cancelled") => void,
+  handleAddNotes?: (meetingId: string) => void
+) => {
   if (meetings.length === 0) {
     return (
       <Card className="p-8 text-center text-slate-400">
@@ -296,7 +286,7 @@ const renderMeetingsList = (meetings: Meeting[], status: string) => {
 
   return meetings.map((meeting) => (
     <Card
-      key={meeting.id}
+      key={meeting.meetingId}
       className="p-6 bg-slate-900 border-slate-700 hover:border-blue-600/40 transition-colors"
     >
       <div className="flex flex-col md:flex-row gap-4 justify-between">
@@ -316,12 +306,12 @@ const renderMeetingsList = (meetings: Meeting[], status: string) => {
               )}
               {meeting.type === "individual" ? "Individual" : "Group"}
             </Badge>
-            {meeting.course && (
+            {meeting.courseName && (
               <Badge
                 variant="outline"
                 className="bg-slate-800 text-slate-300 border-slate-700"
               >
-                {meeting.course.name}
+                {meeting.courseName}
               </Badge>
             )}
           </div>
@@ -338,30 +328,32 @@ const renderMeetingsList = (meetings: Meeting[], status: string) => {
             <div className="flex items-center text-slate-300">
               <Clock className="h-4 w-4 mr-1 text-slate-500" />
               <span>
-                {meeting.time} ({meeting.duration} minutes)
+                {meeting.startTime} ({meeting.duration} minutes)
               </span>
             </div>
           </div>
 
+          {meeting.participants && meeting.participants.length > 0 && (
           <div className="mb-4">
             <h4 className="text-sm font-medium text-slate-400 mb-2">Students</h4>
             <div className="flex flex-wrap items-center gap-2">
-              {meeting.students.map((student) => (
+                {meeting.participants.map((participant) => (
                 <div
-                  key={student.id}
+                    key={participant.studentId}
                   className="flex items-center bg-slate-800 px-2 py-1 rounded-md text-sm"
                 >
                   <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center text-xs text-white mr-2">
-                    {student.name
+                      {participant.studentName
                       .split(" ")
-                      .map((n) => n[0])
+                        .map((n: string) => n[0])
                       .join("")}
                   </div>
-                  <span className="text-slate-300">{student.name}</span>
+                    <span className="text-slate-300">{participant.studentName}</span>
                 </div>
               ))}
             </div>
           </div>
+          )}
 
           {meeting.notes && (
             <div className="mb-4">
@@ -371,15 +363,20 @@ const renderMeetingsList = (meetings: Meeting[], status: string) => {
           )}
         </div>
         <div className="flex flex-row md:flex-col gap-2 self-end md:self-center">
-          {status === "upcoming" && (
+          {status === "scheduled" && (
             <>
-              <Button className="bg-blue-600 hover:bg-blue-700">
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={() => handleJoinMeeting(meeting.meetingLink || "")}
+                disabled={!meeting.meetingLink}
+              >
                 <Video className="h-4 w-4 mr-1" />
                 Join Meeting
               </Button>
               <Button
                 variant="outline"
                 className="bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700"
+                onClick={() => handleMessageStudents(meeting.meetingId)}
               >
                 <MessageSquare className="h-4 w-4 mr-1" />
                 Message Students
@@ -389,21 +386,28 @@ const renderMeetingsList = (meetings: Meeting[], status: string) => {
 
           {status === "pending" && (
             <>
-              <Button className="bg-green-600 hover:bg-green-700">
+              <Button 
+                className="bg-green-600 hover:bg-green-700"
+                onClick={() => handleMeetingResponse && handleMeetingResponse(meeting.meetingId, "scheduled")}
+              >
                 <Check className="h-4 w-4 mr-1" />
                 Accept
               </Button>
-              <Button className="bg-red-600 hover:bg-red-700">
+              <Button 
+                className="bg-red-600 hover:bg-red-700"
+                onClick={() => handleMeetingResponse && handleMeetingResponse(meeting.meetingId, "cancelled")}
+              >
                 <X className="h-4 w-4 mr-1" />
                 Decline
               </Button>
             </>
           )}
 
-          {status === "past" && (
+          {status === "completed" && (
             <Button
               variant="outline"
               className="bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700"
+              onClick={() => handleAddNotes && handleAddNotes(meeting.meetingId)}
             >
               <Clipboard className="h-4 w-4 mr-1" />
               Add Notes
