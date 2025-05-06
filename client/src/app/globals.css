@@ -1276,6 +1276,15 @@ input[type="color"] {
   @apply bg-indigo-600 px-3 sm:px-4 py-1.5 sm:py-2 rounded-md hover:bg-primary-600 hover:text-customgreys-primarybg text-sm sm:text-base;
 }
 
+/* Add styles for the dashboard button */
+.nondashboard-navbar__dashboard-link {
+  @apply flex items-center gap-2 text-customgreys-dirtyGrey hover:text-white-100 transition-colors;
+}
+
+.nondashboard-navbar__dashboard-link.active {
+  @apply text-white-100;
+}
+
 /* Add these classes for group hover effects */
 .group:hover .dashboard-navbar__search-icon,
 .group:hover .nondashboard-navbar__search-icon {
