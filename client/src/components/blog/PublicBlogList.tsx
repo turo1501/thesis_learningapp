@@ -178,10 +178,10 @@ export default function PublicBlogList() {
                   ? `No results for "${searchQuery}". Try a different search term.` 
                   : `No posts found in the ${category !== 'all' ? category : ''} category.`}
               </Text>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {currentPosts.map((post) => (
                   <Card key={post.postId} className="overflow-hidden flex flex-col h-full border group transition-all duration-300 hover:shadow-xl bg-customgreys-darkGrey border-customgreys-darkerGrey hover:border-primary-700/50 shadow-lg shadow-black/10">
                     {/* Image Section */}
@@ -194,8 +194,8 @@ export default function PublicBlogList() {
                           post.featuredImage.includes('localhost') ||
                           post.featuredImage.startsWith('/')
                             ? `https://picsum.photos/800/600?random=${post.postId}` 
-                            : post.featuredImage.includes('://') 
-                              ? post.featuredImage 
+                          : post.featuredImage.includes('://') 
+                            ? post.featuredImage 
                               : `https://picsum.photos/800/600?random=${post.postId}`
                         } 
                         alt={post.title}
@@ -208,7 +208,7 @@ export default function PublicBlogList() {
                           
                           // Prevent infinite loops by checking if we're already using a placeholder
                           if (!imgElement.src.includes('picsum.photos')) {
-                            imgElement.src = `https://picsum.photos/800/600?random=${post.postId}`;
+                          imgElement.src = `https://picsum.photos/800/600?random=${post.postId}`;
                           }
                         }}
                       />
@@ -232,43 +232,43 @@ export default function PublicBlogList() {
                     <CardHeader className="pb-3">
                       <CardTitle className="line-clamp-2 text-xl font-bold">
                         <Link href={`/blog/${post.postId}`} className="text-white hover:text-primary-400 transition-colors">
-                          {post.title}
-                        </Link>
-                      </CardTitle>
+                        {post.title}
+                      </Link>
+                    </CardTitle>
                       <div className="flex items-center gap-2 text-sm text-gray-400 mt-2">
-                        <CalendarIcon size={14} />
-                        <span>{formatDate(post.publishedAt || post.createdAt)}</span>
-                      </div>
-                    </CardHeader>
+                      <CalendarIcon size={14} />
+                      <span>{formatDate(post.publishedAt || post.createdAt)}</span>
+                    </div>
+                  </CardHeader>
                     
                     <CardContent className="flex-grow pb-3">
                       <Text className="line-clamp-3 text-gray-400">
                         {truncateText(post.content, 25)}
-                      </Text>
+                    </Text>
                     </CardContent>
                     
                     <CardFooter className="flex items-center justify-between pt-4 border-t border-customgreys-darkerGrey">
                       <div className="flex items-center gap-2">
                         <Avatar className="h-8 w-8 border-2 border-customgreys-darkerGrey shadow-sm">
-                          <AvatarImage src={post.userAvatar} alt={post.userName} />
+                        <AvatarImage src={post.userAvatar} alt={post.userName} />
                           <AvatarFallback className="bg-primary-900/50 text-primary-200">
-                            {post.userName.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
+                          {post.userName.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
                         <Text className="text-sm font-medium text-gray-300">{post.userName}</Text>
-                      </div>
+                    </div>
                       
-                      <Button 
+                    <Button 
                         variant="ghost" 
-                        size="sm"
+                      size="sm" 
                         className="text-primary-400 hover:text-primary-300 hover:bg-primary-900/20 p-0 h-auto"
-                        onClick={() => router.push(`/blog/${post.postId}`)}
-                      >
+                      onClick={() => router.push(`/blog/${post.postId}`)}
+                    >
                         Read more
                         <BookOpen className="ml-1 h-3.5 w-3.5" />
-                      </Button>
-                    </CardFooter>
-                  </Card>
+                    </Button>
+                  </CardFooter>
+                </Card>
                 ))}
               </div>
               
@@ -300,16 +300,16 @@ export default function PublicBlogList() {
                     </Button>
                   ))}
                   
-                  <Button
-                    variant="outline"
+              <Button 
+                variant="outline"
                     size="sm"
                     onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
                     disabled={page === totalPages}
                     className="h-9 w-9 p-0 bg-customgreys-darkGrey border-customgreys-darkerGrey text-gray-300 hover:bg-customgreys-secondarybg hover:text-white disabled:text-gray-600"
-                  >
+              >
                     &raquo;
-                  </Button>
-                </div>
+              </Button>
+            </div>
               )}
             </>
           )}
