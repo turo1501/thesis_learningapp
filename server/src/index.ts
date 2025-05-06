@@ -25,6 +25,7 @@ import assignmentRoutes from "./routes/assignmentRoutes";
 import meetingRoutes from "./routes/meetingRoutes";
 import dashboardRoutes from "./routes/dashboardRoutes";
 import analyticsRoutes from "./routes/analyticsRoutes";
+import memoryCardRoutes from "./routes/memoryCardRoutes";
 import { errorHandler } from "./middleware/errorMiddleware";
 import { authenticate } from "./middleware/authMiddleware";
 import { resetPassword } from "./controllers/userClerkController";
@@ -67,6 +68,7 @@ app.use("/assignments", assignmentRoutes);
 app.use("/meetings", meetingRoutes);
 app.use("/dashboard", requireAuth(), authenticate, dashboardRoutes);
 app.use("/analytics", requireAuth(), authenticate, analyticsRoutes);
+app.use("/memory-cards", memoryCardRoutes);
 
 /* ERROR MIDDLEWARE */
 app.use(errorHandler);

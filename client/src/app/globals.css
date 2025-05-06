@@ -219,27 +219,35 @@ input[type="color"] {
 
 /* Completion Page */
 .completion {
-  @apply flex flex-col h-full items-center justify-center bg-background text-foreground;
+  @apply flex flex-col h-full items-center justify-center bg-background text-foreground py-20;
 }
 
 .completion__content {
-  @apply text-center;
+  @apply text-center max-w-lg px-6;
 }
 
 .completion__icon {
-  @apply mb-4 rounded-full bg-green-500 p-3 inline-flex items-center justify-center;
+  @apply mb-6 rounded-full bg-green-500 p-5 inline-flex items-center justify-center shadow-lg animate-pulse;
+}
+
+.completion__icon svg {
+  @apply text-white-100;
 }
 
 .completion__title {
-  @apply text-4xl font-bold mb-3;
+  @apply text-4xl font-bold mb-4 text-gray-900 dark:text-white-100;
 }
 
 .completion__message {
-  @apply mb-1;
+  @apply mb-6 text-lg text-gray-600 dark:text-gray-300;
+}
+
+.completion__support {
+  @apply text-sm text-gray-500 dark:text-gray-400 mt-4 mb-8;
 }
 
 .completion__action {
-  @apply mt-2 flex justify-center bg-secondary-700 rounded-lg px-4 py-2 hover:bg-secondary-600 cursor-pointer;
+  @apply mt-2 flex justify-center bg-primary-700 hover:bg-primary-800 text-white-100 font-medium rounded-lg px-6 py-3 cursor-pointer transition-all duration-200 shadow-md hover:shadow-lg;
 }
 
 /* Landing Page */
@@ -1621,3 +1629,653 @@ input[type="color"] {
 .chatbot-trigger:hover {
   transform: scale(1.05);
 }
+/* Memory Cards Styles */
+.memory-cards {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.memory-cards__controls {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.memory-cards__search {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+}
+
+.memory-cards__search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted-foreground);
+}
+
+.memory-cards__search-input {
+  padding-left: 2.5rem;
+}
+
+.memory-cards__create-button {
+  white-space: nowrap;
+}
+
+.memory-cards__tabs {
+  margin-top: 1.5rem;
+}
+
+.memory-cards__tabs-list {
+  margin-bottom: 1.5rem;
+}
+
+.memory-cards__tab-content {
+  padding-top: 0.5rem;
+}
+
+.memory-cards__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.memory-cards__deck-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.memory-cards__deck-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+
+.memory-cards__deck-header {
+  padding-bottom: 0.5rem;
+}
+
+.memory-cards__deck-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.memory-cards__deck-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.memory-cards__deck-description {
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.memory-cards__deck-content {
+  flex: 1;
+}
+
+.memory-cards__deck-stats {
+  display: flex;
+  justify-content: space-between;
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+.memory-cards__deck-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.memory-cards__deck-stat-number {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--foreground);
+}
+
+.memory-cards__deck-stat-label {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  margin-top: 0.25rem;
+}
+
+.memory-cards__deck-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.memory-cards__deck-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.memory-cards__deck-created {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+
+.memory-cards__deck-badge {
+  font-size: 0.75rem;
+}
+
+.memory-cards__deck-review-button {
+  white-space: nowrap;
+}
+
+/* Memory Cards Detail Page */
+.memory-cards-detail {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.memory-cards-detail__header-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.memory-cards-detail__stats-row {
+  margin: 1.5rem 0;
+}
+
+.memory-cards-detail__stats-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  padding: 1rem;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.memory-cards-detail__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 100px;
+}
+
+.memory-cards-detail__stat-number {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.memory-cards-detail__stat-label {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+.memory-cards-detail__controls {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.memory-cards-detail__search {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+}
+
+.memory-cards-detail__search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted-foreground);
+}
+
+.memory-cards-detail__search-input {
+  padding-left: 2.5rem;
+}
+
+.memory-cards-detail__actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* Memory Cards Create Page */
+.memory-cards-create {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.memory-cards-create__content {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 768px) {
+  .memory-cards-create__content {
+    grid-template-columns: 1fr;
+  }
+}
+
+.memory-cards-create__form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.memory-cards-create__ai-section {
+  margin-top: 1rem;
+}
+
+.memory-cards-create__ai-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.memory-cards-create__ai-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: gold;
+}
+
+.memory-cards-create__ai-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.memory-cards-create__ai-description {
+  font-size: 0.875rem;
+  color: var(--muted-foreground);
+}
+
+.memory-cards-create__checkbox {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+.memory-cards-create__checkbox-label {
+  @apply font-medium text-customgreys-darkGrey;
+}
+
+.memory-cards-create__submit-button {
+  @apply bg-primary-700 text-white-100 hover:bg-primary-800 w-full sm:w-auto;
+}
+
+.memory-cards-create__info {
+  @apply lg:col-span-1;
+}
+
+.memory-cards-create__info-card {
+  @apply border border-gray-700 shadow-sm h-fit;
+}
+
+.memory-cards-create__info-text {
+  @apply text-sm text-gray-400 mb-4;
+}
+
+.memory-cards-create__info-subtitle {
+  @apply text-sm font-semibold mt-4 mb-2;
+}
+
+.memory-cards-create__info-list {
+  @apply list-disc pl-5 text-sm text-gray-400 space-y-1;
+}
+
+.memory-cards-create__info-list li {
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+/* Additional utility classes */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.rotateY-180 {
+  transform: rotateY(180deg);
+}
+
+/* Memory Cards 3D Effect Styling */
+.memory-cards-detail__card {
+  perspective: 1000px;
+  height: 200px;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.memory-cards-detail__card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+}
+
+.memory-cards-detail__card--flipped .memory-cards-detail__card-inner {
+  transform: rotateY(180deg);
+}
+
+.memory-cards-detail__card-front,
+.memory-cards-detail__card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.memory-cards-detail__card-front {
+  background-color: var(--card-background);
+  color: var(--card-foreground);
+  display: flex;
+  flex-direction: column;
+}
+
+.memory-cards-detail__card-back {
+  background-color: var(--card-background);
+  color: var(--card-foreground);
+  transform: rotateY(180deg);
+  display: flex;
+  flex-direction: column;
+}
+
+.memory-cards-detail__card-content {
+  flex: 1;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow-y: auto;
+}
+
+.memory-cards-detail__card-text {
+  font-size: 1.125rem;
+  line-height: 1.5;
+}
+
+.memory-cards-detail__card-footer {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--secondary-background);
+}
+
+.memory-cards-detail__card-stats {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.memory-cards-detail__card-stats-item {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+  display: flex;
+  align-items: center;
+}
+
+.memory-cards-detail__card-stats-item--high {
+  background-color: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+}
+
+.memory-cards-detail__card-stats-item--medium {
+  background-color: rgba(234, 179, 8, 0.2);
+  color: #eab308;
+}
+
+.memory-cards-detail__card-stats-item--low {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.memory-cards-detail__card-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.memory-cards-detail__form-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+/* Memory Card Review Page Advanced Styling */
+.memory-cards-review__complete {
+  display: flex;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.memory-cards-review__summary-card {
+  max-width: 600px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.memory-cards-review__timer {
+  background-color: var(--primary-foreground);
+  border-radius: 9999px;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.memory-cards-review__timer-icon {
+  color: var(--primary);
+  margin-right: 0.5rem;
+}
+
+.memory-cards-review__timer-text {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.memory-cards-review__summary-accuracy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.memory-cards-review__summary-progress {
+  width: 150px;
+  height: 150px;
+  margin: 1rem auto;
+}
+
+.memory-cards-review__summary-data {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+/* Memory Cards Grid Animation */
+.memory-cards__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.memory-cards__deck-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.memory-cards__deck-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.1);
+}
+
+.memory-cards-detail__cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.memory-cards-review__rating-button {
+  transition: all 0.3s ease;
+}
+
+.memory-cards-review__rating-button--easy:hover {
+  background-color: rgba(34, 197, 94, 0.1);
+  border-color: #22c55e;
+}
+
+.memory-cards-review__rating-button--good:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-color: #3b82f6;
+}
+
+.memory-cards-review__rating-button--hard:hover {
+  background-color: rgba(245, 158, 11, 0.1);
+  border-color: #f59e0b;
+}
+
+.memory-cards-review__rating-button--again:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+}
+
+.memory-cards-review__card {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.memory-cards-review__card--flipped {
+  transform: rotateY(180deg);
+}
+
+.memory-cards-review__no-cards {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 2rem;
+}
+
+/* Memory Cards UI specific styles */
+.memory-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+  padding: 24px 0;
+}
+
+.memory-card-container {
+  position: relative;
+  height: 100%;
+  width: 100%;
+}
+
+.memory-card-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.memory-card-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 80px;
+  background-color: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.memory-card-stat:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.memory-card-stat-number {
+  font-size: 32px;
+  font-weight: 700;
+  color: #4f46e5;
+  margin-bottom: 4px;
+}
+
+.memory-card-stat-label {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* Animation for the review button pulse */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+  }
+}
+
+.review-button-pulse {
+  animation: pulse 2s infinite;
+}
+

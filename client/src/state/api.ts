@@ -46,6 +46,51 @@ export interface UpdateUserCourseProgressData {
   progress: number;
 }
 
+// Add MemoryCard and MemoryCardDeck interfaces
+export interface MemoryCard {
+  cardId: string;
+  question: string;
+  answer: string;
+  chapterId: string;
+  sectionId: string;
+  difficultyLevel: number;
+  lastReviewed: number;
+  nextReviewDue: number;
+  repetitionCount: number;
+  correctCount: number;
+  incorrectCount: number;
+  deckId?: string;
+  deckTitle?: string;
+  courseId?: string;
+}
+
+export interface MemoryCardDeck {
+  deckId: string;
+  userId: string;
+  courseId: string;
+  title: string;
+  description?: string;
+  cards: MemoryCard[];
+  intervalModifier: number;
+  easyBonus: number;
+  totalReviews: number;
+  correctReviews: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Add the interface for AI-generated alternatives
+export interface AIAlternative {
+  question: string;
+  answer: string;
+}
+
+export interface AIAlternativesResponse {
+  alternatives: AIAlternative[];
+  originalQuestion: string;
+  originalAnswer: string;
+}
+
 // Sửa lỗi liên quan đến replace method
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
@@ -67,7 +112,40 @@ const customBaseQuery = fetchBaseQuery({
   }
 });
 
-// Add request and response handling for better debugging and error management
+/**
+ * Utility function to normalize memory card responses
+ * This helps handle inconsistent API response formats
+ */
+const normalizeMemoryCardResponse = (responseData: any): any => {
+  console.log('Normalizing memory card response:', responseData);
+  
+  // If response has a data.data structure (common in some APIs)
+  if (responseData && typeof responseData === 'object' && 'data' in responseData) {
+    console.log('Response has data property, normalizing');
+    
+    // If data.data is a complete deck object
+    if (responseData.data && 
+        typeof responseData.data === 'object' && 
+        'deckId' in responseData.data &&
+        'cards' in responseData.data) {
+      
+      // Make sure cards is an array
+      if (!Array.isArray(responseData.data.cards)) {
+        console.warn('Cards is not an array in the response, setting to empty array');
+        responseData.data.cards = [];
+      }
+      
+      return responseData.data;
+    }
+    
+    // If data contains the main response we need
+    return responseData.data;
+  }
+  
+  return responseData;
+};
+
+// Modify the enhancedBaseQuery function to use the normalizeMemoryCardResponse helper for memory card endpoints
 const enhancedBaseQuery = async (args: string | FetchArgs, api: BaseQueryApi, extraOptions = {}) => {
   console.log(`API Request: ${typeof args === 'string' ? args : args.url}`);
   
@@ -78,6 +156,17 @@ const enhancedBaseQuery = async (args: string | FetchArgs, api: BaseQueryApi, ex
     // Handle successful response
     if (result.data) {
       console.log(`API Response for ${typeof args === 'string' ? args : args.url}: `, result.data);
+      
+      // Check if this is a memory card related endpoint
+      const url = typeof args === 'string' ? args : args.url;
+      if (typeof url === 'string' && (
+          url.includes('/memory-cards/') || 
+          url.includes('/cards/') ||
+          url.includes('/due-cards')
+        )) {
+        console.log('Memory card endpoint detected, normalizing response');
+        return { data: normalizeMemoryCardResponse(result.data) };
+      }
       
       // Normalize response structure
       // If the response is an object with a 'data' property and not an array itself
@@ -94,8 +183,22 @@ const enhancedBaseQuery = async (args: string | FetchArgs, api: BaseQueryApi, ex
     if (result.error) {
       console.error(`API Error (${result.error.status}): ${JSON.stringify(result.error.data)}`);
       
-      // You can add custom error transformation here if needed
-      // For example, standardizing error messages
+      // If this is a parsing error but we received a 200 response, the server might have returned a non-JSON response
+      if (result.error.status === 'PARSING_ERROR' && result.error.originalStatus === 200) {
+        const responseData = result.error.data;
+        console.error(`Parsing error with original status 200. Raw response:`, responseData);
+        
+        // Try to provide a more informative error message
+        return {
+          error: {
+            status: 'CUSTOM_ERROR',
+            data: {
+              message: 'Server returned a non-JSON response with status 200',
+              originalData: responseData
+            }
+          }
+        };
+      }
     }
     
     return result;
@@ -114,7 +217,33 @@ const enhancedBaseQuery = async (args: string | FetchArgs, api: BaseQueryApi, ex
 export const api = createApi({
   baseQuery: enhancedBaseQuery,
   reducerPath: "api",
-  tagTypes: ["Courses", "Users", "UserCourseProgress", "BlogPosts", "BlogPost", "Assignments", "Meetings", "Analytics"],
+  tagTypes: [
+    "Courses", 
+    "Users", 
+    "UserCourseProgress", 
+    "BlogPosts",
+    "BlogPost",
+    "Transactions",
+    "Assignments",
+    "Meetings",
+    "Analytics",
+    "MemoryCards",
+    "MemoryCardDecks",
+    "Course", 
+    "CourseDetails", 
+    "UserCourses", 
+    "UserTransactions", 
+    "BlogCategories",
+    "CourseProgress",
+    "CourseChapters",
+    "TeacherCourses",
+    "Assignment",
+    "AdminUsers",
+    "Meetings",
+    "MemoryCardDecks",
+    "MemoryCardDeck",
+    "DueCards",
+  ],
 
   endpoints: (build) => ({
     /* 
@@ -868,6 +997,224 @@ export const api = createApi({
         body,
       }),
     }),
+
+    /* 
+    ===============
+    MEMORY CARDS
+    =============== 
+    */
+    getUserDecks: build.query<MemoryCardDeck[], string>({
+      query: (userId) => `/memory-cards/${userId}`,
+      providesTags: ["MemoryCardDecks"],
+    }),
+
+    getDeck: build.query<MemoryCardDeck, { userId: string; deckId: string }>({
+      query: ({ userId, deckId }) => `/memory-cards/${userId}/${deckId}`,
+      providesTags: (result, error, { deckId }) => [{ type: "MemoryCardDeck", id: deckId }],
+    }),
+
+    createDeck: build.mutation<
+      MemoryCardDeck,
+      { userId: string; courseId: string; title: string; description?: string }
+    >({
+      query: (data) => ({
+        url: "/memory-cards",
+        method: "POST",
+        body: data,
+      }),
+      invalidatesTags: ["MemoryCardDecks"],
+    }),
+
+    deleteDeck: build.mutation<
+      { success: boolean }, 
+      { userId: string; deckId: string }
+    >({
+      query: ({ userId, deckId }) => ({
+        url: `/memory-cards/${userId}/${deckId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: ["MemoryCardDecks"],
+    }),
+
+    addCard: build.mutation<
+      MemoryCardDeck,
+      { 
+        userId: string; 
+        deckId: string;
+        question: string;
+        answer: string;
+        sectionId: string;
+        chapterId: string;
+        difficultyLevel: number;
+        lastReviewed: number;
+        nextReviewDue: number;
+        repetitionCount: number;
+        correctCount: number;
+        incorrectCount: number;
+      }
+    >({
+      query: ({ userId, deckId, ...cardData }) => ({
+        url: `/memory-cards/${userId}/${deckId}/cards`,
+        method: "POST",
+        body: cardData,
+      }),
+      invalidatesTags: (result, error, { deckId, userId }) => [
+        { type: "MemoryCardDeck", id: deckId },
+        { type: "MemoryCardDecks", id: userId },
+        "DueCards",
+      ],
+      async onQueryStarted({ userId, deckId, ...cardData }, { dispatch, queryFulfilled }) {
+        try {
+          // Wait for the mutation to complete
+          const { data: updatedDeck } = await queryFulfilled;
+          
+          // Optimistically update the deck in the cache
+          dispatch(
+            api.util.updateQueryData('getDeck', { userId, deckId }, (draft: MemoryCardDeck) => {
+              // If there's no cards array yet, create one
+              if (!draft.cards) {
+                draft.cards = [];
+              }
+              
+              // Add the new card if it's not already there
+              const newCardId = updatedDeck.cards[updatedDeck.cards.length - 1]?.cardId;
+              if (newCardId && !draft.cards.some((card: MemoryCard) => card.cardId === newCardId)) {
+                draft.cards.push(updatedDeck.cards[updatedDeck.cards.length - 1]);
+              }
+              
+              // Update timestamp
+              draft.updatedAt = Date.now();
+            })
+          );
+          
+          // Also update the user's decks list if it exists in cache
+          dispatch(
+            api.util.updateQueryData('getUserDecks', userId, (draft: MemoryCardDeck[]) => {
+              const deckIndex = draft.findIndex(d => d.deckId === deckId);
+              if (deckIndex !== -1) {
+                draft[deckIndex] = updatedDeck;
+              }
+            })
+          );
+        } catch (error) {
+          console.error("Error optimistically updating card:", error);
+        }
+      },
+    }),
+    
+    updateCard: build.mutation<
+      MemoryCardDeck,
+      {
+        userId: string;
+        deckId: string;
+        cardId: string;
+        question?: string;
+        answer?: string;
+        difficultyLevel?: number;
+      }
+    >({
+      query: ({ userId, deckId, cardId, ...cardData }) => ({
+        url: `/memory-cards/${userId}/${deckId}/cards/${cardId}`,
+        method: "PUT",
+        body: cardData,
+      }),
+      invalidatesTags: (result, error, { deckId }) => [
+        { type: "MemoryCardDeck", id: deckId },
+        "DueCards",
+      ],
+    }),
+    
+    deleteCard: build.mutation<
+      MemoryCardDeck,
+      { userId: string; deckId: string; cardId: string }
+    >({
+      query: ({ userId, deckId, cardId }) => ({
+        url: `/memory-cards/${userId}/${deckId}/cards/${cardId}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: (result, error, { deckId }) => [
+        { type: "MemoryCardDeck", id: deckId },
+        "DueCards",
+      ],
+    }),
+    
+    getDueCards: build.query<
+      { dueCards: MemoryCard[]; totalDue: number },
+      { userId: string; courseId?: string; deckId?: string; limit?: number }
+    >({
+      query: ({ userId, courseId, deckId, limit = 20 }) => {
+        const url = `/memory-cards/${userId}/due-cards`;
+        const params = new URLSearchParams();
+        if (courseId) params.append("courseId", courseId);
+        if (deckId) params.append("deckId", deckId);
+        if (limit) params.append("limit", limit.toString());
+        
+        // Log the query URL for debugging
+        const fullUrl = `${url}?${params.toString()}`;
+        console.log(`Fetching due cards with URL: ${fullUrl}`);
+        return fullUrl;
+      },
+      providesTags: ["DueCards"],
+      // Add better error handling
+      onQueryStarted: async (_, { queryFulfilled }) => {
+        try {
+          await queryFulfilled;
+        } catch (error) {
+          console.error('Error in getDueCards query:', error);
+        }
+      }
+    }),
+    
+    submitCardReview: build.mutation<
+      { success: boolean; nextReview: number },
+      {
+        userId: string;
+        deckId: string;
+        cardId: string;
+        difficultyRating: number;
+        isCorrect: boolean;
+      }
+    >({
+      query: ({ userId, deckId, cardId, ...reviewData }) => ({
+        url: `/memory-cards/${userId}/${deckId}/cards/${cardId}/review`,
+        method: "POST",
+        body: reviewData,
+      }),
+      invalidatesTags: ["DueCards", "MemoryCardDecks"],
+    }),
+    
+    generateCardsFromCourse: build.mutation<
+      { deck: MemoryCardDeck; cardsGenerated: number },
+      {
+        userId: string;
+        courseId: string;
+        deckTitle: string;
+        deckDescription?: string;
+      }
+    >({
+      query: (data) => ({
+        url: "/memory-cards/generate",
+        method: "POST",
+        body: data,
+      }),
+      invalidatesTags: ["MemoryCardDecks"],
+    }),
+    
+    generateAIAlternatives: build.mutation<
+      AIAlternativesResponse,
+      {
+        userId: string;
+        question: string;
+        answer: string;
+        count?: number;
+      }
+    >({
+      query: ({ userId, ...data }) => ({
+        url: `/memory-cards/${userId}/ai-alternatives`,
+        method: "POST",
+        body: data,
+      }),
+    }),
   }),
 });
 
@@ -934,5 +1281,16 @@ export const {
   useGetRevenueAnalyticsQuery,
   useGetPlatformAnalyticsQuery,
   useGetUploadAssignmentFileUrlMutation,
+  useGetUserDecksQuery,
+  useGetDeckQuery,
+  useCreateDeckMutation,
+  useDeleteDeckMutation,
+  useAddCardMutation,
+  useUpdateCardMutation,
+  useDeleteCardMutation,
+  useGetDueCardsQuery,
+  useSubmitCardReviewMutation,
+  useGenerateCardsFromCourseMutation,
+  useGenerateAIAlternativesMutation,
 
 } = api;

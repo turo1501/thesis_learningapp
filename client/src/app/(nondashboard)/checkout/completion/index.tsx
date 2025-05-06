@@ -3,11 +3,23 @@
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import Link from "next/link";
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { Confetti } from "@/components/ui/Confetti";
 
 const CompletionPage = () => {
+  const [showConfetti, setShowConfetti] = useState(true);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowConfetti(false);
+    }, 6000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+  
   return (
     <div className="completion">
+      {showConfetti && <Confetti duration={6000} particleCount={200} />}
       <div className="completion__content">
         <div className="completion__icon">
           <Check className="w-16 h-16" />

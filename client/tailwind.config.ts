@@ -127,10 +127,19 @@ const config = {
             height: "0",
           },
         },
+        confetti: {
+          "0%": {
+            transform: "translateY(0) rotateX(0) rotateY(0)",
+          },
+          "100%": {
+            transform: "translateY(calc(100vh + 20px)) rotateX(360deg) rotateY(360deg)",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "confetti": "confetti 3s ease-in-out forwards",
       },
       fontFamily: {
         sans: ["var(--font-dm-sans)"],
