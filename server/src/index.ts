@@ -23,8 +23,11 @@ import chatRoutes from "./routes/chatRoutes";
 import blogPostRoutes from "./routes/blogPostRoutes";
 import assignmentRoutes from "./routes/assignmentRoutes";
 import meetingRoutes from "./routes/meetingRoutes";
+import dashboardRoutes from "./routes/dashboardRoutes";
+import analyticsRoutes from "./routes/analyticsRoutes";
 import { errorHandler } from "./middleware/errorMiddleware";
 import { authenticate } from "./middleware/authMiddleware";
+import { resetPassword } from "./controllers/userClerkController";
 
 /* CONFIGURATIONS */
 dotenv.config();
@@ -54,6 +57,7 @@ app.get("/", (_req, res) => {
 
 app.use("/courses", courseRoutes);
 app.use("/users/clerk", requireAuth(), authenticate, userClerkRoutes);
+app.post("/users/password-reset", resetPassword);
 app.use("/role-change", requireAuth(), authenticate, roleChangeRoutes);
 app.use("/transactions", requireAuth(), authenticate, transactionRoutes);
 app.use("/users/course-progress", requireAuth(), authenticate, userCourseProgressRoutes);
@@ -61,6 +65,8 @@ app.use("/chat", requireAuth(), authenticate, chatRoutes);
 app.use("/blog-posts", blogPostRoutes);
 app.use("/assignments", assignmentRoutes);
 app.use("/meetings", meetingRoutes);
+app.use("/dashboard", requireAuth(), authenticate, dashboardRoutes);
+app.use("/analytics", requireAuth(), authenticate, analyticsRoutes);
 
 /* ERROR MIDDLEWARE */
 app.use(errorHandler);

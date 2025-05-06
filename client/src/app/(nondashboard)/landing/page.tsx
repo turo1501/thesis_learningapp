@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
+
 import { motion } from "framer-motion";
 import Link from "next/link";
 import Image from "next/image";
@@ -11,20 +12,12 @@ import { useRouter } from "next/navigation";
 import CourseCardSearch from "@/components/CourseCardSearch";
 import { useUser } from "@clerk/nextjs";
 
-// Define the Course interface structure expected by CourseCardSearch
-interface Course {
-  courseId: string;
-  title: string;
-  description: string;
-  teacherId: string;
-  teacherName: string;
-  category: string;
-  level: "Beginner" | "Intermediate" | "Advanced";
-  status: "Draft" | "Published";
-  sections: any[];
-  price?: number;
-  image?: string;
-  enrollments?: Array<{ userId: string }>;
+// Định nghĩa kiểu dữ liệu cho API response
+interface CoursesResponse {
+  data?: Course[];
+  success?: boolean;
+  [key: string]: any;
+
 }
 
 const LoadingSkeleton = () => {
@@ -94,7 +87,35 @@ const Landing = () => {
     });
   };
 
+  // Kiểm tra dữ liệu khóa học từ API
+  useEffect(() => {
+    if (courses) {
+      console.log("Courses data:", courses);
+    }
+  }, [courses]);
+
+  // Đảm bảo chúng ta có mảng khóa học để hiển thị
+  const coursesToShow = React.useMemo(() => {
+    // Kiểm tra xem courses có phải là mảng không
+    if (courses && Array.isArray(courses)) {
+      return courses.slice(0, 4) as Course[]; // Nếu là mảng, lấy 4 phần tử đầu tiên
+    } else if (courses && 'data' in courses && Array.isArray((courses as CoursesResponse).data)) {
+      return (courses as CoursesResponse).data?.slice(0, 4) || []; // Nếu courses có thuộc tính data là mảng
+    } else {
+      return [] as Course[]; // Trả về mảng rỗng nếu không có dữ liệu hợp lệ
+    }
+  }, [courses]);
+
   if (isLoading) return <LoadingSkeleton />;
+
+  if (isError) {
+    return (
+      <div className="landing__error">
+        <h2>Không thể tải khóa học</h2>
+        <p>Đã xảy ra lỗi khi tải dữ liệu khóa học. Vui lòng thử lại sau.</p>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -167,13 +188,14 @@ const Landing = () => {
         </div>
 
         <div className="landing__courses">
-          {courses.length > 0 &&
-            courses.slice(0, 4).map((course, index) => (
+          {coursesToShow.length > 0 ? (
+            coursesToShow.map((course) => (
+
               <motion.div
-                key={course.courseId}
+                key={course.courseId || Math.random().toString()}
                 initial={{ y: 50, opacity: 0 }}
                 whileInView={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.5, delay: index * 0.2 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
                 viewport={{ amount: 0.4 }}
               >
                 <CourseCardSearch
@@ -181,7 +203,10 @@ const Landing = () => {
                   onClick={() => handleCourseClick(course.courseId)}
                 />
               </motion.div>
-            ))}
+            ))
+          ) : (
+            <p className="landing__no-courses">Không có khóa học nào được tìm thấy.</p>
+          )}
         </div>
       </motion.div>
     </motion.div>

@@ -66,6 +66,14 @@ import { useDispatch } from "react-redux";
 import { api } from "@/state/api";
 import { useAppSelector } from "@/state/redux";
 import { useUser, useAuth } from "@clerk/nextjs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type UserData = {
   id: string;
@@ -105,6 +113,13 @@ const addUserSchema = z.object({
 const roleChangeResponseSchema = z.object({
   rejectionReason: z.string().optional(),
 });
+
+// Thêm interface để phù hợp với API response format
+interface UserDataResponse {
+  data?: UserData[];
+  success?: boolean;
+  [key: string]: any;
+}
 
 const UserManagement = () => {
   const dispatch = useDispatch();
@@ -233,6 +248,24 @@ const UserManagement = () => {
     search: searchTerm !== "" ? searchTerm : undefined,
   });
 
+  // Debug data structure
+  useEffect(() => {
+    if (usersData) {
+      console.log("Users data from API:", usersData);
+    }
+  }, [usersData]);
+
+  // Ensure users array is properly extracted from API response
+  const users = React.useMemo(() => {
+    if (usersData && Array.isArray(usersData)) {
+      return usersData as UserData[];
+    } else if (usersData && typeof usersData === 'object' && 'data' in usersData) {
+      return (usersData as UserDataResponse).data || [];
+    } else {
+      return [] as UserData[];
+    }
+  }, [usersData]);
+
   // Get pending role change requests
   const {
     data: pendingRoleChangeRequests,
@@ -248,24 +281,48 @@ const UserManagement = () => {
   const [approveRoleChange] = api.useApproveRoleChangeMutation();
   const [rejectRoleChange] = api.useRejectRoleChangeMutation();
 
-  const users: UserData[] = usersData || [];
-
   // Method to open dialog for different actions
   const openDialog = (
     user: UserData,
     type: "role" | "password" | "suspend" | "activate"
   ) => {
-    setSelectedUser(user);
-    setDialogType(type);
-    
-    // Set default form values based on the user
-    if (type === "role") {
-      roleForm.setValue("role", user.role);
-    } else if (type === "password") {
-      passwordForm.setValue("email", user.email);
+    // Kiểm tra nếu dialog đang mở với cùng một user và type
+    if (isDialogOpen && selectedUser?.id === user.id && dialogType === type) {
+      // Dialog đã mở, không cần làm gì thêm
+      return;
     }
     
-    setIsDialogOpen(true);
+    // Nếu dialog đang mở với user hoặc type khác, đóng trước khi mở lại
+    if (isDialogOpen) {
+      setIsDialogOpen(false);
+      // Sử dụng timeout để đảm bảo dialog đóng hoàn toàn trước khi mở lại
+      setTimeout(() => {
+        setSelectedUser(user);
+        setDialogType(type);
+        
+        // Set default form values based on the user
+        if (type === "role") {
+          roleForm.setValue("role", user.role);
+        } else if (type === "password") {
+          passwordForm.setValue("email", user.email);
+        }
+        
+        setIsDialogOpen(true);
+      }, 100);
+    } else {
+      // Dialog chưa mở, mở bình thường
+      setSelectedUser(user);
+      setDialogType(type);
+      
+      // Set default form values based on the user
+      if (type === "role") {
+        roleForm.setValue("role", user.role);
+      } else if (type === "password") {
+        passwordForm.setValue("email", user.email);
+      }
+      
+      setIsDialogOpen(true);
+    }
   };
 
   // Handle role change submission
@@ -293,18 +350,94 @@ const UserManagement = () => {
 
   // Handle password reset submission
   const handlePasswordReset = async (values: z.infer<typeof passwordResetSchema>) => {
+    if (!selectedUser) return;
+    
     setIsSubmitting(true);
+    console.log("Attempting password reset for:", values.email);
+    
     try {
-      await resetUserPassword({ email: values.email }).unwrap();
-      toast.success(`Password reset initiated for ${values.email}`);
+      const response = await resetUserPassword({ email: values.email }).unwrap();
+      console.log("Password reset response:", response);
+      
+      // Đóng dialog trước khi hiển thị thông báo toast
+      // Điều này sẽ ngăn không cho UI bị treo
+      closeDialog();
+      
+      // Sau khi đóng dialog, mới hiển thị toast thông báo
+      if (response && response.success) {
+        toast.success(response.message || `Password reset initiated for ${values.email}`);
+        
+        // Nếu có redirectUrl, thêm nút để redirect trong toast
+        if (response.redirectUrl) {
+          toast.success(
+            <div>
+              <p>Password reset link is ready.</p>
+              <button 
+                onClick={() => window.open(response.redirectUrl, '_blank')}
+                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 w-full"
+              >
+                Go to Reset Password Page
+              </button>
+            </div>,
+            { duration: 8000 }
+          );
+        }
+      } else {
+        toast.success(`Password reset email sent to ${values.email}`);
+      }
+      
+      // Reset form sau khi xử lý thành công
       passwordForm.reset();
-      setIsDialogOpen(false);
-    } catch (error) {
+    } catch (error: any) {
+      // Đóng dialog trước khi hiển thị thông báo lỗi
+      closeDialog();
+      
       console.error("Error resetting password:", error);
-      toast.error("Failed to reset password. Please try again.");
+      
+      // Hiển thị thông báo lỗi cụ thể hơn
+      if (error.status === 404) {
+        toast.error("Reset password endpoint not found. Please contact the administrator.");
+      } else if (error.status === 401 || error.status === 403) {
+        toast.error("You don't have permission to perform this action.");
+      } else {
+        toast.error(error.data?.message || "Failed to reset password. Please try again.");
+      }
     } finally {
+      // Đảm bảo set submitting về false
       setIsSubmitting(false);
     }
+  };
+
+  // Method to close dialog properly with cleanup
+  const closeDialog = () => {
+    // Đóng dialog UI
+    setIsDialogOpen(false);
+    
+    // Reset submitting state immediately
+    setIsSubmitting(false);
+    
+    // Tạm thời vô hiệu hóa tất cả các DOM event trong quá trình đóng dialog
+    // Điều này ngăn không cho người dùng tương tác trong quá trình đóng dialog
+    const overlay = document.querySelector('[data-state="open"][role="dialog"]');
+    if (overlay) {
+      const existingPointerEvents = overlay.getAttribute('style') || '';
+      overlay.setAttribute('style', `${existingPointerEvents}; pointer-events: none;`);
+    }
+    
+    // Thực hiện cleanup state sau khi dialog đã đóng hoàn toàn
+    setTimeout(() => {
+      if (overlay) {
+        // Khôi phục pointer events
+        overlay.removeAttribute('style');
+      }
+      
+      // Chỉ thực hiện reset các form đã submit
+      if (dialogType === "password") {
+        passwordForm.reset();
+      } else if (dialogType === "role") {
+        roleForm.reset();
+      }
+    }, 200);
   };
 
   // Handle status change (suspend/activate)
@@ -458,24 +591,39 @@ const UserManagement = () => {
     }
   };
 
-  if (isUsersLoading) return <Loading />;
-  
   if (isError) {
     return (
-      <div className="p-8">
+      <div className="user-management">
         <Header
           title="User Management"
-          subtitle="Manage users and their roles"
+          subtitle="Manage user accounts, permissions and roles"
+          rightElement={
+            <Button
+              onClick={() => setIsAddUserDialogOpen(true)}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <User className="mr-1 h-4 w-4" />
+              Add User
+            </Button>
+          }
         />
-        <Card className="p-8 mt-6 text-center text-red-500">
-          <p>Error loading users. Please try again later.</p>
-          <Button 
-            className="mt-4 bg-blue-600 hover:bg-blue-700"
-            onClick={() => refetch()}
-          >
-            Retry
-          </Button>
+        <Card className="p-8 text-center text-red-400 bg-red-900/20 border border-red-900/50">
+          <AlertCircle className="h-10 w-10 mx-auto mb-4 text-red-400" />
+          <h3 className="text-xl font-semibold mb-2">Error Loading Users</h3>
+          <p>There was an error loading user data. Please try again later or contact support.</p>
         </Card>
+      </div>
+    );
+  }
+
+  if (isUsersLoading) {
+    return (
+      <div className="user-management">
+        <Header
+          title="User Management"
+          subtitle="Manage user accounts, permissions and roles"
+        />
+        <Loading />
       </div>
     );
   }
@@ -568,11 +716,7 @@ const UserManagement = () => {
             </div>
           </div>
 
-          {users.length === 0 ? (
-            <Card className="p-8 text-center text-slate-400">
-              <p>No users found matching your filters.</p>
-            </Card>
-          ) : (
+          {users.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
@@ -648,50 +792,44 @@ const UserManagement = () => {
                             <Pencil size={14} className="mr-1" />
                             Edit
                           </Button>
-                          <div className="relative group">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="bg-transparent hover:bg-slate-700 text-slate-400"
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="bg-transparent hover:bg-slate-700 text-slate-400"
+                                aria-label="User actions menu"
+                              >
+                                <MoreHorizontal size={16} />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent 
+                              align="end" 
+                              className="bg-slate-900 border-slate-700"
+                              onCloseAutoFocus={(e) => {
+                                // Ngăn behavior mặc định để tránh giữ focus sau khi đóng
+                                e.preventDefault();
+                              }}
                             >
-                              <MoreHorizontal size={16} />
-                            </Button>
-                            <div className="absolute right-0 mt-2 w-48 bg-slate-900 border border-slate-700 rounded-md shadow-lg z-10 hidden group-hover:block">
-                              <ul className="py-1">
-                                <li>
-                                  <button 
-                                    className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 flex items-center"
-                                    onClick={() => openDialog(user, "password")}
-                                  >
-                                    <Lock size={14} className="mr-2" />
-                                    Reset Password
-                                  </button>
-                                </li>
-                                {user.status !== "suspended" && (
-                                  <li>
-                                    <button
-                                      className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-slate-800 flex items-center"
-                                      onClick={() => openDialog(user, "suspend")}
-                                    >
-                                      <UserX size={14} className="mr-2" />
-                                      Suspend Account
-                                    </button>
-                                  </li>
-                                )}
-                                {user.status === "suspended" && (
-                                  <li>
-                                    <button
-                                      className="w-full text-left px-4 py-2 text-sm text-green-500 hover:bg-slate-800 flex items-center"
-                                      onClick={() => openDialog(user, "activate")}
-                                    >
-                                      <CheckCircle size={14} className="mr-2" />
-                                      Reactivate Account
-                                    </button>
-                                  </li>
-                                )}
-                              </ul>
-                            </div>
-                          </div>
+                              <DropdownMenuLabel>User Actions</DropdownMenuLabel>
+                              <DropdownMenuSeparator className="bg-slate-700" />
+                              <DropdownMenuItem onClick={() => openDialog(user, "password")} className="cursor-pointer">
+                                <Lock size={14} className="mr-2" />
+                                Reset Password
+                              </DropdownMenuItem>
+                              {user.status !== "suspended" ? (
+                                <DropdownMenuItem onClick={() => openDialog(user, "suspend")} className="cursor-pointer text-red-500 focus:text-red-500">
+                                  <UserX size={14} className="mr-2" />
+                                  Suspend Account
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem onClick={() => openDialog(user, "activate")} className="cursor-pointer text-green-500 focus:text-green-500">
+                                  <CheckCircle size={14} className="mr-2" />
+                                  Reactivate Account
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </td>
                     </tr>
@@ -699,6 +837,10 @@ const UserManagement = () => {
                 </tbody>
               </table>
             </div>
+          ) : (
+            <Card className="p-8 text-center text-slate-400">
+              <p>{isUsersLoading ? "Loading users..." : "No users found matching your filters."}</p>
+            </Card>
           )}
         </TabsContent>
 
@@ -891,7 +1033,7 @@ const UserManagement = () => {
                     type="button"
                     variant="outline"
                     className="bg-slate-800 border-slate-700 hover:bg-slate-700"
-                    onClick={() => setIsDialogOpen(false)}
+                    onClick={closeDialog}
                   >
                     Cancel
                   </Button>
@@ -923,7 +1065,7 @@ const UserManagement = () => {
                     type="button"
                     variant="outline"
                     className="bg-slate-800 border-slate-700 hover:bg-slate-700"
-                    onClick={() => setIsDialogOpen(false)}
+                    onClick={closeDialog}
                   >
                     Cancel
                   </Button>
@@ -956,7 +1098,7 @@ const UserManagement = () => {
                 <Button
                   variant="outline"
                   className="bg-slate-800 border-slate-700 hover:bg-slate-700"
-                  onClick={() => setIsDialogOpen(false)}
+                  onClick={closeDialog}
                 >
                   Cancel
                 </Button>
@@ -987,7 +1129,7 @@ const UserManagement = () => {
                 <Button
                   variant="outline"
                   className="bg-slate-800 border-slate-700 hover:bg-slate-700"
-                  onClick={() => setIsDialogOpen(false)}
+                  onClick={closeDialog}
                 >
                   Cancel
                 </Button>

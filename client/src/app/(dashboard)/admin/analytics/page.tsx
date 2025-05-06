@@ -69,6 +69,17 @@ interface RevenueDataItem {
   revenue: number;
 }
 
+interface UserActivity {
+  type: string;
+  userId: string;
+  user?: {
+    name: string;
+    imageUrl: string | null;
+  };
+  date: string;
+  data?: any;
+}
+
 const AnalyticsPage = () => {
   const [timeRange, setTimeRange] = useState("6months");
 
@@ -80,26 +91,7 @@ const AnalyticsPage = () => {
   const { data: courseAnalytics, isLoading: isCourseAnalyticsLoading } = useGetCourseAnalyticsQuery(timeRange);
   const { data: revenueAnalytics, isLoading: isRevenueAnalyticsLoading } = useGetRevenueAnalyticsQuery(timeRange);
   const { data: platformAnalytics, isLoading: isPlatformAnalyticsLoading } = useGetPlatformAnalyticsQuery(timeRange);
-
-  // Add console logging to debug data
-  useEffect(() => {
-    if (dashboardStats) console.log("Dashboard stats:", dashboardStats);
-    if (monthlyRevenue) console.log("Monthly revenue:", monthlyRevenue);
-    if (analyticsSummary) console.log("Analytics summary:", analyticsSummary);
-    if (userAnalytics) console.log("User analytics:", userAnalytics);
-    if (courseAnalytics) console.log("Course analytics:", courseAnalytics);
-    if (revenueAnalytics) console.log("Revenue analytics:", revenueAnalytics);
-    if (platformAnalytics) console.log("Platform analytics:", platformAnalytics);
-  }, [
-    dashboardStats, 
-    monthlyRevenue, 
-    analyticsSummary, 
-    userAnalytics, 
-    courseAnalytics, 
-    revenueAnalytics, 
-    platformAnalytics
-  ]);
-
+  
   // Show loading state if any data is still loading
   const isLoading = 
     isStatsLoading || 
@@ -109,6 +101,16 @@ const AnalyticsPage = () => {
     isCourseAnalyticsLoading || 
     isRevenueAnalyticsLoading || 
     isPlatformAnalyticsLoading;
+
+  // Debug log to see data structure
+  useEffect(() => {
+    if (dashboardStats?.data) {
+      console.log("Dashboard stats data:", dashboardStats.data);
+    }
+    if (analyticsSummary) {
+      console.log("Analytics summary:", analyticsSummary);
+    }
+  }, [dashboardStats, analyticsSummary]);
 
   if (isLoading) {
     return <Loading />;
@@ -126,18 +128,18 @@ const AnalyticsPage = () => {
   const stats = [
     {
       title: "Total Users",
-      value: dashboardStats?.users?.total ? dashboardStats.users.total.toLocaleString() : "0",
-      change: dashboardStats?.users?.growth || "+0%",
-      changeValue: dashboardStats?.users?.growthValue || 0,
+      value: dashboardStats?.data?.users?.total ? dashboardStats.data.users.total.toLocaleString() : "0",
+      change: dashboardStats?.data?.users?.growth || "+0%",
+      changeValue: dashboardStats?.data?.users?.growthValue || 0,
       icon: <Users className="h-6 w-6 text-blue-500" />,
       iconBg: "bg-blue-500/20",
       hoverBorder: "hover:border-blue-500/30",
     },
     {
       title: "Active Courses",
-      value: dashboardStats?.courses?.total ? dashboardStats.courses.total.toLocaleString() : "0",
-      change: dashboardStats?.courses?.growth || "+0%",
-      changeValue: dashboardStats?.courses?.growthValue || 0,
+      value: dashboardStats?.data?.courses?.total ? dashboardStats.data.courses.total.toLocaleString() : "0",
+      change: dashboardStats?.data?.courses?.growth || "+0%",
+      changeValue: dashboardStats?.data?.courses?.growthValue || 0,
       icon: <BookOpen className="h-6 w-6 text-green-500" />,
       iconBg: "bg-green-500/20",
       hoverBorder: "hover:border-green-500/30",
@@ -153,9 +155,9 @@ const AnalyticsPage = () => {
     },
     {
       title: "Revenue",
-      value: `$${dashboardStats?.revenue?.total ? dashboardStats.revenue.total.toLocaleString() : "0"}`,
-      change: dashboardStats?.revenue?.growth || "+0%",
-      changeValue: dashboardStats?.revenue?.growthValue || 0,
+      value: `$${dashboardStats?.data?.revenue?.total ? dashboardStats.data.revenue.total.toLocaleString() : "0"}`,
+      change: dashboardStats?.data?.revenue?.growth || "+0%",
+      changeValue: dashboardStats?.data?.revenue?.growthValue || 0,
       icon: <DollarSign className="h-6 w-6 text-yellow-500" />,
       iconBg: "bg-yellow-500/20",
       hoverBorder: "hover:border-yellow-500/30",
@@ -163,40 +165,16 @@ const AnalyticsPage = () => {
   ];
 
   // Prepare user growth data
-  const userGrowthData = userAnalytics?.userGrowth || [
-    { month: "Jan", students: 0, teachers: 0 },
-    { month: "Feb", students: 0, teachers: 0 },
-    { month: "Mar", students: 0, teachers: 0 },
-    { month: "Apr", students: 0, teachers: 0 },
-    { month: "May", students: 0, teachers: 0 },
-    { month: "Jun", students: 0, teachers: 0 },
-  ];
+  const userGrowthData = userAnalytics?.userGrowth || [];
 
   // Prepare revenue data
-  const revenueData = monthlyRevenue || [
-    { month: "Jan", revenue: 0 },
-    { month: "Feb", revenue: 0 },
-    { month: "Mar", revenue: 0 },
-    { month: "Apr", revenue: 0 },
-    { month: "May", revenue: 0 },
-    { month: "Jun", revenue: 0 },
-  ];
+  const revenueData = monthlyRevenue?.data || [];
 
   // Prepare course enrollment data
-  const courseEnrollmentData = courseAnalytics?.enrollmentByCategory || [
-    { name: "Other", value: 1 },
-  ];
+  const courseEnrollmentData = courseAnalytics?.enrollmentByCategory || [];
 
   // Prepare course activity data
-  const courseActivityData = platformAnalytics?.dailyActiveUsers || [
-    { day: "Mon", activeUsers: 0 },
-    { day: "Tue", activeUsers: 0 },
-    { day: "Wed", activeUsers: 0 },
-    { day: "Thu", activeUsers: 0 },
-    { day: "Fri", activeUsers: 0 },
-    { day: "Sat", activeUsers: 0 },
-    { day: "Sun", activeUsers: 0 },
-  ];
+  const courseActivityData = platformAnalytics?.dailyActiveUsers || [];
 
   return (
     <div className="analytics-dashboard pb-8">
@@ -206,10 +184,10 @@ const AnalyticsPage = () => {
         rightElement={
           <div className="flex items-center gap-3">
             <Select defaultValue={timeRange} onValueChange={setTimeRange}>
-              <SelectTrigger className="w-[180px] bg-slate-800 border-slate-700">
+              <SelectTrigger className="w-[180px] bg-slate-800 border-slate-700 text-white">
                 <SelectValue placeholder="Select time range" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-slate-800 border-slate-700 text-white">
                 <SelectItem value="7days">Last 7 days</SelectItem>
                 <SelectItem value="30days">Last 30 days</SelectItem>
                 <SelectItem value="3months">Last 3 months</SelectItem>
@@ -217,36 +195,38 @@ const AnalyticsPage = () => {
                 <SelectItem value="1year">Last year</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" className="gap-2 bg-slate-800 border-slate-700">
-              <Download size={16} />
-              Export
-              <ChevronDown size={14} />
+            <Button variant="outline" className="flex items-center gap-2 bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
+              <Download className="h-4 w-4" />
+              <span>Export</span>
+              <ChevronDown className="h-4 w-4 ml-2" />
             </Button>
           </div>
         }
       />
 
       {/* Key Metrics Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {stats.map((stat, index) => (
-          <Card key={index} className={`bg-slate-800 border-slate-700 ${stat.hoverBorder} transition-colors`}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className={`${stat.iconBg} p-3 rounded-lg`}>
+          <Card 
+            key={index} 
+            className={`bg-slate-800 border-slate-700 ${stat.hoverBorder} transition-colors`}
+          >
+            <CardContent className="py-6 px-5">
+              <div className="flex justify-between items-center mb-4">
+                <div className={`p-3 rounded-lg ${stat.iconBg}`}>
                   {stat.icon}
                 </div>
-                <div className={`flex items-center gap-1 ${isPositive(stat.changeValue) ? "text-green-500" : "text-red-500"} text-sm`}>
-                  <span>{stat.change}</span>
-                  {isPositive(stat.changeValue) ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                </div>
+                <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                  isPositive(stat.changeValue) 
+                    ? 'bg-green-900/40 text-green-400' 
+                    : 'bg-red-900/40 text-red-400'
+                }`}>
+                  {stat.change}
+                </span>
               </div>
-              <div className="mt-4">
-                <h3 className="text-slate-400 text-sm font-medium">{stat.title}</h3>
-                <div className="flex items-end gap-2 mt-1">
-                  <span className="text-2xl font-bold">{stat.value}</span>
-                  {stat.title !== "Revenue" && <span className="text-slate-400 text-sm">{stat.title.toLowerCase()}</span>}
-                  {stat.title === "Revenue" && <span className="text-slate-400 text-sm">this month</span>}
-                </div>
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-slate-400">{stat.title}</p>
+                <h2 className="text-2xl font-bold text-white">{stat.value}</h2>
               </div>
             </CardContent>
           </Card>
@@ -717,68 +697,6 @@ const AnalyticsPage = () => {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
-  );
-};
-
-export default AnalyticsPage; 
-      {/* Recent Activity Section */}
-      <div className="mt-8">
-        <Card className="bg-slate-800 border-slate-700">
-          <CardHeader className="border-b border-slate-700">
-            <CardTitle className="text-lg font-medium">Recent Platform Activity</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-slate-700">
-              {[1, 2, 3, 4, 5].map((_, index) => (
-                <div key={index} className="px-6 py-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="bg-blue-500/20 p-2 rounded-full">
-                      {index % 3 === 0 ? (
-                        <Users className="h-5 w-5 text-blue-500" />
-                      ) : index % 3 === 1 ? (
-                        <BookOpen className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <DollarSign className="h-5 w-5 text-yellow-500" />
-                      )}
-                    </div>
-                    <div>
-                      <h4 className="font-medium">
-                        {index % 3 === 0
-                          ? "New user registered"
-                          : index % 3 === 1
-                          ? "New course published"
-                          : "New payment received"}
-                      </h4>
-                      <p className="text-sm text-slate-400">
-                        {index % 3 === 0
-                          ? "John Doe registered as a new student"
-                          : index % 3 === 1
-                          ? "Web Development Masterclass published by Jane Smith"
-                          : "Payment of $99.99 received for Python Course"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <Calendar className="h-4 w-4 text-slate-400 mr-1" />
-                    <span className="text-sm text-slate-400">
-                      {index === 0
-                        ? "Just now"
-                        : index === 1
-                        ? "2 hours ago"
-                        : index === 2
-                        ? "5 hours ago"
-                        : index === 3
-                        ? "Yesterday"
-                        : "2 days ago"}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 };

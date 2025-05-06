@@ -3,6 +3,7 @@ import { twMerge } from "tailwind-merge";
 import * as z from "zod";
 import { api } from "../state/api";
 import { toast } from "sonner";
+import { format, formatDistance } from "date-fns";
 
 /**
  * Combines and merges class names using clsx and tailwind-merge
@@ -11,12 +12,62 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Convert cents to formatted currency string (e.g., 4999 -> "$49.99")
-export function formatPrice(cents: number | undefined): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format((cents || 0) / 100);
+/**
+ * Format a price from cents to dollars with dollar sign
+ * @param price - Price in cents
+ * @returns Formatted price string with dollar sign
+ */
+export function formatPrice(price?: number | null): string {
+  if (price === undefined || price === null) return "Free";
+  return `$${(price / 100).toFixed(2)}`;
+}
+
+/**
+ * Format a date as a relative time string (e.g., "2 days ago")
+ * @param date - Date to format
+ * @returns Formatted relative time string
+ */
+export function formatRelativeTime(date: Date | string | number): string {
+  const dateObj = date instanceof Date ? date : new Date(date);
+  return formatDistance(dateObj, new Date(), { addSuffix: true });
+}
+
+/**
+ * Format a date in a readable format (e.g., "Jan 01, 2023 14:30")
+ * @param date - Date to format
+ * @param formatString - Optional format string
+ * @returns Formatted date string
+ */
+export function formatDateTime(
+  date: Date | string | number,
+  formatString: string = "MMM dd, yyyy HH:mm"
+): string {
+  const dateObj = date instanceof Date ? date : new Date(date);
+  return format(dateObj, formatString);
+}
+
+/**
+ * Format a date in a short format (e.g., "Jan 01, 2023")
+ * @param date - Date to format 
+ * @returns Formatted date string
+ */
+export function formatDate(
+  date: Date | string | number,
+  formatString: string = "MMM dd, yyyy"
+): string {
+  const dateObj = date instanceof Date ? date : new Date(date);
+  return format(dateObj, formatString);
+}
+
+/**
+ * Truncate a string to a specific length and add ellipsis if needed
+ * @param str - String to truncate
+ * @param length - Max length
+ * @returns Truncated string
+ */
+export function truncateString(str: string, length: number = 50): string {
+  if (!str) return "";
+  return str.length > length ? str.substring(0, length) + "..." : str;
 }
 
 // Convert dollars to cents (e.g., "49.99" -> 4999)

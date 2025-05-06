@@ -22,15 +22,15 @@ router.get("/check-auth", (req, res) => {
   });
 });
 
-// Route for updating a user
-router.put("/:userId", updateUser);
-
-// Routes for admin user management
+// User routes
 router.get("/", requireRole(["admin"]), getAllUsers);
 router.get("/:userId", requireRole(["admin"]), getUserById);
+router.put("/:userId", requireRole(["admin"]), updateUser);
 router.put("/:userId/role", requireRole(["admin"]), updateUserRole);
 router.put("/:userId/status", requireRole(["admin"]), updateUserStatus);
 router.post("/", requireRole(["admin"]), createUser);
-router.post("/reset-password", requireRole(["admin"]), resetPassword);
+
+// Tạo export riêng cho resetPassword để sử dụng trong index.ts
+export { resetPassword };
 
 export default router;
