@@ -3,15 +3,17 @@
 import { SignIn, useAuth } from "@clerk/nextjs";
 import React, { useEffect, useState, useRef } from "react";
 import { dark } from "@clerk/themes";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const SignInComponent = () => {
   const { isSignedIn, isLoaded, userId } = useAuth();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const isCheckoutPage = searchParams.get("showSignUp") !== null;
   const courseId = searchParams.get("id");
   const showSignUpValue = searchParams.get("showSignUp") || "false";
   const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
 
   const signUpUrl = isCheckoutPage
     ? `/checkout?step=1&id=${courseId}&showSignUp=true`
@@ -29,9 +31,9 @@ const SignInComponent = () => {
   }, []);
 
   useEffect(() => {
-    if (!isLoaded) return; // Đợi Clerk tải dữ liệu xong
+    if (!isLoaded) return; // Wait for Clerk to load
 
-    if (!isSignedIn) return; // Nếu chưa đăng nhập, không cần xử lý tiếp
+    if (!isSignedIn) return; // If not signed in, no need to process further
 
     // Clear any existing timeout
     if (redirectTimeoutRef.current) {
@@ -43,6 +45,7 @@ const SignInComponent = () => {
       redirectTimeoutRef.current = setTimeout(() => {
         setRedirectUrl(`/checkout?step=2&id=${courseId}&showSignUp=${showSignUpValue}`);
       }, 300);
+
       return;
     }
 
@@ -63,6 +66,7 @@ const SignInComponent = () => {
       })
       .catch((error) => console.error("Error fetching user role:", error));
   }, [isLoaded, isSignedIn, userId, isCheckoutPage, courseId, showSignUpValue]);
+
 
   return (
     <SignIn
@@ -87,7 +91,7 @@ const SignInComponent = () => {
         },
       }}
       signUpUrl={signUpUrl}
-      forceRedirectUrl={redirectUrl} // Chỉ redirect khi redirectUrl có giá trị
+      forceRedirectUrl={redirectUrl} // Only redirect when redirectUrl has a value
       routing="hash"
       afterSignOutUrl="/"
     />
