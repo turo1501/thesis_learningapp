@@ -26,6 +26,7 @@ import {
   LayoutDashboard,
   UserCog,
   BarChart3,
+
 } from "lucide-react";
 import Loading from "./Loading";
 import Image from "next/image";
@@ -46,6 +47,7 @@ const AppSidebar = () => {
       { icon: User, label: "Profile", href: "/user/profile" },
       { icon: VideoIcon, label: "Meetings", href: "/user/meetings" },
 
+
       { icon: Settings, label: "Settings", href: "/user/settings" },
     ],
     teacher: [
@@ -54,6 +56,7 @@ const AppSidebar = () => {
       { icon: VideoIcon, label: "Meetings", href: "/teacher/meetings" },
       { icon: DollarSign, label: "Billing", href: "/teacher/billing" },
       { icon: PenTool, label: "Blog", href: "/teacher/blog" },
+
       { icon: User, label: "Profile", href: "/teacher/profile" },
       { icon: Settings, label: "Settings", href: "/teacher/settings" },
     ],
@@ -65,6 +68,7 @@ const AppSidebar = () => {
       { icon: FileText, label: "Blog Approval", href: "/admin/blog-approval" },
       { icon: BarChart3, label: "Analytics", href: "/admin/analytics" },
       { icon: User, label: "Profile", href: "/admin/profile" },
+
     ],
   };
 
@@ -150,6 +154,26 @@ const AppSidebar = () => {
           })}
         </SidebarMenu>
       </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <button
+                onClick={() => signOut()}
+                className="app-sidebar__signout"
+              >
+                <LogOut className="mr-2 h-6 w-6" />
+                <span>Sign out</span>
+              </button>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+    </Sidebar>
+  );
+};
+
+export default AppSidebar;
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
