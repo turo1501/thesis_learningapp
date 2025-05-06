@@ -23,6 +23,7 @@ export const useCheckoutNavigation = () => {
     };
   }, []);
 
+
   const navigateToStep = useCallback(
     (step: number) => {
       const newStep = Math.min(Math.max(1, step), 3);
@@ -44,14 +45,25 @@ export const useCheckoutNavigation = () => {
       }, 300); // Increased from 50ms to 300ms for better stability
     },
     [courseId, router, showSignUp]
+
   );
 
   // Only redirect back to step 1 if not signed in and trying to access step > 1
   useEffect(() => {
-    if (isLoaded && !isSignedIn && checkoutStep > 1) {
-      navigateToStep(1);
+    // Only redirect in these cases:
+    // 1. If user is not signed in and trying to access steps > 1
+    // 2. If user is a teacher trying to access checkout steps > 1
+    if (isLoaded) {
+      if ((!isSignedIn && checkoutStep > 1) || (isSignedIn && isTeacher && checkoutStep > 1)) {
+        // Redirect to step 1 or home for teachers
+        if (isTeacher) {
+          router.push('/teacher/courses');
+        } else {
+          navigateToStep(1);
+        }
+      }
     }
-  }, [isLoaded, isSignedIn, checkoutStep, navigateToStep]);
+  }, [isLoaded, isSignedIn, checkoutStep, navigateToStep, isTeacher, router]);
 
   return { checkoutStep, navigateToStep };
 };

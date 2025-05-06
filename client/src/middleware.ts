@@ -42,6 +42,7 @@ export default clerkMiddleware(async (auth, req) => {
       console.log("Redirecting admin to /admin/dashboard");
       const url = new URL("/admin/dashboard", req.url);
       return NextResponse.redirect(url);
+
     }
   }
 
@@ -66,6 +67,7 @@ export default clerkMiddleware(async (auth, req) => {
       console.log("Redirecting teacher to /teacher/courses");
       const url = new URL("/teacher/courses", req.url);
       return NextResponse.redirect(url);
+
     }
   }
 
