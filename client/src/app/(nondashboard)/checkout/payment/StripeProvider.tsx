@@ -32,17 +32,41 @@ const appearance: Appearance = {
 
 const StripeProvider = ({ children }: { children: React.ReactNode }) => {
   const [clientSecret, setClientSecret] = useState<string | "">("");
+  const [error, setError] = useState<string | null>(null);
   const [createStripePaymentIntent] = useCreateStripePaymentIntentMutation();
   const { course } = useCurrentCourse();
 
   useEffect(() => {
     if (!course) return;
     const fetchPaymentIntent = async () => {
-      const result = await createStripePaymentIntent({
-        amount: course?.price ?? 9999999999999,
-      }).unwrap();
+      try {
+        // Ensure the amount is valid for Stripe (max $999,999.99)
+        // Convert to cents (Stripe uses smallest currency unit)
+        let amount = course?.price || 0;
+        
+        // Cap at Stripe's maximum amount
+        if (amount > 99999999) {
+          amount = 99999999; // $999,999.99 in cents
+        }
+        
+        // Ensure amount is at least 50 cents (Stripe minimum)
+        if (amount < 50) {
+          amount = 50;
+        }
+        
+        const result = await createStripePaymentIntent({
+          amount,
+        }).unwrap();
 
-      setClientSecret(result.clientSecret);
+        if (result && result.clientSecret) {
+          setClientSecret(result.clientSecret);
+        } else {
+          setError("Invalid response from payment service");
+        }
+      } catch (err) {
+        console.error("Payment intent creation failed:", err);
+        setError("Failed to initialize payment service");
+      }
     };
 
     fetchPaymentIntent();
@@ -53,6 +77,7 @@ const StripeProvider = ({ children }: { children: React.ReactNode }) => {
     appearance,
   };
 
+  if (error) return <div className="payment-error">Error: {error}</div>;
   if (!clientSecret) return <Loading />;
 
   return (

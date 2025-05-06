@@ -386,11 +386,15 @@ export const api = createApi({
             ]
           : [{ type: 'Community' as const, id: 'LIST' }],
     }),
-    
-    getCommunityById: build.query<Community, string>({
-      query: (communityId) => ({
-        url: `/communities/${communityId}`,
-        method: 'GET',
+    createStripePaymentIntent: build.mutation<
+      { clientSecret: string },
+      { amount: number }
+    >({
+      query: ({ amount }) => ({
+        url: `transactions/stripe/payment-intent`,
+        method: "POST",
+        body: { amount },
+
       }),
       providesTags: (_result, _error, communityId) => [{ type: 'Community', id: communityId }],
     }),
