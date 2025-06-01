@@ -27,8 +27,7 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { 
-  useGetCoursesQuery, 
-  useGetCourseAssignmentsQuery 
+  useGetCoursesQuery
 } from "@/state/api";
 import { toast } from "sonner";
 
@@ -121,100 +120,42 @@ const TeacherAssignments = () => {
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
   const [hasAssignmentError, setHasAssignmentError] = useState(false);
 
-  // Individual course assignment queries - each hook must be called unconditionally at the top level
-  const course1Query = useGetCourseAssignmentsQuery(teacherCourses[0]?.courseId || "", { 
-    skip: !teacherCourses[0] || !teacherCourses[0]?.courseId || teacherCourses[0]?.courseId === "undefined"
-  });
-  const course2Query = useGetCourseAssignmentsQuery(teacherCourses[1]?.courseId || "", { 
-    skip: !teacherCourses[1] || !teacherCourses[1]?.courseId || teacherCourses[1]?.courseId === "undefined"
-  });
-  const course3Query = useGetCourseAssignmentsQuery(teacherCourses[2]?.courseId || "", { 
-    skip: !teacherCourses[2] || !teacherCourses[2]?.courseId || teacherCourses[2]?.courseId === "undefined"
-  });
-  const course4Query = useGetCourseAssignmentsQuery(teacherCourses[3]?.courseId || "", { 
-    skip: !teacherCourses[3] || !teacherCourses[3]?.courseId || teacherCourses[3]?.courseId === "undefined"
-  });
-  const course5Query = useGetCourseAssignmentsQuery(teacherCourses[4]?.courseId || "", { 
-    skip: !teacherCourses[4] || !teacherCourses[4]?.courseId || teacherCourses[4]?.courseId === "undefined"
-  });
-  const course6Query = useGetCourseAssignmentsQuery(teacherCourses[5]?.courseId || "", { 
-    skip: !teacherCourses[5] || !teacherCourses[5]?.courseId || teacherCourses[5]?.courseId === "undefined"
-  });
-  const course7Query = useGetCourseAssignmentsQuery(teacherCourses[6]?.courseId || "", { 
-    skip: !teacherCourses[6] || !teacherCourses[6]?.courseId || teacherCourses[6]?.courseId === "undefined"
-  });
-  const course8Query = useGetCourseAssignmentsQuery(teacherCourses[7]?.courseId || "", { 
-    skip: !teacherCourses[7] || !teacherCourses[7]?.courseId || teacherCourses[7]?.courseId === "undefined"
-  });
-  const course9Query = useGetCourseAssignmentsQuery(teacherCourses[8]?.courseId || "", { 
-    skip: !teacherCourses[8] || !teacherCourses[8]?.courseId || teacherCourses[8]?.courseId === "undefined"
-  });
-  const course10Query = useGetCourseAssignmentsQuery(teacherCourses[9]?.courseId || "", { 
-    skip: !teacherCourses[9] || !teacherCourses[9]?.courseId || teacherCourses[9]?.courseId === "undefined"
-  });
-
-  // Function to refetch all course assignments
-  const refetchAllAssignments = useCallback(() => {
-    // Refetch all course queries that are not skipped
-    if (teacherCourses[0]) course1Query.refetch();
-    if (teacherCourses[1]) course2Query.refetch();
-    if (teacherCourses[2]) course3Query.refetch();
-    if (teacherCourses[3]) course4Query.refetch();
-    if (teacherCourses[4]) course5Query.refetch();
-    if (teacherCourses[5]) course6Query.refetch();
-    if (teacherCourses[6]) course7Query.refetch();
-    if (teacherCourses[7]) course8Query.refetch();
-    if (teacherCourses[8]) course9Query.refetch();
-    if (teacherCourses[9]) course10Query.refetch();
-  }, [
-    teacherCourses,
-    course1Query, course2Query, course3Query, course4Query, course5Query,
-    course6Query, course7Query, course8Query, course9Query, course10Query
-  ]);
-
-  // Refetch assignments when the component mounts or when returning to the page
-  useEffect(() => {
-    refetchAllAssignments();
-  }, [refetchAllAssignments]);
-
-  // Create an array of query results to process
-  const courseQueries = useMemo(() => {
-    return [
-      course1Query, course2Query, course3Query, course4Query, course5Query,
-      course6Query, course7Query, course8Query, course9Query, course10Query
-    ].slice(0, teacherCourses.length);
-  }, [
-    course1Query, course2Query, course3Query, course4Query, course5Query,
-    course6Query, course7Query, course8Query, course9Query, course10Query,
-    teacherCourses.length
-  ]);
-
-  // Combine assignments from all courses
-  useEffect(() => {
-    if (teacherCourses.length === 0) {
+  // Function to fetch assignments for all teacher courses
+  const fetchAllAssignments = useCallback(async () => {
+    if (!user?.id || teacherCourses.length === 0) {
       setAllAssignments([]);
       setIsLoadingAssignments(false);
       return;
     }
 
-    // Check if all queries have loaded
-    const isLoading = courseQueries.some(query => query.isLoading);
-    setIsLoadingAssignments(isLoading);
-    
-    // Check if any query has an error
-    const hasError = courseQueries.some(query => query.isError);
-    setHasAssignmentError(hasError);
+    setIsLoadingAssignments(true);
+    setHasAssignmentError(false);
 
-    if (!isLoading) {
-      let combinedAssignments: AssignmentWithCourse[] = [];
-      
-      teacherCourses.forEach((course, index) => {
-        if (index < courseQueries.length) {
-          const courseAssignments = courseQueries[index].data || [];
+    try {
+      // Get auth token
+      const token = localStorage.getItem('clerk-auth-token');
+      if (!token) {
+        throw new Error('No auth token available');
+      }
+
+      // Create an array of promises for each course's assignments
+      const assignmentPromises = teacherCourses.map(async (course) => {
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001"}/assignments/course/${course.courseId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
           
-          if (courseAssignments.length > 0) {
+          if (!response.ok) {
+            throw new Error(`Failed to fetch assignments for course ${course.courseId}`);
+          }
+
+          const assignments = await response.json();
+          
             // Add course info to each assignment and calculate UI status
-            const assignmentsWithCourse = courseAssignments.map((assignment: Assignment) => {
+          return assignments.map((assignment: Assignment) => {
               const dueDate = new Date(assignment.dueDate);
               const now = new Date();
               
@@ -233,15 +174,33 @@ const TeacherAssignments = () => {
                 uiStatus
               };
             });
-            
-            combinedAssignments = [...combinedAssignments, ...assignmentsWithCourse];
-          }
+        } catch (error) {
+          console.error(`Error fetching assignments for course ${course.courseId}:`, error);
+          return [];
         }
       });
+
+      // Wait for all promises to resolve
+      const assignmentsArrays = await Promise.all(assignmentPromises);
+      
+      // Flatten the array of arrays into a single array of assignments
+      const combinedAssignments = assignmentsArrays.flat();
       
       setAllAssignments(combinedAssignments);
+      setIsLoadingAssignments(false);
+    } catch (error) {
+      console.error('Error fetching assignments:', error);
+      setHasAssignmentError(true);
+      setIsLoadingAssignments(false);
     }
-  }, [teacherCourses, courseQueries]);
+  }, [user?.id, teacherCourses]);
+
+  // Fetch assignments when courses are loaded or when returning to the page
+  useEffect(() => {
+    if (!isLoadingCourses && teacherCourses.length > 0) {
+      fetchAllAssignments();
+    }
+  }, [isLoadingCourses, teacherCourses, fetchAllAssignments]);
   
   // Filter assignments based on status and course
   const filteredAssignments = useMemo(() => {

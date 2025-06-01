@@ -6,7 +6,7 @@ import { useUser } from "@clerk/nextjs";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { useGetCoursesQuery, useCreateMeetingMutation } from "@/state/api";
+import { useGetCoursesQuery, useCreateMeetingMutation, useGetTeacherMeetingsQuery } from "@/state/api";
 import { format } from "date-fns";
 import { 
   CalendarIcon, 
@@ -98,6 +98,10 @@ export default function CreateMeetingPage() {
   const { user } = useUser();
   const { data: coursesData = [], isLoading: isLoadingCourses } = useGetCoursesQuery({ category: "" });
   const [createMeeting, { isLoading }] = useCreateMeetingMutation();
+  const { refetch: refetchTeacherMeetings } = useGetTeacherMeetingsQuery(
+    user?.id || "",
+    { skip: !user?.id }
+  );
   
   // Handle courses data properly
   const courses = useMemo(() => {
@@ -227,12 +231,17 @@ export default function CreateMeetingPage() {
         status: p.status || "pending"
       }));
       
-      await createMeeting({
+      const meetingData = {
         ...otherValues,
         date: date.toISOString(), // Convert Date to string
         courseName: course?.title || "",
         participants: formattedParticipants
-      }).unwrap();
+      };
+      
+      const result = await createMeeting(meetingData).unwrap();
+      
+      // Force a refetch to update the meetings list
+      await refetchTeacherMeetings();
       
       toast.success("Meeting created successfully");
       router.push("/teacher/meetings");

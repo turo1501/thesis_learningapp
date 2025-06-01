@@ -1,0 +1,42 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    - cron: '0 0 * * 1' # Run every Monday at midnight
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  update-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Check for outdated dependencies
+        run: npm outdated
+        
+      - name: Update dependencies
+        run: npx npm-check-updates -u
+        
+      - name: Install updated dependencies
+        run: npm install
+        
+      - name: Run tests to verify updates
+        run: npm test
+        
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "build(deps): update dependencies"
+          title: "build(deps): update dependencies"
+          body: |
+            This PR updates project dependencies to their latest versions.
+            
+            - Automated by GitHub Actions
+          branch: dependency-updates
+          base: develop 

@@ -24,7 +24,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useGetTeacherMeetingsQuery, useUpdateMeetingMutation, useDeleteMeetingMutation } from "@/state/api";
@@ -73,10 +73,20 @@ const TeacherMeetings = () => {
   const { user } = useUser();
   const { data: meetingsData, isLoading, isError, refetch } = useGetTeacherMeetingsQuery(
     user?.id || "",
-    { skip: !user?.id }
+    { 
+      skip: !user?.id,
+      refetchOnMountOrArgChange: true
+    }
   );
   const [updateMeeting] = useUpdateMeetingMutation();
   const [deleteMeeting] = useDeleteMeetingMutation();
+
+  // Refetch meetings when component mounts
+  useEffect(() => {
+    if (user?.id) {
+      refetch();
+    }
+  }, [user?.id, refetch]);
 
   // Process meetings data
   const meetings = useMemo(() => {

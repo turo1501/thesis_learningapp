@@ -313,6 +313,7 @@ const AdminCoursesPage = () => {
                     <TableHead className="text-slate-400 font-medium">Category</TableHead>
                     <TableHead className="text-slate-400 font-medium">Price</TableHead>
                     <TableHead className="text-slate-400 font-medium">Status</TableHead>
+                    <TableHead className="text-slate-400 font-medium">Level</TableHead>
                     <TableHead className="text-slate-400 font-medium">Enrollments</TableHead>
                     <TableHead className="text-slate-400 font-medium w-[100px]">Actions</TableHead>
                   </TableRow>
@@ -373,14 +374,14 @@ const AdminCoursesPage = () => {
                       <TableCell>
                         <Badge
                           className={
-                            course.level === "Beginner"
+                            course.level?.toLowerCase() === "beginner"
                               ? "bg-blue-500/20 text-blue-500"
-                              : course.level === "Intermediate"
+                              : course.level?.toLowerCase() === "intermediate"
                               ? "bg-yellow-500/20 text-yellow-500"
                               : "bg-red-500/20 text-red-500"
                           }
                         >
-                          {course.level}
+                          {course.level ? course.level.charAt(0).toUpperCase() + course.level.slice(1).toLowerCase() : "Unknown"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -549,14 +550,14 @@ const AdminCoursesPage = () => {
                       </Badge>
                       <Badge
                         className={
-                          selectedCourse.level === "Beginner"
+                          selectedCourse.level?.toLowerCase() === "beginner"
                             ? "bg-blue-500/20 text-blue-500"
-                            : selectedCourse.level === "Intermediate"
+                            : selectedCourse.level?.toLowerCase() === "intermediate"
                             ? "bg-yellow-500/20 text-yellow-500"
                             : "bg-red-500/20 text-red-500"
                         }
                       >
-                        {selectedCourse.level}
+                        {selectedCourse.level ? selectedCourse.level.charAt(0).toUpperCase() + selectedCourse.level.slice(1).toLowerCase() : "Unknown"}
                       </Badge>
                       <Badge variant="outline">
                         {formatPrice(selectedCourse.price)}

@@ -261,14 +261,78 @@ const enhancedBaseQuery = async (args: string | FetchArgs, api: BaseQueryApi, ex
         return { data: normalizeMemoryCardResponse(result.data) };
       }
       
-      // Normalize response structure
-      // If the response is an object with a 'data' property and not an array itself
-      if (!Array.isArray(result.data) && typeof result.data === 'object' && result.data !== null && 'data' in result.data) {
-        // If data.data is an array, return it directly to maintain consistent structure
-        if (Array.isArray(result.data.data)) {
-          console.log('Normalizing response: Returning data.data array directly');
-          return { data: result.data.data };
+      // Normalize response structure for courses endpoints
+      if (typeof endpoint === 'string' && endpoint.includes('/courses')) {
+        // Ensure we consistently handle the courses response format
+        if (!Array.isArray(result.data) && typeof result.data === 'object' && result.data !== null) {
+          if ('data' in result.data) {
+            // Server returned { message: "...", data: [...] } format
+            console.log('Normalizing courses response: Extracting data property');
+            // Ensure the data property is an array
+            if (Array.isArray(result.data.data)) {
+              return { data: result.data.data };
+            } else if (result.data.data === null || result.data.data === undefined) {
+              // Handle null data
+              return { data: [] };
+            } else {
+              // Return the nested data object (for single course)
+              return { data: result.data.data };
+            }
+          } else if (Array.isArray(result.data)) {
+            // Already an array, just return it
+            return result;
+          }
         }
+      }
+      
+      // Dashboard endpoint normalization
+      if (typeof endpoint === 'string' && endpoint.includes('/dashboard/')) {
+        console.log(`Normalizing dashboard response for endpoint: ${endpoint}`);
+        
+        // If the data is in nested "data" property, extract it
+        if (!Array.isArray(result.data) && typeof result.data === 'object' && result.data !== null) {
+          // Handle dashboard stats specifically
+          if (endpoint.includes('/dashboard/stats') && 'data' in result.data) {
+            console.log('Normalizing dashboard stats');
+            // Ensure stats has proper structure
+            const statsData = result.data.data || {};
+            return { data: statsData };
+          }
+          
+          // Handle pending actions
+          if (endpoint.includes('/dashboard/pending-actions') && 'data' in result.data) {
+            console.log('Normalizing pending actions');
+            const actionsData = result.data.data || {};
+            return { data: actionsData };
+          }
+          
+          // Handle monthly revenue
+          if (endpoint.includes('/dashboard/monthly-revenue') && 'data' in result.data) {
+            console.log('Normalizing monthly revenue');
+            if (Array.isArray(result.data.data)) {
+              return { data: result.data.data };
+            }
+          }
+          
+          // Handle user activities
+          if (endpoint.includes('/dashboard/user-activities') && 'data' in result.data) {
+            console.log('Normalizing user activities');
+            if (Array.isArray(result.data.data)) {
+              return { data: result.data.data };
+            }
+          }
+          
+          // Default dashboard endpoint handling
+          if ('data' in result.data) {
+            return { data: result.data.data };
+          }
+        }
+      }
+      
+      // General response normalization for endpoints that return { data: ... } structure
+      if (!Array.isArray(result.data) && typeof result.data === 'object' && result.data !== null && 'data' in result.data) {
+        console.log('Normalizing generic response with data property');
+        return { data: result.data.data };
       }
       
       return result;
@@ -282,6 +346,19 @@ const enhancedBaseQuery = async (args: string | FetchArgs, api: BaseQueryApi, ex
       if (result.error.status === 'PARSING_ERROR' && result.error.originalStatus === 200) {
         const responseData = result.error.data;
         console.error(`Parsing error with original status 200. Raw response:`, responseData);
+        
+        // Handle specific case of "Hello World" response from root endpoint
+        if (responseData === "Hello World") {
+          console.log('Received "Hello World" from root endpoint, converting to JSON');
+          return { data: { message: "Hello World", status: "success" } };
+        }
+        
+        // For courses endpoint, return an empty array on parsing error
+        const endpoint = typeof args === 'string' ? args : args.url;
+        if (typeof endpoint === 'string' && endpoint.includes('/courses')) {
+          console.log('Returning empty array for courses endpoint on parsing error');
+          return { data: [] };
+        }
         
         // Try to gracefully handle non-JSON responses
         if (typeof responseData === 'string') {
@@ -354,13 +431,13 @@ export const api = createApi({
     "CourseComments",
     "UserNotes",
   ],
-  endpoints: (build) => ({
+  endpoints: (builder) => ({
     /* 
     ===============
     USER CLERK
     =============== 
     */
-    updateUser: build.mutation<User, Partial<User> & { userId: string }>({
+    updateUser: builder.mutation<User, Partial<User> & { userId: string }>({
       query: ({ userId, ...updatedUser }) => ({
         url: `users/clerk/${userId}`,
         method: "PUT",
@@ -369,7 +446,7 @@ export const api = createApi({
       invalidatesTags: ["Users"],
     }),
 
-    getUsers: build.query<any[], { role?: string; status?: string; search?: string }>({
+    getUsers: builder.query<any[], { role?: string; status?: string; search?: string }>({
       query: (params) => {
         // Create query string from parameters
         const queryParams = new URLSearchParams();
@@ -385,7 +462,7 @@ export const api = createApi({
       providesTags: ["Users"],
     }),
 
-    getUserById: build.query<any, string>({
+    getUserById: builder.query<any, string>({
       query: (userId) => ({
         url: `users/clerk/${userId}`,
         method: "GET",
@@ -393,7 +470,7 @@ export const api = createApi({
       providesTags: (result, error, userId) => [{ type: "Users", id: userId }],
     }),
 
-    updateUserRole: build.mutation<
+    updateUserRole: builder.mutation<
       any, 
       { userId: string; role: "student" | "teacher" | "admin" }
     >({
@@ -405,7 +482,7 @@ export const api = createApi({
       invalidatesTags: ["Users"],
     }),
 
-    updateUserStatus: build.mutation<
+    updateUserStatus: builder.mutation<
       any, 
       { userId: string; status: "active" | "suspended" }
     >({
@@ -417,7 +494,7 @@ export const api = createApi({
       invalidatesTags: ["Users"],
     }),
 
-    requestRoleChange: build.mutation<
+    requestRoleChange: builder.mutation<
       any,
       { userId: string; requestedRole: string; reason: string }
     >({
@@ -428,7 +505,7 @@ export const api = createApi({
       }),
     }),
 
-    getPendingRoleChangeRequests: build.query<
+    getPendingRoleChangeRequests: builder.query<
       {
         userId: string;
         firstName: string;
@@ -449,7 +526,7 @@ export const api = createApi({
       providesTags: ["Users"],
     }),
 
-    approveRoleChange: build.mutation<any, string>({
+    approveRoleChange: builder.mutation<any, string>({
       query: (userId) => ({
         url: `role-change/${userId}/approve`,
         method: "PUT",
@@ -457,7 +534,7 @@ export const api = createApi({
       invalidatesTags: ["Users"],
     }),
 
-    rejectRoleChange: build.mutation<any, { userId: string; rejectionReason: string }>({
+    rejectRoleChange: builder.mutation<any, { userId: string; rejectionReason: string }>({
       query: ({ userId, rejectionReason }) => ({
         url: `role-change/${userId}/reject`,
         method: "PUT",
@@ -466,7 +543,7 @@ export const api = createApi({
       invalidatesTags: ["Users"],
     }),
 
-    createUser: build.mutation<
+    createUser: builder.mutation<
       any,
       {
         email: string;
@@ -485,7 +562,7 @@ export const api = createApi({
       invalidatesTags: ["Users"],
     }),
 
-    resetUserPassword: build.mutation<any, { email: string }>({
+    resetUserPassword: builder.mutation<any, { email: string }>({
       query: (body) => ({
         url: '/users/password-reset',
         method: 'POST',
@@ -499,7 +576,7 @@ export const api = createApi({
     COURSES
     =============== 
     */
-    getCourses: build.query<Course[], { category?: string } | void>({
+    getCourses: builder.query<Course[], { category?: string } | void>({
       query: (params = {}) => {
         const { category } = params || {};
         return {
@@ -507,10 +584,33 @@ export const api = createApi({
           params: category ? { category } : undefined,
         };
       },
+      // Add a custom transform response function to ensure we always get a valid array
+      transformResponse: (response: any) => {
+        console.log('Transform response for getCourses:', response);
+        
+        // If response is already an array, return it
+        if (Array.isArray(response)) {
+          return response;
+        }
+        
+        // If response has a data property that is an array
+        if (response && typeof response === 'object' && 'data' in response) {
+          if (Array.isArray(response.data)) {
+            return response.data;
+          } else if (response.data === null || response.data === undefined) {
+            // Handle null data
+            return [];
+          }
+        }
+        
+        // Default fallback - return empty array to prevent filter errors
+        console.warn('getCourses: Could not extract courses array from response, returning empty array');
+        return [];
+      },
       providesTags: ["Courses"],
     }),
 
-    getCourse: build.query<Course, string>({
+    getCourse: builder.query<Course, string>({
       query: (id) => {
         // Return a placeholder URL if ID is undefined or empty
         if (!id) {
@@ -521,7 +621,7 @@ export const api = createApi({
       providesTags: (result, error, id) => [{ type: "Courses", id }],
     }),
 
-    createCourse: build.mutation<
+    createCourse: builder.mutation<
       Course,
       { teacherId: string; teacherName: string }
     >({
@@ -533,7 +633,7 @@ export const api = createApi({
       invalidatesTags: ["Courses"],
     }),
 
-    updateCourse: build.mutation<
+    updateCourse: builder.mutation<
       Course,
       { courseId: string; formData: FormData }
     >({
@@ -543,18 +643,96 @@ export const api = createApi({
           throw new Error("Valid course ID is required for updates");
         }
         
+        // Handle level field normalization before sending to the server
+        if (formData.has('level')) {
+          const level = formData.get('level') as string;
+          if (level) {
+            // We need to convert level to lowercase to match the server's enum
+            const levelMap: { [key: string]: string } = {
+              "Beginner": "beginner",
+              "Intermediate": "intermediate", 
+              "Advanced": "advanced"
+            };
+            
+            // Get the lowercase version or default to lowercase of original
+            const normalizedLevel = levelMap[level] || level.toLowerCase();
+            
+            // Replace the form value
+            formData.set('level', normalizedLevel);
+            console.log(`Normalized level from ${level} to ${normalizedLevel}`);
+          }
+        }
+        
         return {
           url: `courses/${courseId}`,
           method: "PUT",
           body: formData,
         };
       },
+      // Update caching strategy to properly invalidate related queries
       invalidatesTags: (result, error, { courseId }) => [
         { type: "Courses", id: courseId },
+        "Courses", // Invalidate the entire courses list as well
       ],
+      // Add optimistic updates to update the cache immediately
+      async onQueryStarted({ courseId, formData }, { dispatch, queryFulfilled }) {
+        try {
+          // Extract course data from the formData
+          const extractFormData = () => {
+            const title = formData.get('title') as string;
+            const description = formData.get('description') as string;
+            const category = formData.get('category') as string;
+            const level = formData.get('level') as string;
+            const price = parseInt(formData.get('price') as string, 10) || 0;
+            const status = formData.get('status') as "Draft" | "Published";
+            const sectionsJson = formData.get('sections') as string;
+            const sections = sectionsJson ? JSON.parse(sectionsJson) : [];
+            
+            return {
+              title,
+              description,
+              category,
+              level,
+              price,
+              status,
+              sections
+            };
+          };
+
+          // Get data for optimistic update
+          const updatedData = extractFormData();
+          
+          // Optimistically update the getCourse cache
+          const patchResult = dispatch(
+            api.util.updateQueryData('getCourse', courseId, (draft) => {
+              // Handle both plain object and data wrapper format
+              const draftToUpdate = 'data' in draft ? (draft as any).data : draft;
+              
+              // Update the fields that were changed
+              if (updatedData.title) draftToUpdate.title = updatedData.title;
+              if (updatedData.description) draftToUpdate.description = updatedData.description;
+              if (updatedData.category) draftToUpdate.category = updatedData.category;
+              if (updatedData.level) draftToUpdate.level = updatedData.level;
+              if (updatedData.price) draftToUpdate.price = updatedData.price;
+              if (updatedData.status) draftToUpdate.status = updatedData.status;
+              if (updatedData.sections) draftToUpdate.sections = updatedData.sections;
+            })
+          );
+          
+          // Wait for the actual API call to complete
+          await queryFulfilled;
+          
+          // Log success for debugging
+          console.log('Course successfully updated and cache updated');
+        } catch (error) {
+          // If the API call fails, we don't need to undo the optimistic update
+          // as the invalidation will trigger a refetch anyway
+          console.error('Failed to update course:', error);
+        }
+      }
     }),
 
-    deleteCourse: build.mutation<{ message: string }, string>({
+    deleteCourse: builder.mutation<{ message: string }, string>({
       query: (courseId) => ({
         url: `courses/${courseId}`,
         method: "DELETE",
@@ -562,7 +740,7 @@ export const api = createApi({
       invalidatesTags: ["Courses"],
     }),
 
-    getUploadVideoUrl: build.mutation<
+    getUploadVideoUrl: builder.mutation<
       { uploadUrl: string; videoUrl: string },
       {
         courseId: string;
@@ -584,10 +762,10 @@ export const api = createApi({
     TRANSACTIONS
     =============== 
     */
-    getTransactions: build.query<Transaction[], string>({
+    getTransactions: builder.query<Transaction[], string>({
       query: (userId) => `transactions?userId=${userId}`,
     }),
-    createStripePaymentIntent: build.mutation<
+    createStripePaymentIntent: builder.mutation<
       { clientSecret: string },
       { amount: number }
     >({
@@ -597,7 +775,7 @@ export const api = createApi({
         body: { amount },
       }),
     }),
-    createTransaction: build.mutation<Transaction, Partial<Transaction>>({
+    createTransaction: builder.mutation<Transaction, Partial<Transaction>>({
       query: (transaction) => ({
         url: "transactions",
         method: "POST",
@@ -610,12 +788,33 @@ export const api = createApi({
     USER COURSE PROGRESS
     =============== 
     */
-    getUserEnrolledCourses: build.query<Course[], string>({
+    getUserEnrolledCourses: builder.query<Course[], string>({
       query: (userId) => `users/course-progress/${userId}/enrolled-courses`,
+      transformResponse: (response: any) => {
+        console.log('Transform response for getUserEnrolledCourses:', response);
+        
+        // If response is already an array, return it
+        if (Array.isArray(response)) {
+          return response;
+        }
+        
+        // If response has a data property that is an array
+        if (response && typeof response === 'object' && 'data' in response) {
+          if (Array.isArray(response.data)) {
+            return response.data;
+          } else if (response.data === null || response.data === undefined) {
+            return [];
+          }
+        }
+        
+        // Default fallback - return empty array to prevent filter errors
+        console.warn('getUserEnrolledCourses: Could not extract courses array from response, returning empty array');
+        return [];
+      },
       providesTags: ["Courses", "UserCourseProgress"],
     }),
 
-    getUserCourseProgress: build.query<
+    getUserCourseProgress: builder.query<
       UserCourseProgress,
       { userId: string; courseId: string }
     >({
@@ -624,7 +823,7 @@ export const api = createApi({
       providesTags: ["UserCourseProgress"],
     }),
 
-    updateUserCourseProgress: build.mutation<
+    updateUserCourseProgress: builder.mutation<
       UserCourseProgress,
       {
         userId: string;
@@ -665,7 +864,7 @@ export const api = createApi({
     }),
 
     // Course Progress - use a different name to avoid duplication
-    updateLessonProgress: build.mutation<{ success: boolean }, UpdateUserCourseProgressData>({
+    updateLessonProgress: builder.mutation<{ success: boolean }, UpdateUserCourseProgressData>({
       query: ({ courseId, sectionId, lessonId, progress }) => ({
         url: "/user-course-progress",
         method: "PUT",
@@ -674,7 +873,7 @@ export const api = createApi({
     }),
 
     // Chat endpoints
-    sendChatMessage: build.mutation<
+    sendChatMessage: builder.mutation<
       { response: string; id: string },
       { message: string; userId: string }
     >({
@@ -694,7 +893,7 @@ export const api = createApi({
       },
     }),
     
-    getChatHistory: build.query<
+    getChatHistory: builder.query<
       { messages: { content: string; role: "user" | "bot"; timestamp: number }[] },
       string
     >({
@@ -708,7 +907,7 @@ export const api = createApi({
     }),
 
     // Add this endpoint somewhere in the api.endpoints section
-    sendChatFeedback: build.mutation<{ success: boolean; message: string }, ChatFeedbackData>({
+    sendChatFeedback: builder.mutation<{ success: boolean; message: string }, ChatFeedbackData>({
       query: (data) => ({
         url: '/chat/feedback',
         method: 'POST',
@@ -722,7 +921,7 @@ export const api = createApi({
     BLOG POSTS
     =============== 
     */
-    getBlogPosts: build.query<BlogPostsResponse, { 
+    getBlogPosts: builder.query<BlogPostsResponse, { 
       status?: string;
       endpoint?: string;
       category?: string;
@@ -766,7 +965,7 @@ export const api = createApi({
           : [{ type: 'BlogPosts' as const, id: 'LIST' }],
     }),
     
-    getBlogPost: build.query<BlogPost, string>({
+    getBlogPost: builder.query<BlogPost, string>({
       query: (postId) => ({
         url: `/blog-posts/${postId}`,
         method: 'GET',
@@ -774,7 +973,7 @@ export const api = createApi({
       providesTags: (_, __, postId) => [{ type: 'BlogPost', id: postId }],
     }),
     
-    createBlogPost: build.mutation<BlogPost, Partial<BlogPost>>({
+    createBlogPost: builder.mutation<BlogPost, Partial<BlogPost>>({
       query: (post) => ({
         url: '/blog-posts',
         method: 'POST',
@@ -783,7 +982,7 @@ export const api = createApi({
       invalidatesTags: [{ type: 'BlogPosts', id: 'LIST' }],
     }),
     
-    updateBlogPost: build.mutation<BlogPost, { postId: string; post: Partial<BlogPost> }>({
+    updateBlogPost: builder.mutation<BlogPost, { postId: string; post: Partial<BlogPost> }>({
       query: ({ postId, post }) => ({
         url: `/blog-posts/${postId}`,
         method: 'PUT',
@@ -795,7 +994,7 @@ export const api = createApi({
       ],
     }),
     
-    deleteBlogPost: build.mutation<{ message: string }, string>({
+    deleteBlogPost: builder.mutation<{ message: string }, string>({
       query: (postId) => ({
         url: `/blog-posts/${postId}`,
         method: 'DELETE',
@@ -806,7 +1005,7 @@ export const api = createApi({
       ],
     }),
     
-    moderateBlogPost: build.mutation<BlogPost, { 
+    moderateBlogPost: builder.mutation<BlogPost, { 
       postId: string; 
       status: 'published' | 'rejected'; 
       moderationComment?: string 
@@ -827,7 +1026,7 @@ export const api = createApi({
     ASSIGNMENTS
     =============== 
     */
-    getCourseAssignments: build.query<Assignment[], string>({
+    getCourseAssignments: builder.query<Assignment[], string>({
       query: (courseId) => {
         if (!courseId || courseId === "undefined") {
           throw new Error("Course ID is required for assignment listing");
@@ -837,12 +1036,12 @@ export const api = createApi({
       providesTags: (result, error, courseId) => [{ type: "Assignments", id: courseId }],
     }),
 
-    getAssignment: build.query<any, string>({
+    getAssignment: builder.query<any, string>({
       query: (assignmentId) => `assignments/${assignmentId}`,
       providesTags: (result, error, assignmentId) => [{ type: 'Assignments', id: assignmentId }],
     }),
 
-    createAssignment: build.mutation<
+    createAssignment: builder.mutation<
       Assignment,
       {
         courseId: string;
@@ -866,7 +1065,7 @@ export const api = createApi({
       ],
     }),
 
-    updateAssignment: build.mutation<any, any>({
+    updateAssignment: builder.mutation<any, any>({
       query: (assignment) => ({
         url: `assignments/${assignment.assignmentId}`,
         method: 'PUT',
@@ -878,7 +1077,7 @@ export const api = createApi({
       ],
     }),
 
-    deleteAssignment: build.mutation<{ message: string }, string>({
+    deleteAssignment: builder.mutation<{ message: string }, string>({
       query: (assignmentId) => ({
         url: `assignments/${assignmentId}`,
         method: "DELETE",
@@ -886,21 +1085,39 @@ export const api = createApi({
       invalidatesTags: ["Assignments"],
     }),
 
-    submitAssignment: build.mutation<
+    submitAssignment: builder.mutation<
       { message: string },
-      { assignmentId: string; content: string }
+      {
+        assignmentId: string;
+        content: string;
+        attachments?: string[];
+      }
     >({
-      query: ({ assignmentId, content }) => ({
-        url: `assignments/${assignmentId}/submit`,
-        method: "POST",
-        body: { content },
+      query: ({ assignmentId, ...body }) => ({
+        url: `/assignments/${assignmentId}/submit`,
+        method: 'POST',
+        body,
       }),
-      invalidatesTags: (result, error, { assignmentId }) => [
-        { type: "Assignments", id: assignmentId },
-      ],
+      async onQueryStarted(
+        { assignmentId },
+        { dispatch, queryFulfilled }
+      ) {
+        try {
+          await queryFulfilled;
+          
+          // Invalidate the specific assignment to refresh data
+          dispatch(
+            api.util.invalidateTags([
+              { type: 'Assignment', id: assignmentId }
+            ])
+          );
+        } catch (error) {
+          console.error('Error submitting assignment:', error);
+        }
+      },
     }),
 
-    gradeSubmission: build.mutation<
+    gradeSubmission: builder.mutation<
       { message: string },
       {
         assignmentId: string;
@@ -924,25 +1141,33 @@ export const api = createApi({
     MEETINGS
     =============== 
     */
-    getTeacherMeetings: build.query<Meeting[], string>({
+    getTeacherMeetings: builder.query<Meeting[], string>({
       query: (teacherId) => `/meetings/teacher/${teacherId}`,
+      providesTags: (result, error, teacherId) => [
+        { type: "Meetings", id: 'TEACHER_' + teacherId },
+        { type: "Meetings", id: "LIST" }
+      ],
     }),
 
-    getStudentMeetings: build.query<Meeting[], string>({
+    getStudentMeetings: builder.query<Meeting[], string>({
       query: (studentId) => `/meetings/student/${studentId}`,
+      providesTags: (result, error, studentId) => [
+        { type: "Meetings", id: 'STUDENT_' + studentId },
+        { type: "Meetings", id: "LIST" }
+      ],
     }),
 
-    getCourseMeetings: build.query<Meeting[], string>({
+    getCourseMeetings: builder.query<Meeting[], string>({
       query: (courseId) => `meetings/course/${courseId}`,
       providesTags: (result, error, courseId) => [{ type: "Meetings", id: courseId }],
     }),
 
-    getMeeting: build.query<Meeting, string>({
+    getMeeting: builder.query<Meeting, string>({
       query: (meetingId) => `meetings/${meetingId}`,
       providesTags: (result, error, id) => [{ type: "Meetings", id }],
     }),
 
-    createMeeting: build.mutation<
+    createMeeting: builder.mutation<
       Meeting,
       {
         title: string;
@@ -967,10 +1192,13 @@ export const api = createApi({
         method: "POST",
         body,
       }),
-      invalidatesTags: ["Meetings"],
+      invalidatesTags: (result) => [
+        { type: "Meetings", id: "LIST" },
+        result?.teacherId ? { type: "Meetings", id: 'TEACHER_' + result.teacherId } : { type: "Meetings", id: "LIST" }
+      ],
     }),
 
-    updateMeeting: build.mutation<
+    updateMeeting: builder.mutation<
       Meeting,
       {
         meetingId: string;
@@ -998,20 +1226,48 @@ export const api = createApi({
         method: "PUT",
         body,
       }),
-      invalidatesTags: (result, error, { meetingId }) => [
-        { type: "Meetings", id: meetingId },
-      ],
+      // Use a simplified approach with string literals for the tag types
+      invalidatesTags: (result) => {
+        // Always invalidate these basic tags
+        const tags = [
+          { type: "Meetings" as const, id: "LIST" }
+        ];
+        
+        // Handle the case where we might not have a result
+        if (!result) {
+          return tags;
+        }
+        
+        // Add the specific meeting tag
+        tags.push({ type: "Meetings" as const, id: result.meetingId });
+        
+        // Add teacher tag if available
+        if (result.teacherId) {
+          tags.push({ type: "Meetings" as const, id: `TEACHER_${result.teacherId}` });
+        }
+        
+        // Add participant tags if available
+        if (result.participants && Array.isArray(result.participants)) {
+          result.participants.forEach(p => {
+            if (p.studentId) {
+              tags.push({ type: "Meetings" as const, id: `STUDENT_${p.studentId}` });
+            }
+          });
+        }
+        
+        return tags;
+      },
     }),
 
-    deleteMeeting: build.mutation<{ message: string }, string>({
+    deleteMeeting: builder.mutation<{ message: string }, string>({
       query: (meetingId) => ({
         url: `meetings/${meetingId}`,
         method: "DELETE",
       }),
-      invalidatesTags: ["Meetings"],
+      invalidatesTags: ["Meetings", { type: "Meetings", id: "LIST" }],
     }),
 
-    respondToMeeting: build.mutation<
+    respondToMeeting: builder.mutation<
       { message: string },
       { meetingId: string; response: "confirmed" | "cancelled" }
     >({
@@ -1025,7 +1281,7 @@ export const api = createApi({
       ],
     }),
 
-    addMeetingNotes: build.mutation<
+    addMeetingNotes: builder.mutation<
       { message: string },
       { meetingId: string; notes: string }
     >({
@@ -1040,11 +1296,11 @@ export const api = createApi({
     }),
 
     // Meetings
-    getMeetingById: build.query<Meeting, string>({
+    getMeetingById: builder.query<Meeting, string>({
       query: (meetingId) => `/meetings/${meetingId}`,
     }),
 
-    updateMeetingAttendance: build.mutation<
+    updateMeetingAttendance: builder.mutation<
       { success: boolean },
       { meetingId: string; studentId: string; status: "accepted" | "declined" | "pending" }
     >({
@@ -1060,22 +1316,22 @@ export const api = createApi({
     DASHBOARD
     =============== 
     */
-    getDashboardStats: build.query<any, void>({
+    getDashboardStats: builder.query<any, void>({
       query: () => `/dashboard/stats`,
       providesTags: ["Analytics"],
     }),
 
-    getPendingActions: build.query<any, void>({
+    getPendingActions: builder.query<any, void>({
       query: () => `/dashboard/pending-actions`,
       providesTags: ["Analytics"],
     }),
 
-    getMonthlyRevenue: build.query<any, void>({
+    getMonthlyRevenue: builder.query<any, void>({
       query: () => `/dashboard/monthly-revenue`,
       providesTags: ["Analytics"],
     }),
 
-    getRecentUserActivities: build.query<any, void>({
+    getRecentUserActivities: builder.query<any, void>({
       query: () => `/dashboard/user-activities`,
       providesTags: ["Analytics"],
     }),
@@ -1085,32 +1341,32 @@ export const api = createApi({
     ANALYTICS
     =============== 
     */
-    getAnalyticsSummary: build.query<any, string>({
+    getAnalyticsSummary: builder.query<any, string>({
       query: (timeRange) => `/analytics/summary?timeRange=${timeRange}`,
       providesTags: ["Analytics"],
     }),
 
-    getUserAnalytics: build.query<any, string>({
+    getUserAnalytics: builder.query<any, string>({
       query: (timeRange) => `/analytics/users?timeRange=${timeRange}`,
       providesTags: ["Analytics"],
     }),
 
-    getCourseAnalytics: build.query<any, string>({
+    getCourseAnalytics: builder.query<any, string>({
       query: (timeRange) => `/analytics/courses?timeRange=${timeRange}`,
       providesTags: ["Analytics"],
     }),
 
-    getRevenueAnalytics: build.query<any, string>({
+    getRevenueAnalytics: builder.query<any, string>({
       query: (timeRange) => `/analytics/revenue?timeRange=${timeRange}`,
       providesTags: ["Analytics"],
     }),
 
-    getPlatformAnalytics: build.query<any, string>({
+    getPlatformAnalytics: builder.query<any, string>({
       query: (timeRange) => `/analytics/platform?timeRange=${timeRange}`,
       providesTags: ["Analytics"],
     }),
 
-    getUploadAssignmentFileUrl: build.mutation<
+    getUploadAssignmentFileUrl: builder.mutation<
       { uploadUrl: string; fileUrl: string },
       { fileName: string; fileType: string }
     >({
@@ -1131,17 +1387,17 @@ export const api = createApi({
     MEMORY CARDS
     =============== 
     */
-    getUserDecks: build.query<MemoryCardDeck[], string>({
+    getUserDecks: builder.query<MemoryCardDeck[], string>({
       query: (userId) => `/memory-cards/${userId}`,
       providesTags: ["MemoryCardDecks"],
     }),
 
-    getDeck: build.query<MemoryCardDeck, { userId: string; deckId: string }>({
+    getDeck: builder.query<MemoryCardDeck, { userId: string; deckId: string }>({
       query: ({ userId, deckId }) => `/memory-cards/${userId}/${deckId}`,
       providesTags: (result, error, { deckId }) => [{ type: "MemoryCardDeck", id: deckId }],
     }),
 
-    createDeck: build.mutation<
+    createDeck: builder.mutation<
       MemoryCardDeck,
       { userId: string; courseId: string; title: string; description?: string }
     >({
@@ -1190,7 +1446,7 @@ export const api = createApi({
       }
     }),
 
-    deleteDeck: build.mutation<
+    deleteDeck: builder.mutation<
       { success: boolean }, 
       { userId: string; deckId: string }
     >({
@@ -1201,7 +1457,7 @@ export const api = createApi({
       invalidatesTags: ["MemoryCardDecks"],
     }),
 
-    addCard: build.mutation<
+    addCard: builder.mutation<
       MemoryCardDeck,
       { 
         userId: string; 
@@ -1288,7 +1544,7 @@ export const api = createApi({
       }
     }),
     
-    addCardsBatch: build.mutation<
+    addCardsBatch: builder.mutation<
       { deck: MemoryCardDeck; cardsAdded: number },
       {
         userId: string;
@@ -1314,7 +1570,7 @@ export const api = createApi({
       ],
     }),
     
-    updateCard: build.mutation<
+    updateCard: builder.mutation<
       MemoryCardDeck,
       {
         userId: string;
@@ -1336,7 +1592,7 @@ export const api = createApi({
       ],
     }),
     
-    deleteCard: build.mutation<
+    deleteCard: builder.mutation<
       MemoryCardDeck,
       { userId: string; deckId: string; cardId: string }
     >({
@@ -1350,7 +1606,7 @@ export const api = createApi({
       ],
     }),
     
-    getDueCards: build.query<
+    getDueCards: builder.query<
       { dueCards: MemoryCard[]; totalDue: number },
       { userId: string; courseId?: string; deckId?: string; limit?: number }
     >({
@@ -1377,7 +1633,7 @@ export const api = createApi({
       }
     }),
     
-    submitCardReview: build.mutation<
+    submitCardReview: builder.mutation<
       { success: boolean; nextReview: number },
       {
         userId: string;
@@ -1395,7 +1651,7 @@ export const api = createApi({
       invalidatesTags: ["DueCards", "MemoryCardDecks"],
     }),
     
-    generateCardsFromCourse: build.mutation<
+    generateCardsFromCourse: builder.mutation<
       { deck: MemoryCardDeck; cardsGenerated: number },
       {
         userId: string;
@@ -1412,7 +1668,7 @@ export const api = createApi({
       invalidatesTags: ["MemoryCardDecks"],
     }),
     
-    generateAIAlternatives: build.mutation<
+    generateAIAlternatives: builder.mutation<
       AIAlternativesResponse,
       {
         userId: string;
@@ -1429,7 +1685,7 @@ export const api = createApi({
     }),
 
     // Add this new endpoint
-    getChatCourseRecommendations: build.query<CourseRecommendationsResponse, string>({
+    getChatCourseRecommendations: builder.query<CourseRecommendationsResponse, string>({
       query: (userId) => `chat/recommendations/${userId}`,
       transformResponse: (response: any) => {
         if (!response) {
@@ -1444,7 +1700,7 @@ export const api = createApi({
     }),
 
     // Comment endpoints
-    getChapterComments: build.query<Comment[], { courseId: string; sectionId: string; chapterId: string }>({
+    getChapterComments: builder.query<Comment[], { courseId: string; sectionId: string; chapterId: string }>({
       query: ({ courseId, sectionId, chapterId }) => ({
         url: `/comments/${courseId}/sections/${sectionId}/chapters/${chapterId}/comments`,
         method: "GET",
@@ -1452,7 +1708,7 @@ export const api = createApi({
       providesTags: ["CourseComments"],
     }),
 
-    addComment: build.mutation<Comment, { courseId: string; sectionId: string; chapterId: string; text: string }>({
+    addComment: builder.mutation<Comment, { courseId: string; sectionId: string; chapterId: string; text: string }>({
       query: ({ courseId, sectionId, chapterId, text }) => ({
         url: `/comments/${courseId}/sections/${sectionId}/chapters/${chapterId}/comments`,
         method: "POST",
@@ -1461,7 +1717,7 @@ export const api = createApi({
       invalidatesTags: ["CourseComments"],
     }),
 
-    deleteComment: build.mutation<void, { courseId: string; sectionId: string; chapterId: string; commentId: string }>({
+    deleteComment: builder.mutation<void, { courseId: string; sectionId: string; chapterId: string; commentId: string }>({
       query: ({ courseId, sectionId, chapterId, commentId }) => ({
         url: `/comments/${courseId}/sections/${sectionId}/chapters/${chapterId}/comments/${commentId}`,
         method: "DELETE",
@@ -1470,7 +1726,7 @@ export const api = createApi({
     }),
 
     // Note endpoints
-    getUserCourseNotes: build.query<UserNote[], { courseId: string }>({
+    getUserCourseNotes: builder.query<UserNote[], { courseId: string }>({
       query: ({ courseId }) => ({
         url: `/user-notes/${courseId}`,
         method: "GET",
@@ -1478,7 +1734,7 @@ export const api = createApi({
       providesTags: ["UserNotes"],
     }),
 
-    getChapterNotes: build.query<UserNote[], { courseId: string; sectionId: string; chapterId: string }>({
+    getChapterNotes: builder.query<UserNote[], { courseId: string; sectionId: string; chapterId: string }>({
       query: ({ courseId, sectionId, chapterId }) => ({
         url: `/user-notes/${courseId}/sections/${sectionId}/chapters/${chapterId}`,
         method: "GET",
@@ -1486,7 +1742,7 @@ export const api = createApi({
       providesTags: ["UserNotes"],
     }),
 
-    createNote: build.mutation<UserNote, { courseId: string; sectionId: string; chapterId: string; content: string; color?: string }>({
+    createNote: builder.mutation<UserNote, { courseId: string; sectionId: string; chapterId: string; content: string; color?: string }>({
       query: (noteData) => ({
         url: `/user-notes`,
         method: "POST",
@@ -1495,7 +1751,7 @@ export const api = createApi({
       invalidatesTags: ["UserNotes"],
     }),
 
-    updateNote: build.mutation<UserNote, { noteId: string; content?: string; color?: string }>({
+    updateNote: builder.mutation<UserNote, { noteId: string; content?: string; color?: string }>({
       query: ({ noteId, ...data }) => ({
         url: `/user-notes/${noteId}`,
         method: "PUT",
@@ -1504,12 +1760,219 @@ export const api = createApi({
       invalidatesTags: ["UserNotes"],
     }),
 
-    deleteNote: build.mutation<void, { noteId: string }>({
+    deleteNote: builder.mutation<void, { noteId: string }>({
       query: ({ noteId }) => ({
         url: `/user-notes/${noteId}`,
         method: "DELETE",
       }),
       invalidatesTags: ["UserNotes"],
+    }),
+
+    // Add the student get upload URL mutation
+    getStudentUploadUrl: builder.mutation<
+      {
+        uploadUrl: string;
+        fileUrl: string;
+        fileName: string;
+      },
+      {
+        fileName: string;
+        fileType: string;
+      }
+    >({
+      query: (body) => ({
+        url: '/assignments/get-student-upload-file-url',
+        method: 'POST',
+        body,
+      }),
+    }),
+
+    generateAICourse: builder.mutation<any, any>({
+      query: (data) => ({
+        url: "courses/ai-generate",
+        method: "POST",
+        body: data,
+      }),
+      invalidatesTags: ["Courses"],
+      // Add custom error handling for AI generation
+      transformErrorResponse: (response: any) => {
+        console.log("AI course generation error:", response);
+        
+        // Format the error response for better client-side handling
+        if (response.status === 'FETCH_ERROR') {
+          return {
+            status: 503,
+            data: { 
+              error: "Cannot connect to AI service. Please check your internet connection or try again later.",
+              message: "Service Unavailable"
+            }
+          };
+        }
+        
+        if (response.status === 404) {
+          // For model not found errors
+          if (response.data && 
+              typeof response.data.error === 'string' && 
+              response.data.error.includes('model')) {
+            return {
+              status: 404,
+              data: {
+                error: "The Deepseek AI model is temporarily unavailable. We're working on a solution.",
+                message: "Model Unavailable",
+                details: {
+                  error: {
+                    code: "model_not_found",
+                    message: "Model not available"
+                  }
+                }
+              }
+            };
+          }
+        }
+        
+        if (response.status === 429) {
+          return {
+            status: 429,
+            data: {
+              error: "Deepseek AI service rate limit exceeded. Please try again in a few minutes.",
+              message: "Rate Limit Exceeded",
+              details: {
+                error: {
+                  code: "rate_limit_exceeded",
+                  message: "Too many requests"
+                }
+              }
+            }
+          };
+        }
+        
+        if (response.status === 401 || response.status === 403) {
+          return {
+            status: 401,
+            data: {
+              error: "Authentication issue with the Deepseek AI service. Please contact support.",
+              message: "Authentication Error",
+              details: {
+                error: {
+                  code: "invalid_api_key",
+                  message: "Invalid API key or insufficient permissions"
+                }
+              }
+            }
+          };
+        }
+        
+        if (response.status === 408) {
+          return {
+            status: 408,
+            data: {
+              error: "The request to the Deepseek AI service timed out. Please try again with a simpler request.",
+              message: "Request Timeout",
+              details: {
+                error: {
+                  code: "timeout",
+                  message: "Request timed out"
+                }
+              }
+            }
+          };
+        }
+        
+        if (response.status >= 500) {
+          // Check for insufficient balance error from Deepseek
+          if (response.data?.details?.code === "invalid_request_error" && 
+              response.data?.error?.includes("Insufficient Balance")) {
+            return {
+              status: 402, // Payment Required
+              data: {
+                error: "Your Deepseek AI account has insufficient balance. Please add credits to your account.",
+                message: "Insufficient Balance",
+                details: {
+                  error: {
+                    code: "insufficient_balance",
+                    message: "Insufficient balance in Deepseek account"
+                  }
+                }
+              }
+            };
+          }
+          
+          return {
+            status: 500,
+            data: {
+              error: "The Deepseek AI service is experiencing technical difficulties. Please try again later.",
+              message: "Server Error",
+              details: {
+                error: {
+                  code: "server_error",
+                  message: "Internal server error"
+                }
+              }
+            }
+          };
+        }
+        
+        // If response.data contains detailed error information, preserve it
+        if (response.data && response.data.details && response.data.details.error) {
+          // Keep the original error structure but enhance it if needed
+          return response;
+        }
+        
+        // Return the original error if no special handling is needed
+        return response;
+      },
+      // Add response transformation to ensure consistent structure
+      transformResponse: (response: any) => {
+        console.log("AI course generation raw response:", response);
+        
+        // Ensure we have a standard structure regardless of API response format
+        if (!response) {
+          return { data: null, message: "Empty response" };
+        }
+        
+        // If response is already in { data: ... } format
+        if (response.data && typeof response.data === 'object') {
+          return response;
+        }
+        
+        // If response is the direct course object (has courseId)
+        if (response.courseId) {
+          return { data: response, message: "Course generated successfully" };
+        }
+        
+        // If response is wrapped in a message object
+        if (response.message && response.data) {
+          return response;
+        }
+        
+        // Default wrapper for any other format
+        return { 
+          data: response, 
+          message: "Course generated" 
+        };
+      }
+    }),
+
+    // Add new API endpoint for checking Deepseek status
+    checkAIStatus: builder.query<any, void>({
+      query: () => ({
+        url: "courses/ai-status",
+        method: "GET",
+      }),
+      // Add custom error handling
+      transformErrorResponse: (response: any) => {
+        if (response.status === 'FETCH_ERROR') {
+          return {
+            status: 503,
+            data: { 
+              error: "Cannot connect to AI service status check.",
+              message: "Service Unavailable"
+            }
+          };
+        }
+        
+        return response;
+      },
     }),
   }),
 });
@@ -1552,7 +2015,6 @@ export const {
   useDeleteMeetingMutation,
   useRespondToMeetingMutation,
   useAddMeetingNotesMutation,
-  useUpdateLessonProgressMutation,
   useGetMeetingByIdQuery,
   useUpdateMeetingAttendanceMutation,
   useGetUsersQuery,
@@ -1597,4 +2059,7 @@ export const {
   useCreateNoteMutation,
   useUpdateNoteMutation,
   useDeleteNoteMutation,
+  useGetStudentUploadUrlMutation,
+  useGenerateAICourseMutation,
+  useCheckAIStatusQuery,
 } = api;

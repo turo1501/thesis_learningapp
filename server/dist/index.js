@@ -95,7 +95,7 @@ app.use((0, cors_1.default)());
 app.use((0, express_2.clerkMiddleware)());
 /* ROUTES */
 app.get("/", (_req, res) => {
-    res.send("Hello World");
+    res.json({ status: "success" });
 });
 app.use("/courses", courseRoutes_1.default);
 app.use("/users/clerk", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, userClerkRoutes_1.default);

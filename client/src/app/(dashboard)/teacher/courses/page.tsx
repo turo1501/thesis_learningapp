@@ -11,6 +11,8 @@ import {
   useGetCoursesQuery,
 } from "@/state/api";
 import { useUser } from "@clerk/nextjs";
+import { BrainCircuit, Plus } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useMemo, useState } from "react";
 
@@ -93,12 +95,25 @@ const Courses = () => {
         title="Courses"
         subtitle="Browse your courses"
         rightElement={
-          <Button
-            onClick={handleCreateCourse}
-            className="teacher-courses__header"
-          >
-            Create Course
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              onClick={handleCreateCourse}
+              className="teacher-courses__header flex items-center gap-2"
+            >
+              <Plus size={16} />
+              Create Course
+            </Button>
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:text-white hover:opacity-90"
+              asChild
+            >
+              <Link href="/teacher/courses/ai-create">
+                <BrainCircuit size={16} />
+                AI Course Creator
+              </Link>
+            </Button>
+          </div>
         }
       />
       <Toolbar

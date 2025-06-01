@@ -18,6 +18,11 @@ const submissionSchema = new Schema({
     type: String,
     required: true,
   },
+  attachments: {
+    type: Array,
+    schema: [String],
+    default: [],
+  },
   grade: {
     type: Number,
   },

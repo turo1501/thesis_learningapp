@@ -100,7 +100,8 @@ const AppSidebar = () => {
                     height={20}
                     className="app-sidebar__logo"
                   />
-                  <p className="app-sidebar__title">    NAUT   </p>
+                  <span className="text-xs xl:text-lg 2xl:text-xl font-bold bg-gradient-to-r from-primary-500 to-indigo-400 text-transparent bg-clip-text">Naut Tech</span>
+                 
                 </div>
                 <PanelLeft className="app-sidebar__collapse-icon" />
               </div>

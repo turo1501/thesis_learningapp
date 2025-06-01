@@ -60,19 +60,22 @@ async function createTables() {
       continue;
     }
     
-    const table = new dynamoose.Table(tableName, [model], {
-      create: true,
-      update: true,
-      waitForActive: true,
-      throughput: { read: 5, write: 5 },
-    });
-
     try {
+      // Use try-catch to handle "Model already assigned to table" error
+      const table = new dynamoose.Table(tableName, [model], {
+        create: true,
+        update: true,
+        waitForActive: true,
+        throughput: { read: 5, write: 5 },
+      });
+      
       await new Promise((resolve) => setTimeout(resolve, 2000));
       await table.initialize();
       console.log(`Table created and initialized: ${tableName}`);
     } catch (error: any) {
-      if (error.message && error.message.includes("Table already exists")) {
+      if (error.message && error.message.includes("Model has already been assigned to a table")) {
+        console.log(`Model ${tableName} already assigned to a table, skipping creation`);
+      } else if (error.message && error.message.includes("Table already exists")) {
         console.log(`Table already exists: ${tableName}`);
       } else {
         console.error(
@@ -96,9 +99,29 @@ async function seedData(tableName: string, filePath: string) {
 
   console.log(`Seeding data to table: ${formattedTableName}`);
 
+  // Get the appropriate model without recreating it
+  let modelToUse;
+  
+  // Check if the model name matches one of our imported models
+  if (formattedTableName === "Transaction") {
+    modelToUse = Transaction;
+  } else if (formattedTableName === "UserCourseProgress") {
+    modelToUse = UserCourseProgress;
+  } else if (formattedTableName === "Course") {
+    modelToUse = Course;
+  } else {
+    // For other models, try to get them dynamically
+    try {
+      modelToUse = dynamoose.model(formattedTableName);
+    } catch (err) {
+      console.error(`Unable to get model for ${formattedTableName}:`, err);
+      return;
+    }
+  }
+
   for (const item of data) {
     try {
-      await dynamoose.model(formattedTableName).create(item);
+      await modelToUse.create(item);
     } catch (err) {
       console.error(
         `Unable to add item to ${formattedTableName}. Error:`,

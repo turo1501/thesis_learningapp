@@ -106,7 +106,13 @@ const Testimonial = ({ quote, author, role, avatarUrl }: {
       <div className="flex items-center gap-3 lg:gap-4">
         <div className="w-10 h-10 lg:w-12 lg:h-12 2xl:w-14 2xl:h-14 rounded-full overflow-hidden relative bg-customgreys-darkGrey">
           {avatarUrl ? (
-            <Image src={avatarUrl} alt={author} fill className="object-cover" />
+            <Image 
+              src={avatarUrl} 
+              alt={author} 
+              fill 
+              sizes="(max-width: 768px) 40px, (max-width: 1200px) 48px, 56px"
+              className="object-cover" 
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-white lg:text-lg 2xl:text-xl">
               {author.charAt(0)}
@@ -153,7 +159,8 @@ const Landing = () => {
   
   const { scrollYProgress } = useScroll({
     target: sectionRef,
-    offset: ["start end", "end start"]
+    offset: ["start end", "end start"],
+    layoutEffect: false
   });
   
   const opacity = useTransform(scrollYProgress, [0, 0.5], [0, 1]);

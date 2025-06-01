@@ -54,19 +54,36 @@ function createTables() {
         const models = [transactionModel_1.default, userCourseProgressModel_1.default, courseModel_1.default];
         for (const model of models) {
             const tableName = model.name;
-            const table = new dynamoose_1.default.Table(tableName, [model], {
-                create: true,
-                update: true,
-                waitForActive: true,
-                throughput: { read: 5, write: 5 },
-            });
+            // Check if table already exists
+            const listTablesCommand = new client_dynamodb_1.ListTablesCommand({});
+            const { TableNames } = yield client.send(listTablesCommand);
+            const tableExists = TableNames && TableNames.includes(tableName);
+            if (tableExists) {
+                console.log(`Table already exists: ${tableName}, skipping creation`);
+                continue;
+            }
             try {
+                // Use try-catch to handle "Model already assigned to table" error
+                const table = new dynamoose_1.default.Table(tableName, [model], {
+                    create: true,
+                    update: true,
+                    waitForActive: true,
+                    throughput: { read: 5, write: 5 },
+                });
                 yield new Promise((resolve) => setTimeout(resolve, 2000));
                 yield table.initialize();
                 console.log(`Table created and initialized: ${tableName}`);
             }
             catch (error) {
-                console.error(`Error creating table ${tableName}:`, error.message, error.stack);
+                if (error.message && error.message.includes("Model has already been assigned to a table")) {
+                    console.log(`Model ${tableName} already assigned to a table, skipping creation`);
+                }
+                else if (error.message && error.message.includes("Table already exists")) {
+                    console.log(`Table already exists: ${tableName}`);
+                }
+                else {
+                    console.error(`Error creating table ${tableName}:`, error.message, error.stack);
+                }
             }
         }
     });
@@ -76,9 +93,31 @@ function seedData(tableName, filePath) {
         const data = JSON.parse(fs_1.default.readFileSync(filePath, "utf8"));
         const formattedTableName = pluralize_1.default.singular(tableName.charAt(0).toUpperCase() + tableName.slice(1));
         console.log(`Seeding data to table: ${formattedTableName}`);
+        // Get the appropriate model without recreating it
+        let modelToUse;
+        // Check if the model name matches one of our imported models
+        if (formattedTableName === "Transaction") {
+            modelToUse = transactionModel_1.default;
+        }
+        else if (formattedTableName === "UserCourseProgress") {
+            modelToUse = userCourseProgressModel_1.default;
+        }
+        else if (formattedTableName === "Course") {
+            modelToUse = courseModel_1.default;
+        }
+        else {
+            // For other models, try to get them dynamically
+            try {
+                modelToUse = dynamoose_1.default.model(formattedTableName);
+            }
+            catch (err) {
+                console.error(`Unable to get model for ${formattedTableName}:`, err);
+                return;
+            }
+        }
         for (const item of data) {
             try {
-                yield dynamoose_1.default.model(formattedTableName).create(item);
+                yield modelToUse.create(item);
             }
             catch (err) {
                 console.error(`Unable to add item to ${formattedTableName}. Error:`, JSON.stringify(err, null, 2));

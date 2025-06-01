@@ -210,10 +210,10 @@ export const submitAssignment = async (req: AuthenticatedRequest, res: Response)
   try {
     const { assignmentId } = req.params;
     const { userId } = getAuth(req);
-    const { content } = req.body;
+    const { content, attachments } = req.body;
     
-    if (!content) {
-      res.status(400).json({ message: "Submission content is required" });
+    if (!content && (!attachments || attachments.length === 0)) {
+      res.status(400).json({ message: "Submission content or attachments are required" });
       return;
     }
     
@@ -232,7 +232,8 @@ export const submitAssignment = async (req: AuthenticatedRequest, res: Response)
     
     if (existingSubmission) {
       // Update existing submission
-      existingSubmission.content = content;
+      existingSubmission.content = content || '';
+      existingSubmission.attachments = attachments || [];
       existingSubmission.submissionDate = new Date().toISOString();
       existingSubmission.status = "submitted";
     } else {
@@ -240,7 +241,8 @@ export const submitAssignment = async (req: AuthenticatedRequest, res: Response)
       assignment.submissions.push({
         studentId: userId,
         studentName: req.user?.name || "Unknown Student",
-        content,
+        content: content || '',
+        attachments: attachments || [],
         submissionDate: new Date().toISOString(),
         status: "submitted"
       });
@@ -379,6 +381,76 @@ export const getUploadAssignmentFileUrl = async (
     });
   } catch (error: any) {
     console.error("Error generating upload URL:", error);
+    res.status(500).json({ 
+      message: "Error generating upload URL", 
+      error: error.message || String(error) 
+    });
+  }
+};
+
+/**
+ * Generate upload URL for student assignment submission files
+ */
+export const getStudentUploadFileUrl = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { fileName, fileType } = req.body;
+  const { userId } = getAuth(req);
+
+  // Validate required parameters
+  if (!fileName || !fileType) {
+    res.status(400).json({ message: "File name and type are required" });
+    return;
+  }
+
+  try {
+    // Get bucket name from environment variable
+    const bucketName = process.env.S3_BUCKET_NAME;
+    
+    // Make sure the bucket name is valid
+    if (!bucketName || bucketName.trim() === '') {
+      console.error("S3_BUCKET_NAME environment variable is missing or empty");
+      res.status(500).json({ 
+        message: "Server configuration error - S3 bucket not configured" 
+      });
+      return;
+    }
+    
+    // Create a unique file path for student submissions
+    const uniqueId = uuidv4();
+    const s3Key = `student-submissions/${userId}/${uniqueId}/${fileName}`;
+
+    console.log(`Generating S3 upload URL for student: Bucket=${bucketName}, Key=${s3Key}`);
+
+    // Generate the pre-signed URL
+    const s3Params = {
+      Bucket: bucketName,
+      Key: s3Key,
+      Expires: 60,
+      ContentType: fileType,
+    };
+
+    const uploadUrl = s3.getSignedUrl("putObject", s3Params);
+    
+    // Determine the file URL based on environment config
+    let fileUrl;
+    if (process.env.CLOUDFRONT_DOMAIN) {
+      fileUrl = `${process.env.CLOUDFRONT_DOMAIN}/${s3Key}`;
+    } else {
+      fileUrl = `https://${bucketName}.s3.amazonaws.com/${s3Key}`;
+    }
+    
+    console.log(`Generated upload URL successfully for student submission: ${fileName}`);
+
+    // Return the upload URL and file URL to the client
+    res.status(200).json({
+      uploadUrl,
+      fileUrl,
+      fileName
+    });
+  } catch (error: any) {
+    console.error("Error generating student upload URL:", error);
     res.status(500).json({ 
       message: "Error generating upload URL", 
       error: error.message || String(error) 

@@ -21,17 +21,14 @@ import {
   Check,
   X,
   ExternalLink,
-  ChevronRight
 } from "lucide-react";
 import { format as dateFormat } from "date-fns";
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { useGetStudentMeetingsQuery, useRespondToMeetingMutation } from "@/state/api";
 import { toast } from "sonner";
 
 const StudentMeetings = () => {
-  const router = useRouter();
   const [selectedTab, setSelectedTab] = useState("upcoming");
   const { user, isLoaded } = useUser();
   const { data: meetings, isLoading, refetch } = useGetStudentMeetingsQuery(
@@ -70,11 +67,6 @@ const StudentMeetings = () => {
       toast.error("Failed to respond to meeting");
       console.error(error);
     }
-  };
-
-  // Handler to view meeting details
-  const handleViewMeeting = (meetingId: string) => {
-    router.push(`/user/meetings/${meetingId}`);
   };
 
   // Filter meetings based on the selected tab
@@ -133,19 +125,19 @@ const StudentMeetings = () => {
 
         <TabsContent value="upcoming" className="mt-0">
           <div className="space-y-4">
-            {renderMeetingsList(filteredMeetings, "upcoming", handleRespond, handleViewMeeting)}
+            {renderMeetingsList(filteredMeetings, "upcoming", handleRespond)}
           </div>
         </TabsContent>
 
         <TabsContent value="pending" className="mt-0">
           <div className="space-y-4">
-            {renderMeetingsList(filteredMeetings, "pending", handleRespond, handleViewMeeting)}
+            {renderMeetingsList(filteredMeetings, "pending", handleRespond)}
           </div>
         </TabsContent>
 
         <TabsContent value="past" className="mt-0">
           <div className="space-y-4">
-            {renderMeetingsList(filteredMeetings, "past", handleRespond, handleViewMeeting)}
+            {renderMeetingsList(filteredMeetings, "past", handleRespond)}
           </div>
         </TabsContent>
       </Tabs>
@@ -156,8 +148,7 @@ const StudentMeetings = () => {
 const renderMeetingsList = (
   meetings: Meeting[], 
   status: string,
-  handleRespond: (meetingId: string, response: "confirmed" | "cancelled") => void,
-  handleViewMeeting: (meetingId: string) => void
+  handleRespond: (meetingId: string, response: "confirmed" | "cancelled") => void
 ) => {
   if (meetings.length === 0) {
     return (
@@ -198,7 +189,7 @@ const renderMeetingsList = (
               </Badge>
             )}
           </div>
-          <h3 className="text-xl font-semibold text-white mb-2 hover:text-primary-400 cursor-pointer" onClick={() => handleViewMeeting(meeting.meetingId)}>
+          <h3 className="text-xl font-semibold text-white mb-2">
             {meeting.title}
           </h3>
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm mb-4">
@@ -258,14 +249,14 @@ const renderMeetingsList = (
 
           {status === "pending" && (
             <>
-              <Button
+              <Button 
                 className="bg-green-600 hover:bg-green-700"
                 onClick={() => handleRespond(meeting.meetingId, "confirmed")}
               >
                 <Check className="h-4 w-4 mr-1" />
                 Accept
               </Button>
-              <Button
+              <Button 
                 className="bg-red-600 hover:bg-red-700"
                 onClick={() => handleRespond(meeting.meetingId, "cancelled")}
               >
@@ -275,14 +266,23 @@ const renderMeetingsList = (
             </>
           )}
 
-          <Button
-            variant="outline"
-            className="border-slate-700 hover:bg-slate-800"
-            onClick={() => handleViewMeeting(meeting.meetingId)}
-          >
-            View Details
-            <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
+          {status === "past" && meeting.meetingLink && (
+            <Button
+              variant="outline"
+              className="bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700"
+            >
+              <MessageSquare className="h-4 w-4 mr-1" />
+              <a 
+                href={meeting.meetingLink} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center"
+              >
+                Recording
+                <ExternalLink className="h-3 w-3 ml-1" />
+              </a>
+            </Button>
+          )}
         </div>
       </div>
     </Card>

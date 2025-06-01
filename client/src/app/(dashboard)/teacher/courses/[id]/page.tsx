@@ -51,6 +51,7 @@ interface CourseFormData {
   courseCategory: string;
   coursePrice: string;
   courseStatus: boolean;
+  courseLevel: string;
 }
 
 const CourseEditor = () => {
@@ -59,6 +60,7 @@ const CourseEditor = () => {
   const id = params.id as string;
   const [isInitialized, setIsInitialized] = useState(false);
   const [activeTab, setActiveTab] = useState("content");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { userId, getToken } = useAuth();
   
   // Ensure auth token is refreshed
@@ -71,6 +73,12 @@ const CourseEditor = () => {
     refreshToken();
   }, [getToken]);
   
+  // Reset initialized state when component mounts or id changes
+  // This ensures we always get fresh data
+  useEffect(() => {
+    setIsInitialized(false);
+  }, [id]);
+  
   // Redirect to courses page if ID is missing or invalid
   useEffect(() => {
     if (!id || id === "undefined") {
@@ -82,6 +90,9 @@ const CourseEditor = () => {
   // Skip the query if ID is invalid
   const { data: course, isLoading, refetch, error: courseError } = useGetCourseQuery(id, {
     skip: !id || id === "undefined",
+    // Add refetch on mount and focus to ensure data is always fresh
+    refetchOnMountOrArgChange: true,
+    refetchOnFocus: true
   });
   const [updateCourse, { isLoading: isUpdating }] = useUpdateCourseMutation();
   const [getUploadVideoUrl] = useGetUploadVideoUrlMutation();
@@ -104,12 +115,13 @@ const CourseEditor = () => {
       courseCategory: "",
       coursePrice: "0",
       courseStatus: false,
+      courseLevel: "beginner",
     },
   });
 
   // Initialize form values with course data when available
   useEffect(() => {
-    if (course) {
+    if (course && !isSubmitting) {
       console.log("Setting form values from course data:", course);
       
       // We need to properly handle the data structure
@@ -125,20 +137,27 @@ const CourseEditor = () => {
         return;
       }
       
-      methods.reset({
-        courseTitle: courseData.title || "",
-        courseDescription: courseData.description || "",
-        courseCategory: courseData.category || "",
-        coursePrice: centsToDollars(courseData.price) || "0",
-        courseStatus: courseData.status === "Published",
-      });
-      
-      dispatch(setSections(courseData.sections || []));
-      setIsInitialized(true);
+      // Only reset form values if not initialized yet or if this is a fresh load
+      if (!isInitialized) {
+        methods.reset({
+          courseTitle: courseData.title || "",
+          courseDescription: courseData.description || "",
+          courseCategory: courseData.category || "",
+          coursePrice: centsToDollars(courseData.price) || "0",
+          courseStatus: courseData.status === "Published",
+          courseLevel: courseData.level || "beginner",
+        });
+        
+        dispatch(setSections(courseData.sections || []));
+        setIsInitialized(true);
+      }
     }
-  }, [course, methods, dispatch, userId, router]);
+  }, [course, methods, dispatch, userId, router, isInitialized, isSubmitting]);
 
   const onSubmit = async (data: CourseFormData) => {
+    // Set submitting state to true
+    setIsSubmitting(true);
+    
     try {
       if (!id || id === "undefined") {
         toast.error("Invalid course ID");
@@ -175,18 +194,44 @@ const CourseEditor = () => {
       try {
         // Update the course
         toast.info("Saving course...");
-        await updateCourse({
+        const updatedCourse = await updateCourse({
           courseId: id,
           formData,
         }).unwrap();
 
+        // Force refresh the course data
+        await refetch();
+        
+        // Update UI elements with the latest data
+        if (updatedCourse) {
+          // Extract data from the response
+          const courseData = 'data' in updatedCourse ? (updatedCourse as any).data : updatedCourse;
+          
+          // Update form fields with latest data if needed
+          methods.reset({
+            courseTitle: courseData.title || data.courseTitle,
+            courseDescription: courseData.description || data.courseDescription,
+            courseCategory: courseData.category || data.courseCategory,
+            coursePrice: centsToDollars(courseData.price) || data.coursePrice,
+            courseStatus: courseData.status === "Published",
+            courseLevel: courseData.level || data.courseLevel
+          }, { keepValues: true });
+          
+          // Update sections if returned from API
+          if (courseData.sections && Array.isArray(courseData.sections)) {
+            dispatch(setSections(courseData.sections));
+          }
+        }
+        
         toast.success("Course updated successfully");
-        await refetch(); // Refresh data after update
       } catch (updateError: any) {
         handleApiError(updateError, "Failed to update course");
       }
     } catch (error: any) {
       handleApiError(error, "An unexpected error occurred");
+    } finally {
+      // Always reset submitting state when done
+      setIsSubmitting(false);
     }
   };
 
@@ -251,13 +296,13 @@ const CourseEditor = () => {
               type="submit"
               form="course-form"
               className={`transition-all ${
-                isUpdating 
+                isSubmitting || isUpdating 
                   ? "bg-primary-800 cursor-wait" 
                   : "bg-gradient-to-r from-primary-700 to-primary-600 hover:from-primary-600 hover:to-primary-500"
               } text-white flex items-center gap-2`}
-              disabled={isUpdating}
+              disabled={isSubmitting || isUpdating}
             >
-              {isUpdating ? (
+              {isSubmitting || isUpdating ? (
                 <>
                   <div className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin"></div>
                   <span>Saving...</span>
@@ -399,6 +444,21 @@ const CourseEditor = () => {
                             value: "Artificial Intelligence",
                             label: "Artificial Intelligence",
                           },
+                        ]}
+                        className="bg-customgreys-darkGrey/80 rounded-lg"
+                        labelClassName="text-white mb-1"
+                        inputClassName="bg-customgreys-darkGrey rounded-md text-white"
+                      />
+                      
+                      <CustomFormField
+                        name="courseLevel"
+                        label="Course Level"
+                        type="select"
+                        placeholder="Select level"
+                        options={[
+                          { value: "beginner", label: "Beginner" },
+                          { value: "intermediate", label: "Intermediate" },
+                          { value: "advanced", label: "Advanced" },
                         ]}
                         className="bg-customgreys-darkGrey/80 rounded-lg"
                         labelClassName="text-white mb-1"

@@ -152,6 +152,16 @@ const ChatBot = () => {
 
   // Load chat history if available
   useEffect(() => {
+    // Don't attempt to load chat history if user is not available
+    if (!user?.id) return;
+    
+    // Check if authentication token is available
+    const token = localStorage.getItem('clerk-auth-token');
+    if (!token) {
+      console.warn('No auth token available for chat history loading');
+      return;
+    }
+    
     if (chatHistory && chatHistory.messages && chatHistory.messages.length > 0) {
       // Clear any existing messages first to avoid duplicates
       dispatch({ type: 'chat/clearMessages' });
@@ -182,9 +192,12 @@ const ChatBot = () => {
         }
       }
       
+      // Only show error toast if it's not an auth error (which is handled elsewhere)
+      if (!(chatHistoryError as any)?.status?.toString().startsWith('4')) {
       toast.error(errorMessage);
+      }
     }
-  }, [chatHistory, dispatch, chatHistoryError]);
+  }, [chatHistory, dispatch, chatHistoryError, user]);
 
   // Track when recommendations are available
   useEffect(() => {

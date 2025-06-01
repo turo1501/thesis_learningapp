@@ -8,7 +8,8 @@ import {
   gradeSubmission, 
   submitAssignment, 
   updateAssignment,
-  getUploadAssignmentFileUrl
+  getUploadAssignmentFileUrl,
+  getStudentUploadFileUrl
 } from "../controllers/assignmentController";
 import { authenticate } from "../middleware/authMiddleware";
 import { requireRole } from "../middleware/roleMiddleware";
@@ -48,13 +49,22 @@ router.delete(
   deleteAssignment
 );
 
-// Generate upload URL for assignment files
+// Generate upload URL for assignment files (for teachers)
 router.post(
   "/get-upload-file-url",
   requireAuth(),
   authenticate,
   requireRole(["teacher", "admin"]),
   getUploadAssignmentFileUrl
+);
+
+// Generate upload URL for student assignment submissions (for students)
+router.post(
+  "/get-student-upload-file-url",
+  requireAuth(),
+  authenticate,
+  requireRole(["student"]),
+  getStudentUploadFileUrl
 );
 
 // Submit an assignment (student only)

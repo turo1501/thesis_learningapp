@@ -192,65 +192,69 @@ export const getPendingActions = async (
 };
 
 /**
- * Get monthly revenue data for charts
+ * Get monthly user growth data for charts
+ * Previously was getMonthlyRevenue, now returns user growth data
  */
 export const getMonthlyRevenue = async (
   _: Request,
   res: Response
 ): Promise<void> => {
   try {
-    // Get all transactions
-    const transactions = await Transaction.scan().exec();
+    // Get all users from Clerk
+    const usersResponse = await clerkClient.users.getUserList({
+      limit: 500, // Tăng limit để lấy nhiều user hơn
+    });
     
-    // Initialize monthly revenue data structure
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthlyRevenue = months.map(month => ({
-      month,
-      revenue: 0
-    }));
-    
-    // Calculate revenue by month
+    // Lấy năm hiện tại
     const currentYear = new Date().getFullYear();
     
-    transactions.forEach(transaction => {
-      const createdAt = new Date(transaction.createdAt || Date.now());
+    // Khởi tạo cấu trúc dữ liệu tăng trưởng người dùng theo tháng
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyGrowth = months.map(month => ({
+      month,
+      students: 0,
+      teachers: 0
+    }));
+    
+    // Tính số người dùng theo từng tháng và phân loại theo vai trò
+    usersResponse.data.forEach(user => {
+      const createdAt = new Date(user.createdAt);
       
-      // Only include transactions from current year
+      // Chỉ tính người dùng từ năm hiện tại
       if (createdAt.getFullYear() === currentYear) {
         const month = createdAt.getMonth();
-        monthlyRevenue[month].revenue += transaction.amount || 0;
+        const userType = (user.publicMetadata?.userType as string) || 'student';
+        
+        if (userType === 'teacher') {
+          monthlyGrowth[month].teachers += 1;
+        } else {
+          monthlyGrowth[month].students += 1;
+        }
       }
     });
     
-    // If no real data, generate sample data
-    if (transactions.length === 0) {
-      // Sample data with reasonable curve
-      monthlyRevenue[0].revenue = 8500;
-      monthlyRevenue[1].revenue = 9200; 
-      monthlyRevenue[2].revenue = 10500;
-      monthlyRevenue[3].revenue = 9800;
-      monthlyRevenue[4].revenue = 11200;
-      monthlyRevenue[5].revenue = 12000;
-      monthlyRevenue[6].revenue = 10800;
-      monthlyRevenue[7].revenue = 11500;
-      monthlyRevenue[8].revenue = 13200;
-      monthlyRevenue[9].revenue = 14500;
-      monthlyRevenue[10].revenue = 12800;
-      monthlyRevenue[11].revenue = 15000;
+    // Tạo dữ liệu mẫu nếu không có dữ liệu thực
+    if (usersResponse.data.length === 0 || monthlyGrowth.every(m => m.students === 0 && m.teachers === 0)) {
+      // Dữ liệu mẫu với đường cong hợp lý
+      for (let i = 0; i < 12; i++) {
+        monthlyGrowth[i].students = 15 + Math.floor(i * 3.5 + Math.random() * 10);
+        monthlyGrowth[i].teachers = 5 + Math.floor(i * 1.2 + Math.random() * 3);
+      }
     }
     
     res.json({
       success: true,
-      data: monthlyRevenue
+      data: monthlyGrowth
     });
   } catch (error) {
-    console.error("Error getting monthly revenue:", error);
+    console.error("Error getting monthly user growth:", error);
     
-    // Return sample data if error occurs
+    // Trả về dữ liệu mẫu nếu có lỗi
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const sampleData = months.map((month, index) => ({
       month,
-      revenue: 8000 + (index * 500) + Math.random() * 2000
+      students: 15 + Math.floor(index * 3.5 + Math.random() * 10),
+      teachers: 5 + Math.floor(index * 1.2 + Math.random() * 3)
     }));
     
     res.json({

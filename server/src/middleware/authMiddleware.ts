@@ -52,4 +52,72 @@ export const authenticate: RequestHandler = async (req, res, next) => {
     res.status(500).json({ message: 'Internal server error' });
     return;
   }
+};
+
+/**
+ * Middleware to check if user is authenticated
+ */
+export const requireAuth: RequestHandler = (req, res, next) => {
+  try {
+    // Check if user exists in request
+    if (!(req as any).user) {
+      res.status(401).json({ message: 'Unauthorized: Authentication required' });
+      return;
+    }
+    next();
+  } catch (error) {
+    console.error('RequireAuth middleware error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+    return;
+  }
+};
+
+/**
+ * Middleware to check if user is an admin
+ */
+export const requireAdmin: RequestHandler = (req, res, next) => {
+  try {
+    const user = (req as any).user;
+    
+    if (!user) {
+      res.status(401).json({ message: 'Unauthorized: Authentication required' });
+      return;
+    }
+    
+    if (user.role !== 'admin') {
+      res.status(403).json({ message: 'Forbidden: Admin access required' });
+      return;
+    }
+    
+    next();
+  } catch (error) {
+    console.error('RequireAdmin middleware error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+    return;
+  }
+};
+
+/**
+ * Middleware to check if user is a teacher
+ */
+export const requireTeacher: RequestHandler = (req, res, next) => {
+  try {
+    const user = (req as any).user;
+    
+    if (!user) {
+      res.status(401).json({ message: 'Unauthorized: Authentication required' });
+      return;
+    }
+    
+    if (user.role !== 'teacher' && user.role !== 'admin') {
+      res.status(403).json({ message: 'Forbidden: Teacher access required' });
+      return;
+    }
+    
+    next();
+  } catch (error) {
+    console.error('RequireTeacher middleware error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+    return;
+  }
 }; 

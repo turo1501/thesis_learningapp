@@ -67,13 +67,14 @@ const NonDashboardNavbar = () => {
             <Link href="/" className="flex items-center" scroll={false}>
               <div className="relative h-10 w-10 xl:h-14 xl:w-14 2xl:h-16 2xl:w-16 mr-2 xl:mr-3">
                 <Image 
-                  src="/logo1.png" 
+                  src="/logo2.png" 
                   alt="Logo" 
                   fill 
+                  sizes="(max-width: 768px) 40px, (max-width: 1200px) 56px, 64px"
                   className="object-contain" 
                 />
               </div>
-              <span className="text-xl xl:text-2xl 2xl:text-3xl font-bold bg-gradient-to-r from-primary-500 to-indigo-400 text-transparent bg-clip-text">LearningApp</span>
+              <span className="text-xl xl:text-2xl 2xl:text-3xl font-bold bg-gradient-to-r from-primary-500 to-indigo-400 text-transparent bg-clip-text">Naut Tech</span>
             </Link>
             
             <div className="hidden md:flex items-center gap-5 xl:gap-10 2xl:gap-12">

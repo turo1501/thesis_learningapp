@@ -1,0 +1,20 @@
+{
+  "timestamp": 1747201265731,
+  "input": {
+    "topicTitle": "ttttt",
+    "targetAudience": "ttttt",
+    "difficultyLevel": "beginner",
+    "keyPoints": "ttttt",
+    "courseLength": "medium"
+  },
+  "output": {
+    "title": "ttttt Essentials: From Fundamentals to Expertise",
+    "description": "Embark on a learning journey through ttttt that will transform your understanding and skills. Following the latest research in effective learning, this course employs spaced repetition, active recall, and project-based methodologies to maximize your learning outcomes. Join a community of learners and put your new skills into practice immediately with our carefully designed projects and peer collaboration opportunities.",
+    "category": "Education",
+    "price": "48",
+    "level": "beginner",
+    "sectionCount": 4,
+    "chapterCount": 10
+  },
+  "feedback": null
+}

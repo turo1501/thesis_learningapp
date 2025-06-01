@@ -17,6 +17,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const [courseId, setCourseId] = useState<string | null>(null);
+  const [isTokenReady, setIsTokenReady] = useState(false);
   const { user, isLoaded } = useUser();
   const { getToken, isSignedIn } = useAuth();
   const isCoursePage = /^\/user\/courses\/[^\/]+(?:\/chapters\/[^\/]+)?$/.test(
@@ -39,25 +40,36 @@ export default function DashboardLayout({
           const token = await getToken();
           if (token) {
             localStorage.setItem('clerk-auth-token', token);
+            sessionStorage.setItem('clerk-auth-token', token);
             console.log('Token stored in localStorage in dashboard layout');
+            setIsTokenReady(true);
+          } else {
+            console.error('Token is empty or undefined');
+            setIsTokenReady(false);
           }
         } catch (error) {
           console.error('Failed to get auth token:', error);
+          setIsTokenReady(false);
         }
       } else {
         localStorage.removeItem('clerk-auth-token');
+        sessionStorage.removeItem('clerk-auth-token');
+        setIsTokenReady(false);
       }
     };
     
+    // Immediately try to get and store token
     storeToken();
     
-    const interval = setInterval(storeToken, 5 * 60 * 1000);
+    // Set up refresh interval (every 4 minutes to be safe with 5 minute expiry)
+    const interval = setInterval(storeToken, 4 * 60 * 1000);
     
     return () => clearInterval(interval);
   }, [isSignedIn, getToken]);
 
   if (!isLoaded) return <Loading />;
   if (!user) return <div>Please sign in to access this page.</div>;
+  if (!isTokenReady) return <Loading />;
 
   return (
     <SidebarProvider>

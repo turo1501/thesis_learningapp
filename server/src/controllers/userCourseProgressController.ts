@@ -21,16 +21,53 @@ export const getUserEnrolledCourses = async (
     const enrolledCourses = await UserCourseProgress.query("userId")
       .eq(userId)
       .exec();
+    
+    // Handle case when no enrollments are found
+    if (!enrolledCourses || enrolledCourses.length === 0) {
+      // Return empty array instead of error
+      res.json({
+        message: "No enrolled courses found",
+        data: []
+      });
+      return;
+    }
+    
+    // Extract course IDs from progress records
     const courseIds = enrolledCourses.map((item: any) => item.courseId);
-    const courses = await Course.batchGet(courseIds);
-    res.json({
-      message: "Enrolled courses retrieved successfully",
-      data: courses,
-    });
+    
+    // Ensure we have valid course IDs
+    if (!courseIds.length) {
+      res.json({
+        message: "No valid course IDs found in enrollments",
+        data: []
+      });
+      return;
+    }
+    
+    try {
+      // Get course data for enrolled courses
+      const courses = await Course.batchGet(courseIds);
+      
+      // Always return JSON with consistent format
+      res.json({
+        message: "Enrolled courses retrieved successfully",
+        data: courses || [] // Ensure we always return an array
+      });
+    } catch (courseError) {
+      console.error("Error fetching course details:", courseError);
+      // Return empty array if course fetch fails
+      res.json({
+        message: "Error retrieving course details",
+        data: []
+      });
+    }
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error retrieving enrolled courses", error });
+    console.error("Error retrieving enrolled courses:", error);
+    // Return an empty array instead of an error to prevent client errors
+    res.json({
+      message: "Error retrieving enrolled courses",
+      data: []
+    });
   }
 };
 

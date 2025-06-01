@@ -1,0 +1,20 @@
+{
+  "timestamp": 1747201195690,
+  "input": {
+    "topicTitle": "hqay1",
+    "targetAudience": "hqay1",
+    "difficultyLevel": "advanced",
+    "keyPoints": "hqay1",
+    "courseLength": "long"
+  },
+  "output": {
+    "title": "Advanced hqay1: Professional Techniques & Strategies",
+    "description": "Unlock your potential in hqay1 with this comprehensive, evidence-based curriculum. Following the latest research in effective learning, this course employs spaced repetition, active recall, and project-based methodologies to maximize your learning outcomes. Future-proof your knowledge with cutting-edge content that anticipates emerging trends and prepares you for the evolving landscape of hqay1.",
+    "category": "Education",
+    "price": "120",
+    "level": "advanced",
+    "sectionCount": 7,
+    "chapterCount": 19
+  },
+  "feedback": null
+}

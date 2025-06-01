@@ -96,7 +96,7 @@ const courseSchema = new dynamoose_1.Schema({
     level: {
         type: String,
         required: true,
-        enum: ["Beginner", "Intermediate", "Advanced"],
+        enum: ["beginner", "intermediate", "advanced"],
     },
     status: {
         type: String,

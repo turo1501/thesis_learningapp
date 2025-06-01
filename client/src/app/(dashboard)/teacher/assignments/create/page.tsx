@@ -58,7 +58,6 @@ interface Attachment {
   url: string;
 }
 
-// Define validation schema
 const assignmentSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
@@ -100,7 +99,6 @@ const CreateAssignmentPage = () => {
   const { userId } = useAuth();
   const [isClient, setIsClient] = useState(false);
   
-  // Ensure client-side only rendering for date pickers
   useEffect(() => {
     setIsClient(true);
   }, []);
@@ -154,7 +152,6 @@ const CreateAssignmentPage = () => {
   today.setHours(0, 0, 0, 0);
   const minDate = today.toISOString().slice(0, 16);
   
-  // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);

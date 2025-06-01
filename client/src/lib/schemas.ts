@@ -7,6 +7,7 @@ export const courseSchema = z.object({
   courseCategory: z.string().min(1, "Category is required"),
   coursePrice: z.string(),
   courseStatus: z.boolean(),
+  courseLevel: z.string().default("beginner"),
 });
 
 export type CourseFormData = z.infer<typeof courseSchema>;

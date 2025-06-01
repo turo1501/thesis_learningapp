@@ -14,7 +14,7 @@ import { ChapterFormData, chapterSchema } from "@/lib/schemas";
 import { addChapter, closeChapterModal, editChapter } from "@/state";
 import { useAppDispatch, useAppSelector } from "@/state/redux";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { X, BookOpen, Video, FileText, Upload, AlertTriangle } from "lucide-react";
+import { X, BookOpen, Video, FileText, Upload, AlertTriangle, Loader2 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -31,6 +31,8 @@ const ChapterModal = () => {
   } = useAppSelector((state) => state.global.courseEditor);
   
   const [hasVideo, setHasVideo] = useState(false);
+  const [isVideoUploading, setIsVideoUploading] = useState(false);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
 
   const chapter: Chapter | undefined =
     selectedSectionIndex !== null && selectedChapterIndex !== null
@@ -54,6 +56,7 @@ const ChapterModal = () => {
         video: chapter.video || "",
       });
       setHasVideo(!!chapter.video);
+      setVideoFile(null);
     } else {
       methods.reset({
         title: "",
@@ -61,10 +64,15 @@ const ChapterModal = () => {
         video: "",
       });
       setHasVideo(false);
+      setVideoFile(null);
     }
   }, [chapter, methods]);
 
   const onClose = () => {
+    if (isVideoUploading) {
+      toast.warning("Please wait for video upload to complete before closing");
+      return;
+    }
     dispatch(closeChapterModal());
   };
 
@@ -84,9 +92,15 @@ const ChapterModal = () => {
       return;
     }
 
+    // Handle video data
     let videoValue = data.video;
     
-    if (chapter?.video && typeof data.video !== 'object' && !data.video) {
+    // If we have a File object from the input, use it directly
+    if (videoFile) {
+      videoValue = videoFile;
+    } 
+    // If we're editing and had a video URL but didn't change it
+    else if (chapter?.video && typeof data.video !== 'object' && !data.video) {
       videoValue = chapter.video;
     }
 
@@ -105,6 +119,7 @@ const ChapterModal = () => {
           chapter: newChapter,
         })
       );
+      toast.success('Chapter added successfully');
     } else {
       dispatch(
         editChapter({
@@ -113,12 +128,39 @@ const ChapterModal = () => {
           chapter: newChapter,
         })
       );
+      toast.success('Chapter updated successfully');
     }
 
-    toast.success(
-      `Chapter ${selectedChapterIndex === null ? 'added' : 'updated'} successfully`
-    );
+    // Show a reminder about saving the course if a video was added
+    if (videoFile) {
+      toast.info(
+        'Remember to save the course to upload the video',
+        { duration: 5000 }
+      );
+    }
+    
     onClose();
+  };
+
+  // Handle file selection
+  const handleFileChange = (file: File | null) => {
+    if (!file) return;
+    
+    // Validate file size (limit to 500MB)
+    const maxSize = 500 * 1024 * 1024; // 500MB in bytes
+    if (file.size > maxSize) {
+      toast.error(`Video file is too large. Maximum size is 500MB.`);
+      return;
+    }
+
+    // Validate file type
+    const validTypes = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'];
+    if (!validTypes.includes(file.type)) {
+      toast.warning(`File type ${file.type} may not be supported. Recommended formats: MP4, WebM`);
+    }
+    
+    setVideoFile(file);
+    methods.setValue('video', file);
   };
 
   return (
@@ -137,7 +179,11 @@ const ChapterModal = () => {
           </div>
           <button 
             onClick={onClose} 
-            className="text-customgreys-dirtyGrey hover:text-white transition-colors p-1 rounded-full hover:bg-customgreys-darkGrey"
+            disabled={isVideoUploading}
+            className={cn(
+              "text-customgreys-dirtyGrey hover:text-white transition-colors p-1 rounded-full hover:bg-customgreys-darkGrey",
+              isVideoUploading && "opacity-50 cursor-not-allowed"
+            )}
           >
             <X className="w-5 h-5" />
           </button>
@@ -156,6 +202,7 @@ const ChapterModal = () => {
                 className="bg-customgreys-darkGrey/80 rounded-lg"
                 labelClassName="text-white mb-1"
                 inputClassName="bg-customgreys-darkGrey rounded-md text-white"
+                disabled={isVideoUploading}
               />
 
               <CustomFormField
@@ -166,6 +213,7 @@ const ChapterModal = () => {
                 className="bg-customgreys-darkGrey/80 rounded-lg"
                 labelClassName="text-white mb-1"
                 inputClassName="bg-customgreys-darkGrey rounded-md text-white min-h-[150px]"
+                disabled={isVideoUploading}
               />
 
               <div className="bg-customgreys-darkGrey/80 rounded-lg p-4">
@@ -177,14 +225,24 @@ const ChapterModal = () => {
                   <label 
                     className={cn(
                       "relative inline-flex items-center cursor-pointer",
-                      hasVideo && "text-primary-400"
+                      hasVideo && "text-primary-400",
+                      isVideoUploading && "opacity-50 cursor-not-allowed"
                     )}
                   >
                     <input 
                       type="checkbox" 
                       className="sr-only peer" 
                       checked={hasVideo}
-                      onChange={() => setHasVideo(!hasVideo)}
+                      onChange={() => {
+                        if (!isVideoUploading) {
+                          setHasVideo(!hasVideo);
+                          if (!hasVideo) {
+                            methods.setValue('video', '');
+                            setVideoFile(null);
+                          }
+                        }
+                      }}
+                      disabled={isVideoUploading}
                     />
                     <div className="w-9 h-5 bg-customgreys-darkerGrey peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-customgreys-dirtyGrey after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-900 peer-checked:after:bg-primary-400"></div>
                     <span className="ms-2 text-sm font-medium text-customgreys-dirtyGrey peer-checked:text-primary-400">
@@ -201,24 +259,28 @@ const ChapterModal = () => {
                       <FormItem>
                         <FormControl>
                           <div className="space-y-3">
-                            <div className="relative border-2 border-dashed border-customgreys-darkerGrey/60 rounded-lg p-4 transition-colors hover:border-primary-700/50 text-center">
+                            <div className={cn(
+                              "relative border-2 border-dashed border-customgreys-darkerGrey/60 rounded-lg p-4 transition-colors hover:border-primary-700/50 text-center",
+                              isVideoUploading && "opacity-50 pointer-events-none"
+                            )}>
                               <Input
                                 type="file"
                                 accept="video/*"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
                                   if (file) {
-                                    onChange(file);
+                                    handleFileChange(file);
                                   }
                                 }}
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                disabled={isVideoUploading}
                               />
                               <div className="flex flex-col items-center justify-center gap-2">
                                 <Upload className="h-8 w-8 text-customgreys-dirtyGrey" />
                                 <div className="text-sm text-customgreys-dirtyGrey">
                                   <span className="font-medium text-primary-400">Click to upload</span> or drag and drop
                                 </div>
-                                <p className="text-xs text-customgreys-dirtyGrey">MP4, WebM or other video formats</p>
+                                <p className="text-xs text-customgreys-dirtyGrey">MP4, WebM or other video formats (max 500MB)</p>
                               </div>
                             </div>
 
@@ -232,20 +294,34 @@ const ChapterModal = () => {
                               </div>
                             )}
                             
-                            {value instanceof File && (
+                            {videoFile && (
                               <div className="bg-customgreys-darkerGrey/30 p-3 rounded-lg border border-customgreys-darkerGrey/40">
                                 <div className="flex items-center gap-2 text-sm text-white">
                                   <Video className="h-4 w-4 text-primary-400" />
-                                  <span className="truncate">{value.name}</span>
+                                  <span className="truncate">{videoFile.name}</span>
                                 </div>
-                                <p className="text-xs text-customgreys-dirtyGrey mt-1">Selected file: {(value.size / (1024 * 1024)).toFixed(2)}MB</p>
+                                <p className="text-xs text-customgreys-dirtyGrey mt-1">Selected file: {(videoFile.size / (1024 * 1024)).toFixed(2)}MB</p>
+                                <div className="mt-2 flex justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setVideoFile(null);
+                                      methods.setValue('video', '');
+                                    }}
+                                    className="text-xs text-red-400 hover:text-red-300"
+                                    disabled={isVideoUploading}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
                               </div>
                             )}
                             
-                            <div className="bg-yellow-500/10 rounded-lg p-3 border border-yellow-500/20 flex items-start gap-2">
-                              <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
-                              <p className="text-xs text-yellow-400">
-                                The course must be saved after adding/editing a chapter with video for the changes to be applied.
+                            <div className="bg-blue-500/10 rounded-lg p-3 border border-blue-500/20 flex items-start gap-2">
+                              <AlertTriangle className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                              <p className="text-xs text-blue-400">
+                                <strong>Important:</strong> You must save the course after adding a video for it to be uploaded to the server. 
+                                Videos are only uploaded when the entire course is saved.
                               </p>
                             </div>
                           </div>
@@ -263,14 +339,26 @@ const ChapterModal = () => {
                   variant="outline" 
                   onClick={onClose}
                   className="border-customgreys-dirtyGrey text-white hover:bg-customgreys-darkGrey"
+                  disabled={isVideoUploading}
                 >
                   Cancel
                 </Button>
                 <Button 
                   type="submit" 
-                  className="bg-gradient-to-r from-primary-700 to-primary-600 hover:from-primary-600 hover:to-primary-500 text-white"
+                  className={cn(
+                    "bg-gradient-to-r from-primary-700 to-primary-600 hover:from-primary-600 hover:to-primary-500 text-white",
+                    isVideoUploading && "opacity-70 cursor-not-allowed"
+                  )}
+                  disabled={isVideoUploading}
                 >
-                  {selectedChapterIndex === null ? "Add Chapter" : "Update Chapter"}
+                  {isVideoUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Processing...
+                    </>
+                  ) : (
+                    selectedChapterIndex === null ? "Add Chapter" : "Update Chapter"
+                  )}
                 </Button>
               </div>
             </form>

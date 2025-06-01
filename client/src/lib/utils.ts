@@ -349,6 +349,11 @@ export const createCourseFormData = (
   formData.append("category", data.courseCategory || "Uncategorized");
   formData.append("price", data.coursePrice.toString());
   formData.append("status", data.courseStatus ? "Published" : "Draft");
+  
+  // Add level field - ensure it's lowercase to match server-side enum
+  // If courseLevel exists in data use it, otherwise use "beginner" as default
+  const level = data.courseLevel ? data.courseLevel.toLowerCase() : "beginner";
+  formData.append("level", level);
 
   // Ensure sections with videos are properly formatted for JSON
   const sectionsForAPI = sections.map((section) => {
@@ -397,121 +402,120 @@ export const uploadAllVideos = async (
   getUploadVideoUrl: any
 ) => {
   if (!Array.isArray(localSections) || localSections.length === 0) {
+    console.log("No sections to process for video uploads");
     return [];
   }
 
   // Create a deep copy to avoid mutating the original objects
   const updatedSections = JSON.parse(JSON.stringify(localSections));
 
-  // Detect File objects after JSON.stringify/parse by checking for specific properties
-  const isFileObject = (obj: any): boolean => 
-    obj && 
-    typeof obj === 'object' && 
-    'name' in obj && 
-    'type' in obj && 
-    'size' in obj &&
-    typeof obj.type === 'string' && 
-    obj.type.startsWith('video/');
+  console.log(`Starting video upload process for ${updatedSections.length} sections in course ${courseId}`);
 
-  // Before processing, log what we've received
-  console.log("Sections before video processing:", updatedSections);
-
+  // Process sections sequentially to avoid overwhelming the server
   for (let i = 0; i < updatedSections.length; i++) {
-    if (!updatedSections[i].chapters || !Array.isArray(updatedSections[i].chapters)) {
-      updatedSections[i].chapters = [];
+    const section = updatedSections[i];
+    console.log(`Processing section ${i+1}/${updatedSections.length}: ${section.sectionTitle}`);
+    
+    if (!section.chapters || !Array.isArray(section.chapters) || section.chapters.length === 0) {
+      console.log(`No chapters to process in section ${section.sectionTitle}`);
       continue;
     }
 
-    for (let j = 0; j < updatedSections[i].chapters.length; j++) {
-      const chapter = updatedSections[i].chapters[j];
+    // Process chapters sequentially to avoid race conditions
+    for (let j = 0; j < section.chapters.length; j++) {
+      const chapter = section.chapters[j];
       if (!chapter) continue;
       
-      try {
-        // Check if we have a valid video object to process
-        if (isFileObject(chapter.video)) {
-          console.log(`Found video file in chapter ${chapter.chapterId || j}:`, chapter.video);
-          
-          try {
-            // Extract file information before it's lost in serialization
-            const fileInfo = {
-              name: chapter.video.name,
-              type: chapter.video.type,
-              size: chapter.video.size
-            };
-            
-            // We need to access the actual File object from the original sections
+      console.log(`Processing chapter ${j+1}/${section.chapters.length}: ${chapter.title}`);
+      
+      // Check if this chapter has a video that needs uploading
             const originalChapter = localSections[i]?.chapters[j];
-            if (!originalChapter || !(originalChapter.video instanceof File)) {
-              console.warn(`No matching File object found for chapter ${chapter.chapterId || j}`);
-              updatedSections[i].chapters[j].video = "";
+      const hasFileToUpload = originalChapter?.video instanceof File;
+      
+      if (!hasFileToUpload) {
+        console.log(`No video file to upload for chapter: ${chapter.title}`);
               continue;
             }
 
-            console.log(`Uploading video for chapter ${chapter.chapterId || j}`);
+      try {
+        const videoFile = originalChapter.video as File;
+        console.log(`Found video file to upload: ${videoFile.name} (${videoFile.size} bytes)`);
+        
+        // Request a presigned URL from the server
+        console.log(`Requesting upload URL for: courseId=${courseId}, sectionId=${section.sectionId}, chapterId=${chapter.chapterId}`);
             
-            // Get presigned URL
             const response = await getUploadVideoUrl({
               courseId,
-              sectionId: updatedSections[i].sectionId,
+          sectionId: section.sectionId,
               chapterId: chapter.chapterId,
-              fileName: fileInfo.name,
-              fileType: fileInfo.type,
+          fileName: videoFile.name,
+          fileType: videoFile.type,
             }).unwrap();
             
-            // Extract URLs from response with proper error handling
-            const uploadUrl = response?.data?.uploadUrl;
-            const videoUrl = response?.data?.videoUrl;
+        // Improved response validation
+        if (!response) {
+          throw new Error("Empty response from server when requesting upload URL");
+        }
+        
+        // Extract data from response, handling both direct and nested formats
+        const responseData = response.data || response;
+        
+        // Extract required fields with better error handling
+        const uploadUrl = responseData.uploadUrl;
+        const videoUrl = responseData.videoUrl;
+        const isMock = responseData.isMock || false;
             
             if (!uploadUrl || !videoUrl) {
-              console.error(`Invalid upload URL response for chapter ${chapter.chapterId || j}:`, response);
-              throw new Error("Invalid upload URL response");
-            }
-
-            // Upload the actual file
-            await fetch(uploadUrl, {
+          console.error("Invalid response structure:", responseData);
+          throw new Error("Missing upload URL or video URL in server response");
+        }
+        
+        // If it's a mock URL (local environment without AWS S3)
+        if (isMock) {
+          console.log(`Using mock video URL in development mode: ${videoUrl}`);
+          // No need for actual upload, just save the mock URL
+          updatedSections[i].chapters[j].video = videoUrl;
+          toast.success(`Video processed successfully for ${chapter.title} (development mode)`);
+          continue;
+        }
+        
+        console.log(`Got presigned URL. Uploading video file to S3...`);
+        
+        // Upload the file to S3 using the presigned URL
+        try {
+          const uploadResponse = await fetch(uploadUrl, {
               method: "PUT",
               headers: {
-                "Content-Type": fileInfo.type,
+              "Content-Type": videoFile.type,
               },
-              body: originalChapter.video,
+            body: videoFile,
             });
             
-            console.log(`Upload successful for chapter ${chapter.chapterId || j}, URL:`, videoUrl);
-            toast.success(`Video uploaded successfully for ${chapter.title || `Chapter ${j+1}`}`);
+          if (!uploadResponse.ok) {
+            throw new Error(`Failed to upload to S3: ${uploadResponse.status} ${uploadResponse.statusText}`);
+          }
+          
+          console.log(`Video uploaded successfully. Final URL: ${videoUrl}`);
             
-            // Set the video URL as a string in our updated section
+          // Update the chapter with the video URL
             updatedSections[i].chapters[j].video = videoUrl;
-          } catch (error) {
-            console.error(`Failed to upload video for chapter ${chapter.chapterId || j}:`, error);
-            // Set a placeholder URL to avoid type mismatch
-            updatedSections[i].chapters[j].video = "";
-            toast.error(`Failed to upload video for ${chapter.title || `Chapter ${j+1}`}`);
-          }
-        } else if (typeof chapter.video === 'string' && chapter.video) {
-          // Keep existing video URL
-          console.log(`Keeping existing video URL for chapter ${chapter.chapterId || j}:`, chapter.video);
-        } else if (typeof chapter.video === 'object' && chapter.video !== null) {
-          // Handle case where video is an object but not a proper File
-          console.warn(`Non-file object detected for chapter ${chapter.chapterId || j}:`, chapter.video);
-          // Convert to a string URL if possible or empty string
-          if ('url' in chapter.video && typeof chapter.video.url === 'string') {
-            updatedSections[i].chapters[j].video = chapter.video.url;
-          } else {
-            updatedSections[i].chapters[j].video = "";
-          }
-        } else if (typeof chapter.video !== 'string') {
-          // Ensure all non-string videos are converted to empty strings
-          console.warn(`Invalid video value for chapter ${chapter.chapterId || j}:`, chapter.video);
-          updatedSections[i].chapters[j].video = "";
+          toast.success(`Video uploaded successfully for ${chapter.title}`);
+        } catch (uploadError) {
+          console.error(`S3 upload error for ${chapter.title}:`, uploadError);
+          toast.error(`Failed to upload video to storage service: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`);
+          // Still keep the URL to try again later
+          updatedSections[i].chapters[j].video = videoUrl;
         }
-      } catch (chapterError) {
-        console.error(`Error processing chapter ${j} in section ${i}:`, chapterError);
+      } catch (error) {
+        console.error(`Error uploading video for chapter ${chapter.title}:`, error);
+        // Keep the video as empty string to avoid type errors
         updatedSections[i].chapters[j].video = "";
+        toast.error(`Failed to upload video for ${chapter.title}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
   }
 
-  console.log("Sections after video processing:", updatedSections);
+  console.log("Video upload process completed");
   return updatedSections;
 };
 
@@ -613,4 +617,130 @@ export const uploadAssignmentFile = async (
     console.error(`Failed to upload file ${file.name}:`, error);
     throw error;
   }
+};
+
+// Define the CourseFormData interface if it doesn't exist
+export interface CourseFormData {
+  courseTitle: string;
+  courseDescription: string;
+  courseCategory: string;
+  coursePrice: string;
+  courseStatus: boolean;
+  courseLevel: string;
+}
+
+/**
+ * Generate mock data for analytics dashboard charts
+ * Use this function when API data is not available or incomplete
+ */
+export const generateMockAnalyticsData = () => {
+  // Mock data for course enrollment by category
+  const mockEnrollmentByCategory = [
+    { name: "Programming", value: 45 },
+    { name: "Design", value: 30 },
+    { name: "Business", value: 25 },
+    { name: "Marketing", value: 20 },
+    { name: "Music", value: 15 },
+    { name: "Photography", value: 10 },
+  ];
+
+  // Mock data for revenue by month
+  const mockRevenueByMonth = Array.from({ length: 12 }, (_, i) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - (11 - i));
+    return {
+      month: date.toLocaleString('default', { month: 'short' }),
+      revenue: Math.floor(Math.random() * 50000) + 10000
+    };
+  });
+
+  // Mock data for user growth
+  const mockUserGrowth = Array.from({ length: 12 }, (_, i) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - (11 - i));
+    return {
+      month: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
+      students: Math.floor(Math.random() * 10) + (i + 1) * 5,
+      teachers: Math.floor(Math.random() * 3) + Math.max(1, Math.floor(i / 2))
+    };
+  });
+
+  // Mock data for course creation trend
+  const mockCourseCreationTrend = Array.from({ length: 12 }, (_, i) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - (11 - i));
+    return {
+      date: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
+      courses: Math.floor(Math.random() * 5) + Math.max(1, Math.floor(i / 2))
+    };
+  });
+
+  // Mock data for completion rates
+  const mockCompletionRates = [
+    { category: "Programming", rate: 75 },
+    { category: "Design", rate: 82 },
+    { category: "Business", rate: 65 },
+    { category: "Marketing", rate: 70 },
+    { category: "Music", rate: 88 },
+    { category: "Photography", rate: 79 },
+  ];
+
+  // Mock data for daily active users
+  const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const mockDailyActiveUsers = daysOfWeek.map(day => ({
+    day,
+    users: Math.floor(Math.random() * 100) + 80
+  }));
+
+  // Mock data for user types
+  const mockUserTypes = [
+    { name: "Students", value: 68 },
+    { name: "Teachers", value: 24 },
+    { name: "Admins", value: 8 }
+  ];
+
+  // Mock data for revenue by category
+  const mockRevenueByCategory = [
+    { category: "Computer Science", value: 45000000 },
+    { category: "Artificial Intelligence", value: 32000000 },
+    { category: "Web Development", value: 28000000 },
+    { category: "Data Science", value: 24000000 },
+    { category: "Mobile Development", value: 18000000 },
+    { category: "Science", value: 12000000 }
+  ];
+
+  // Mock data for revenue forecast
+  const mockRevenueForecast = Array.from({ length: 12 }, (_, i) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() + i);
+    return {
+      month: date.toLocaleString('default', { month: 'short', year: 'numeric' }),
+      forecasted: Math.floor(Math.random() * 60000) + 20000 + (i * 5000),
+      actual: i < 3 ? Math.floor(Math.random() * 50000) + 15000 : null
+    };
+  });
+
+  // Mock data for registration trend
+  const mockRegistrationTrend = Array.from({ length: 12 }, (_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (11 - i) * 5);
+    const randomSpike = i === 8 ? 3 : 0; // Add a spike at a specific point
+    return {
+      date: date.toISOString().split('T')[0],
+      registrations: Math.floor(Math.random() * 2) + randomSpike
+    };
+  });
+
+  return {
+    enrollmentByCategory: mockEnrollmentByCategory,
+    revenueByMonth: mockRevenueByMonth,
+    userGrowth: mockUserGrowth,
+    courseCreationTrend: mockCourseCreationTrend,
+    completionRates: mockCompletionRates,
+    dailyActiveUsers: mockDailyActiveUsers,
+    userTypes: mockUserTypes,
+    revenueByCategory: mockRevenueByCategory,
+    revenueForecast: mockRevenueForecast,
+    registrationTrend: mockRegistrationTrend
+  };
 };

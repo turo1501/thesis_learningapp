@@ -55,7 +55,7 @@ app.use(clerkMiddleware());
 
 /* ROUTES */
 app.get("/", (_req, res) => {
-  res.send("Hello World");
+  res.json({  status: "success" });
 });
 
 app.use("/courses", courseRoutes);
