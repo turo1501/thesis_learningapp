@@ -32,11 +32,11 @@ const CourseCardSearch = ({ course, isSelected, onClick }: SearchCourseCardProps
           sizes="(max-width:780px) 100vw, (max-width:1200px) 50vw, 33vw"
           className="object-cover transition-transform duration-500 group-hover:scale-105"
         /> 
-        {course.price > 0 && (
+         (
           <div className="absolute top-3 right-3 bg-primary-600/90 text-white px-3 py-1.5 rounded-lg text-sm font-medium z-20 backdrop-blur-sm">
             {formatPrice(course.price)}
           </div>
-        )}
+        )
         {course.price === 0 && (
           <div className="absolute top-3 right-3 bg-green-600/90 text-white px-3 py-1.5 rounded-lg text-sm font-medium z-20 backdrop-blur-sm">
             Free

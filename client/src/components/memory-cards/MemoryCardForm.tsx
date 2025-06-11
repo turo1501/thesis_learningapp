@@ -349,7 +349,7 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
       }
       
       // Check if we have valid alternatives (new format)
-      const alternatives = result.data?.alternatives || result.alternatives || [];
+      const alternatives = result.data?.alternatives  || [];
       if (!Array.isArray(alternatives) || alternatives.length === 0) {
         console.warn('No alternatives returned from API', result);
         toast.error("No alternative cards were generated. Please try again with a different question/answer.");

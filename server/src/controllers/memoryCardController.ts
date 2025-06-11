@@ -370,9 +370,9 @@ export const addCard = async (req: Request, res: Response): Promise<void> => {
     while (retries > 0 && !deck) {
       try {
         deck = await MemoryCardDeck.get({
-          deckId,
-          userId,
-        }) as unknown as MemoryCardDeckModel | null;
+      deckId,
+      userId,
+    }) as unknown as MemoryCardDeckModel | null;
         break;
       } catch (error) {
         retries--;
@@ -430,25 +430,25 @@ export const addCard = async (req: Request, res: Response): Promise<void> => {
     };
 
     try {
-      await MemoryCardDeck.update(
-        {
-          deckId,
-          userId,
-        },
+    await MemoryCardDeck.update(
+      {
+        deckId,
+        userId,
+      },
         updateData
-      );
+    );
 
       console.log(`Card added successfully: cardId=${newCard.cardId} to deck ${deckId}`);
 
-      res.json({
-        message: "Card added successfully",
-        data: {
-          card: newCard,
-          deckId,
-          deckTitle: deck.title,
+    res.json({
+      message: "Card added successfully",
+      data: {
+        card: newCard,
+        deckId,
+        deckTitle: deck.title,
           totalCards: cards.length,
-        },
-      });
+      },
+    });
     } catch (updateError) {
       console.error("Error updating deck with new card:", updateError);
       res.status(500).json({ 
@@ -627,11 +627,11 @@ export const getDueCards = async (req: Request, res: Response): Promise<void> =>
       
       try {
         deck = await MemoryCardDeck.get({
-          deckId: deckId as string,
-          userId,
-        }) as unknown as MemoryCardDeckModel | null;
+        deckId: deckId as string,
+        userId,
+      }) as unknown as MemoryCardDeckModel | null;
 
-        if (!deck) {
+      if (!deck) {
           console.error(`Deck not found with deckId=${deckId} and userId=${userId}`);
           console.log(`Attempting to find any deck with deckId=${deckId} regardless of userId for debugging...`);
           
@@ -643,7 +643,7 @@ export const getDueCards = async (req: Request, res: Response): Promise<void> =>
             console.error(`Debug scan failed:`, debugError);
           }
           
-          res.status(404).json({ message: "Deck not found" });
+        res.status(404).json({ message: "Deck not found" });
           return;
         }
       } catch (error) {
@@ -935,15 +935,15 @@ export const submitReview = async (req: Request, res: Response): Promise<void> =
         return;
       }
 
-      await MemoryCardDeck.update(
-        {
-          deckId,
-          userId,
-        },
-        {
-          cards,
-          totalReviews,
-          correctReviews,
+    await MemoryCardDeck.update(
+      {
+        deckId,
+        userId,
+      },
+      {
+        cards,
+        totalReviews,
+        correctReviews,
           updatedAt: now,
         }
       );
@@ -961,10 +961,10 @@ export const submitReview = async (req: Request, res: Response): Promise<void> =
         console.warn(`Data verification failed for cardId=${cardId}`);
       }
 
-      res.json({
-        message: "Review submitted successfully",
-        data: {
-          nextReview: new Date(card.nextReviewDue).toISOString(),
+    res.json({
+      message: "Review submitted successfully",
+      data: {
+        nextReview: new Date(card.nextReviewDue).toISOString(),
           nextReviewDue: card.nextReviewDue,
           repetitionCount: card.repetitionCount,
           difficultyLevel: card.difficultyLevel,
@@ -978,8 +978,8 @@ export const submitReview = async (req: Request, res: Response): Promise<void> =
             incorrectCount: card.incorrectCount,
             difficultyLevel: card.difficultyLevel,
           },
-        },
-      });
+      },
+    });
     } catch (updateError) {
       console.error("Error updating deck in database:", updateError);
       res.status(500).json({ 
@@ -1168,20 +1168,20 @@ export const generateCardsFromCourse = async (req: Request, res: Response): Prom
             
             // Convert AI cards to the memory card format
             aiCards.forEach((card) => {
-              generatedCards.push({
-                cardId: uuidv4(),
-                question: card.question,
-                answer: card.answer,
-                chapterId: content.chapterId,
-                sectionId: content.sectionId,
+                generatedCards.push({
+                  cardId: uuidv4(),
+                  question: card.question,
+                  answer: card.answer,
+                  chapterId: content.chapterId,
+                  sectionId: content.sectionId,
                 difficultyLevel: card.difficulty,
-                lastReviewed: Date.now(),
-                nextReviewDue: Date.now() + 24 * 60 * 60 * 1000,
-                repetitionCount: 0,
-                correctCount: 0,
-                incorrectCount: 0,
-                aiGenerated: true,
-              });
+                  lastReviewed: Date.now(),
+                  nextReviewDue: Date.now() + 24 * 60 * 60 * 1000,
+                  repetitionCount: 0,
+                  correctCount: 0,
+                  incorrectCount: 0,
+                  aiGenerated: true,
+                });
             });
             
             console.log(`Generated ${aiCards.length} AI cards from: ${content.title}`);
@@ -1461,17 +1461,17 @@ export const generateAIAlternatives = async (req: Request, res: Response): Promi
       console.log('Falling back to enhanced mock generation...');
       
       const fallbackAlternatives = generateEnhancedMockAlternatives(question, answer, requestedCount);
-      
-      res.json({
+    
+    res.json({
         message: "AI alternatives generated successfully (fallback mode)",
-        data: {
+      data: {
           alternatives: fallbackAlternatives,
-          originalQuestion: question,
-          originalAnswer: answer,
+        originalQuestion: question,
+        originalAnswer: answer,
           count: fallbackAlternatives.length,
           generatedBy: 'fallback-enhanced-v2'
-        },
-      });
+      },
+    });
     }
 
   } catch (error: any) {

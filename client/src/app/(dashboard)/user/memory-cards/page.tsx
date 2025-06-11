@@ -484,16 +484,16 @@ export default function MemoryCardsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.2 }}
         >
-          <TabsList className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-800 dark:to-gray-900 p-1 rounded-lg">
+          <TabsList className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-300 dark:to-gray-900 p-1 rounded-lg ">
             <TabsTrigger 
               value="all"
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white transition-all duration-300"
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-300 data-[state=active]:text-gray-300 transition-all duration-300"
             >
               All Decks
             </TabsTrigger>
             <TabsTrigger 
               value="create"
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white transition-all duration-300"
+              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-300 data-[state=active]:text-gray-300 transition-all duration-300"
             >
               Create New
             </TabsTrigger>

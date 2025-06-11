@@ -173,13 +173,13 @@ const TeacherBilling = () => {
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6 mb-8 text-gray-300">
         <Card className="p-6 bg-slate-900 border-slate-700">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-medium text-slate-200">Total Earnings</h3>
-            <DollarSign className="h-5 w-5 text-green-500" />
+            <DollarSign className="h-5 w-5 text-green-500 " />
           </div>
-          <p className="text-3xl font-bold text-white">{formatPrice(totalEarnings)}</p>
+          <p className="text-3xl font-bold text-gray-300">{formatPrice(totalEarnings)}</p>
           <p className="text-sm text-slate-400 mt-2">From {enrolledStudents.length} enrolled students</p>
         </Card>
         
@@ -190,7 +190,7 @@ const TeacherBilling = () => {
           </div>
           {studentsByCourse.length > 0 && (
             <>
-              <p className="text-xl font-semibold text-white">
+              <p className="text-xl font-semibold text-gray-300 ">
                 {studentsByCourse.sort((a, b) => b.studentCount - a.studentCount)[0].name}
               </p>
               <p className="text-sm text-slate-400 mt-2">
@@ -207,7 +207,7 @@ const TeacherBilling = () => {
           </div>
           {enrolledStudents.length > 0 && (
             <>
-              <p className="text-xl font-semibold text-white">
+              <p className="text-xl font-semibold text-gray-300">
                 {
                   enrolledStudents
                     .sort((a, b) => new Date(b.enrollmentDate).getTime() - new Date(a.enrollmentDate).getTime())[0]
@@ -233,8 +233,8 @@ const TeacherBilling = () => {
         onValueChange={setActiveTab}
         className="mt-6"
       >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <TabsList className="bg-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 text-gray-300">
+          <TabsList className="bg-slate-800 text-gray-300">
             <TabsTrigger
               value="students"
               className="data-[state=active]:bg-blue-600"
@@ -312,7 +312,7 @@ const TeacherBilling = () => {
                   filteredStudents.map((student) => (
                     <TableRow
                       key={student.id}
-                      className="hover:bg-slate-800/50 border-slate-700"
+                      className="hover:bg-slate-800/50 border-slate-700 text-gray-300"
                     >
                       <TableCell>
                         <div className="flex items-center">

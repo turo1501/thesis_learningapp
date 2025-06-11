@@ -22,7 +22,7 @@ const CourseCard = ({ course, onGoToCourse }: CourseCardProps) => {
           priority
         />
       </CardHeader>
-      <CardContent className="course-card__content">
+      <CardContent className="course-card__content text-gray-300">
         <CardTitle className="course-card__title">
           {course.title}: {course.description}
         </CardTitle>
@@ -41,7 +41,7 @@ const CourseCard = ({ course, onGoToCourse }: CourseCardProps) => {
         </div>
 
         <CardFooter className="course-card__footer">
-          <div className="course-card__category">{course.category}</div>
+          <div className="course-card__category ">{course.category}</div>
           <span className="course-card__price">
             {formatPrice(course.price)}
           </span>

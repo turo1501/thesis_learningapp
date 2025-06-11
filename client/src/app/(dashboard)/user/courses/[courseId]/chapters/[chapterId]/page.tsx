@@ -474,10 +474,10 @@ const Course = () => {
           {/* Content Tabs */}
           <motion.div variants={itemVariants}>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-              <TabsList className="bg-customgreys-darkGrey p-1 rounded-xl">
+              <TabsList className="bg-customgreys-darkGrey p-1 rounded-xl text-gray-300">
                 <TabsTrigger 
                   value="content"
-                  className="data-[state=active]:bg-primary-600 data-[state=active]:text-white rounded-lg px-4"
+                  className="data-[state=active]:bg-primary-600 data-[state=active]:text-gray-300 rounded-lg px-4"
                 >
                   <BookOpen className="h-4 w-4 mr-2" />
                   Content
@@ -512,15 +512,15 @@ const Course = () => {
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="content" className="space-y-4">
-                <Card className="bg-customgreys-secondarybg border-customgreys-darkGrey/50">
+              <TabsContent value="content" className="space-y-4 text-gray-300">
+                <Card className="bg-customgreys-secondarybg border-customgreys-darkGrey/50 text-gray-300">
                   <CardHeader>
                     <CardTitle className="text-white flex items-center">
                       <FileText className="h-5 w-5 mr-2 text-primary-500" />
                       Chapter Content
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="text-gray-300">
                     <div className="prose prose-invert max-w-none">
                       <p className="text-customgreys-dirtyGrey leading-relaxed">
                         {currentChapter?.content}
@@ -543,8 +543,8 @@ const Course = () => {
                 </Card>
               </TabsContent>
 
-              <TabsContent value="notes" className="space-y-4">
-                <Card className="bg-customgreys-secondarybg border-customgreys-darkGrey/50">
+              <TabsContent value="notes" className="space-y-4 text-gray-300">
+                <Card className="bg-customgreys-secondarybg border-customgreys-darkGrey/50 text-gray-300">
                   <CardHeader>
                     <CardTitle className="text-white">Take Notes</CardTitle>
                   </CardHeader>
@@ -558,8 +558,8 @@ const Course = () => {
                 </Card>
               </TabsContent>
 
-              <TabsContent value="resources" className="space-y-4">
-                <Card className="bg-customgreys-secondarybg border-customgreys-darkGrey/50">
+              <TabsContent value="resources" className="space-y-4 text-gray-300">
+                <Card className="bg-customgreys-secondarybg border-customgreys-darkGrey/50 text-gray-300">
                   <CardHeader>
                     <CardTitle className="text-white">Additional Resources</CardTitle>
                   </CardHeader>
@@ -575,8 +575,8 @@ const Course = () => {
                 </Card>
               </TabsContent>
 
-              <TabsContent value="quiz" className="space-y-4">
-                <Card className="bg-customgreys-secondarybg border-customgreys-darkGrey/50">
+              <TabsContent value="quiz" className="space-y-4 text-gray-300">
+                <Card className="bg-customgreys-secondarybg border-customgreys-darkGrey/50 text-gray-300">
                   <CardHeader>
                     <CardTitle className="text-white">Chapter Quiz</CardTitle>
                   </CardHeader>
@@ -592,7 +592,7 @@ const Course = () => {
                 </Card>
               </TabsContent>
 
-              <TabsContent value="discussion" className="space-y-4">
+              <TabsContent value="discussion" className="space-y-4 ">
                 <Card className="bg-customgreys-secondarybg border-customgreys-darkGrey/50">
                   <CardHeader>
                     <CardTitle className="text-white">Chapter Discussion</CardTitle>
