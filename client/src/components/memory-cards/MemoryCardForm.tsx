@@ -130,6 +130,7 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
 
   // Handle single card form submission
   const handleSingleSubmit = singleForm.handleSubmit((data) => {
+    console.log('Single form submitted, current mode:', mode);
     onSubmit(data);
   });
   
@@ -166,6 +167,8 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
   
   // Handle multiple cards submission
   const handleMultipleSubmit = multipleForm.handleSubmit((data) => {
+    console.log('Multiple form submitted, current mode:', mode);
+    
     // Make sure we have cards to submit
     if (!data.cards || !Array.isArray(data.cards) || data.cards.length === 0) {
       toast.error("No cards found to submit");
@@ -345,8 +348,8 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
         return;
       }
       
-      // Check if we have valid alternatives
-      const alternatives = result.alternatives || [];
+      // Check if we have valid alternatives (new format)
+      const alternatives = result.data?.alternatives || result.alternatives || [];
       if (!Array.isArray(alternatives) || alternatives.length === 0) {
         console.warn('No alternatives returned from API', result);
         toast.error("No alternative cards were generated. Please try again with a different question/answer.");
@@ -368,9 +371,18 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
       setAiAlternatives(validAlternatives);
       console.log('Setting AI alternatives:', validAlternatives);
       
+      // Log metadata if available
+      if (result.data?.metadata) {
+        console.log('AI Generation Metadata:', {
+          generatedBy: result.data.generatedBy,
+          difficulties: result.data.metadata.difficulties,
+          types: result.data.metadata.types
+        });
+      }
+      
       // Switch to multiple mode if not already in it
       if (mode !== 'multiple') {
-        console.log('Switching to multiple mode');
+        console.log('Switching to multiple mode from:', mode);
         setMode('multiple');
         
         // If in single mode, populate the first card in multiple mode
@@ -556,7 +568,7 @@ export const MemoryCardForm: React.FC<MemoryCardFormProps> = ({
         <CardTitle>{title}</CardTitle>
       </CardHeader>
       
-      <Tabs defaultValue="single" onValueChange={(value) => setMode(value as 'single' | 'batch' | 'multiple')}>
+      <Tabs value={mode} onValueChange={(value) => setMode(value as 'single' | 'batch' | 'multiple')}>
         <TabsList className="mx-6 mb-2">
           <TabsTrigger value="single">Single Card</TabsTrigger>
           <TabsTrigger value="multiple">Multiple Cards</TabsTrigger>

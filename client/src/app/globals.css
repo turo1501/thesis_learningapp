@@ -247,7 +247,7 @@ input[type="color"] {
 }
 
 .completion__action {
-  @apply mt-2 flex justify-center bg-primary-700 hover:bg-primary-800 text-white-100 font-medium rounded-lg px-6 py-3 cursor-pointer transition-all duration-200 shadow-md hover:shadow-lg;
+  @apply mt-8 flex flex-col items-center;
 }
 
 /* Landing Page */

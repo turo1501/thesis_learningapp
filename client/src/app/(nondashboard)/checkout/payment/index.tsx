@@ -94,11 +94,20 @@ const PaymentPageContent = () => {
         };
 
         try {
-          await createTransaction(transactionData);
+          const transactionResult = await createTransaction(transactionData).unwrap();
+          console.log("Transaction created successfully:", transactionResult);
+          
+          // Show success message
+          toast.success("🎉 Payment successful! Course enrolled successfully!");
+          
+          // Wait a moment to ensure the transaction is processed
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
           navigateToStep(3);
         } catch (err) {
           console.error("Transaction creation error:", err);
           setErrorMessage("Payment successful, but we couldn't record your transaction. Please contact support.");
+          toast.error("Failed to complete enrollment. Please contact support.");
         }
       }
     } catch (err) {

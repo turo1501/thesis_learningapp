@@ -47,8 +47,17 @@ const SignInComponent = () => {
     }
 
     fetch(`/api/get-user-role?userId=${userId}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        return res.json();
+      })
       .then((data) => {
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
         const userType = data.userType;
         console.log("UserType:", userType);
 
@@ -61,8 +70,38 @@ const SignInComponent = () => {
           }
         }, 300);
       })
-      .catch((error) => console.error("Error fetching user role:", error));
+      .catch((error) => {
+        console.error("Error fetching user role:", error);
+        // Default to user dashboard if role fetch fails
+        redirectTimeoutRef.current = setTimeout(() => {
+          setRedirectUrl("/user/courses");
+        }, 300);
+      });
   }, [isLoaded, isSignedIn, userId, isCheckoutPage, courseId, showSignUpValue]);
+
+  // Don't render SignIn if user is already signed in and we have a redirect URL
+  if (isSignedIn && redirectUrl) {
+    return (
+      <div className="flex justify-center items-center p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700 mx-auto mb-4"></div>
+          <p className="text-gray-400">Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render SignIn if user is already signed in but no redirect URL yet
+  if (isSignedIn && !redirectUrl) {
+    return (
+      <div className="flex justify-center items-center p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700 mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <SignIn

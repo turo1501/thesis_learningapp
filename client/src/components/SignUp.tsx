@@ -50,6 +50,30 @@ const SignUpComponent = () => {
     }, 300);
   }, [user, isCheckoutPage, courseId, showSignUpValue]);
 
+  // Don't render SignUp if user is already signed in and we have a redirect URL
+  if (user && redirectUrl) {
+    return (
+      <div className="flex justify-center items-center p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700 mx-auto mb-4"></div>
+          <p className="text-gray-400">Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render SignUp if user is already signed in but no redirect URL yet
+  if (user && !redirectUrl) {
+    return (
+      <div className="flex justify-center items-center p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-700 mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <SignUp
       appearance={{

@@ -3,6 +3,7 @@ import MemoryCardDeck from "../models/memoryCardModel";
 import Course from "../models/courseModel";
 import UserCourseProgress from "../models/userCourseProgressModel";
 import { v4 as uuidv4 } from "uuid";
+import AIContentAnalyzer from "../utils/aiContentAnalyzer";
 
 // Define model interfaces for type safety
 interface MemoryCardDeckModel {
@@ -54,6 +55,9 @@ interface MemoryCard {
   correctCount: number;
   incorrectCount: number;
   aiGenerated?: boolean;
+  // Enhanced tracking properties
+  averageThinkingTime?: number;
+  lastConfidence?: number;
 }
 
 interface CourseSection {
@@ -112,6 +116,58 @@ const calculateNextReview = (
 
   // Convert days to milliseconds and add to current time
   return Date.now() + Math.round(interval * 24 * 60 * 60 * 1000);
+};
+
+// Helper function for data backup before critical operations
+const createDataBackup = (deck: MemoryCardDeckModel, operation: string) => {
+  console.log(`Creating backup before ${operation}: deckId=${deck.deckId}, cards=${deck.cards?.length || 0}`);
+  return {
+    deckId: deck.deckId,
+    userId: deck.userId,
+    cards: JSON.parse(JSON.stringify(deck.cards || [])),
+    totalReviews: deck.totalReviews,
+    correctReviews: deck.correctReviews,
+    timestamp: Date.now(),
+    operation
+  };
+};
+
+// Helper function to validate card data integrity
+const validateCardData = (card: MemoryCard): string[] => {
+  const errors: string[] = [];
+  
+  if (!card.cardId) errors.push("Card ID is missing");
+  if (!card.question || card.question.trim().length === 0) errors.push("Question is empty");
+  if (!card.answer || card.answer.trim().length === 0) errors.push("Answer is empty");
+  if (card.difficultyLevel < 1 || card.difficultyLevel > 5) errors.push("Difficulty level must be 1-5");
+  if (card.repetitionCount < 0) errors.push("Repetition count cannot be negative");
+  if (card.correctCount < 0) errors.push("Correct count cannot be negative");
+  if (card.incorrectCount < 0) errors.push("Incorrect count cannot be negative");
+  if (card.lastReviewed <= 0) errors.push("Last reviewed timestamp is invalid");
+  if (card.nextReviewDue <= 0) errors.push("Next review due timestamp is invalid");
+  
+  return errors;
+};
+
+// Helper function to validate deck data integrity
+const validateDeckData = (deck: MemoryCardDeckModel): string[] => {
+  const errors: string[] = [];
+  
+  if (!deck.deckId) errors.push("Deck ID is missing");
+  if (!deck.userId) errors.push("User ID is missing");
+  if (!deck.title || deck.title.trim().length === 0) errors.push("Deck title is empty");
+  if (deck.totalReviews < 0) errors.push("Total reviews cannot be negative");
+  if (deck.correctReviews < 0) errors.push("Correct reviews cannot be negative");
+  if (deck.correctReviews > deck.totalReviews) errors.push("Correct reviews cannot exceed total reviews");
+  
+  if (deck.cards && Array.isArray(deck.cards)) {
+    deck.cards.forEach((card: MemoryCard, index: number) => {
+      const cardErrors = validateCardData(card);
+      cardErrors.forEach(error => errors.push(`Card ${index + 1}: ${error}`));
+    });
+  }
+  
+  return errors;
 };
 
 // Get all decks for a user
@@ -269,7 +325,8 @@ export const addCard = async (req: Request, res: Response): Promise<void> => {
       nextReviewDue,
       repetitionCount = 0,
       correctCount = 0,
-      incorrectCount = 0
+      incorrectCount = 0,
+      aiGenerated = false
     } = req.body;
 
     // Validate required parameters
@@ -288,6 +345,15 @@ export const addCard = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Sanitize input data
+    const sanitizedQuestion = question.trim();
+    const sanitizedAnswer = answer.trim();
+
+    if (sanitizedQuestion.length === 0 || sanitizedAnswer.length === 0) {
+      res.status(400).json({ message: "Question and answer cannot be empty" });
+      return;
+    }
+
     // Verify user is modifying their own deck
     if ((req as any).user?.id !== userId) {
       res.status(403).json({ message: "Unauthorized deck modification" });
@@ -297,11 +363,24 @@ export const addCard = async (req: Request, res: Response): Promise<void> => {
     // Log parameters for debugging
     console.log(`Adding card to deck: ${deckId} for user: ${userId}`);
 
-    // Get the deck
-    const deck = await MemoryCardDeck.get({
-      deckId,
-      userId,
-    }) as unknown as MemoryCardDeckModel | null;
+    // Get the deck with retries for better reliability
+    let deck: MemoryCardDeckModel | null = null;
+    let retries = 3;
+    
+    while (retries > 0 && !deck) {
+      try {
+        deck = await MemoryCardDeck.get({
+          deckId,
+          userId,
+        }) as unknown as MemoryCardDeckModel | null;
+        break;
+      } catch (error) {
+        retries--;
+        if (retries === 0) throw error;
+        console.warn(`Retry getting deck, attempts left: ${retries}`);
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
 
     if (!deck) {
       console.error(`Deck not found: deckId=${deckId}, userId=${userId}`);
@@ -309,48 +388,82 @@ export const addCard = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Create new card with type validations
+    // Create new card with enhanced validation
     const newCard: MemoryCard = {
       cardId: uuidv4(),
-      question,
-      answer,
+      question: sanitizedQuestion,
+      answer: sanitizedAnswer,
       chapterId: chapterId || 'default',
       sectionId: sectionId || 'default',
-      difficultyLevel: difficultyLevel || 3,
-      lastReviewed: lastReviewed || Date.now(), // Use provided value or current timestamp
-      nextReviewDue: nextReviewDue || (Date.now() + 24 * 60 * 60 * 1000), // Due in 24h by default
-      repetitionCount: repetitionCount || 0,
-      correctCount: correctCount || 0,
-      incorrectCount: incorrectCount || 0,
+      difficultyLevel: Math.min(5, Math.max(1, difficultyLevel || 3)),
+      lastReviewed: lastReviewed || Date.now(),
+      nextReviewDue: nextReviewDue || (Date.now() + 24 * 60 * 60 * 1000),
+      repetitionCount: Math.max(0, repetitionCount || 0),
+      correctCount: Math.max(0, correctCount || 0),
+      incorrectCount: Math.max(0, incorrectCount || 0),
+      aiGenerated: Boolean(aiGenerated),
     };
 
-    // Add card to deck
-    const cards = deck.cards || [];
-    cards.push(newCard);
-
-    // Update deck
-    await MemoryCardDeck.update(
-      {
-        deckId,
-        userId,
-      },
-      {
-        cards,
-        updatedAt: Date.now(),
-      }
+    // Add card to deck with data validation
+    const cards = Array.isArray(deck.cards) ? deck.cards : [];
+    
+    // Check for duplicate cards
+    const existingCard = cards.find((c: MemoryCard) => 
+      c.question.toLowerCase().trim() === sanitizedQuestion.toLowerCase() &&
+      c.answer.toLowerCase().trim() === sanitizedAnswer.toLowerCase()
     );
 
-    res.json({
-      message: "Card added successfully",
-      data: {
-        card: newCard,
-        deckId,
-        deckTitle: deck.title,
-      },
-    });
+    if (existingCard) {
+      res.status(409).json({ 
+        message: "A card with similar question and answer already exists",
+        duplicateCardId: existingCard.cardId
+      });
+      return;
+    }
+
+    cards.push(newCard);
+
+    // Update deck with transaction-like behavior
+    const updateData = {
+      cards,
+      updatedAt: Date.now(),
+    };
+
+    try {
+      await MemoryCardDeck.update(
+        {
+          deckId,
+          userId,
+        },
+        updateData
+      );
+
+      console.log(`Card added successfully: cardId=${newCard.cardId} to deck ${deckId}`);
+
+      res.json({
+        message: "Card added successfully",
+        data: {
+          card: newCard,
+          deckId,
+          deckTitle: deck.title,
+          totalCards: cards.length,
+        },
+      });
+    } catch (updateError) {
+      console.error("Error updating deck with new card:", updateError);
+      res.status(500).json({ 
+        message: "Failed to save card to deck", 
+        error: "Database update failed",
+        details: process.env.NODE_ENV === 'development' ? updateError : undefined
+      });
+    }
   } catch (error) {
     console.error("Error adding card to deck:", error);
-    res.status(500).json({ message: "Error adding card to deck", error });
+    res.status(500).json({ 
+      message: "Error adding card to deck", 
+      error: "Internal server error",
+      details: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 };
 
@@ -508,16 +621,34 @@ export const getDueCards = async (req: Request, res: Response): Promise<void> =>
     // Check if specific deck is requested
     if (deckId) {
       // When deckId is provided, get cards from only that deck
-      console.log(`Fetching cards for specific deck: ${deckId}`);
+      console.log(`Fetching cards for specific deck: ${deckId} by user: ${userId}`);
       
-      const deck = await MemoryCardDeck.get({
-        deckId: deckId as string,
-        userId,
-      }) as unknown as MemoryCardDeckModel | null;
+      let deck: MemoryCardDeckModel | null = null;
+      
+      try {
+        deck = await MemoryCardDeck.get({
+          deckId: deckId as string,
+          userId,
+        }) as unknown as MemoryCardDeckModel | null;
 
-      if (!deck) {
-        console.log(`Deck not found: ${deckId}`);
-        res.status(404).json({ message: "Deck not found" });
+        if (!deck) {
+          console.error(`Deck not found with deckId=${deckId} and userId=${userId}`);
+          console.log(`Attempting to find any deck with deckId=${deckId} regardless of userId for debugging...`);
+          
+          // Debug: Try to find the deck regardless of userId to see if it exists
+          try {
+            const allDecksWithId = await MemoryCardDeck.scan("deckId").eq(deckId as string).exec();
+            console.log(`Found ${allDecksWithId.length} decks with deckId=${deckId}:`, allDecksWithId.map(d => ({ deckId: d.deckId, userId: d.userId, title: d.title })));
+          } catch (debugError) {
+            console.error(`Debug scan failed:`, debugError);
+          }
+          
+          res.status(404).json({ message: "Deck not found" });
+          return;
+        }
+      } catch (error) {
+        console.error(`Error fetching deck ${deckId} for user ${userId}:`, error);
+        res.status(500).json({ message: "Error retrieving deck", error });
         return;
       }
 
@@ -549,9 +680,9 @@ export const getDueCards = async (req: Request, res: Response): Promise<void> =>
         })
         .map((card: MemoryCard) => ({
           ...card,
-          deckId: deck.deckId,
-          deckTitle: deck.title,
-          courseId: deck.courseId,
+          deckId: deck!.deckId,
+          deckTitle: deck!.title,
+          courseId: deck!.courseId,
         }))
         .sort((a, b) => {
           // If nextReviewDue is null, treat it as highest priority
@@ -676,11 +807,16 @@ export const getDueCards = async (req: Request, res: Response): Promise<void> =>
 export const submitReview = async (req: Request, res: Response): Promise<void> => {
   try {
     const { deckId, userId, cardId } = req.params;
-    const { difficultyRating, isCorrect } = req.body;
+    const { difficultyRating, isCorrect, thinkingTime, confidence } = req.body;
 
-    // Validate input
-    if (difficultyRating < 1 || difficultyRating > 4) {
-      res.status(400).json({ message: "Difficulty rating must be between 1 and 4" });
+    // Enhanced validation
+    if (!difficultyRating || difficultyRating < 1 || difficultyRating > 5) {
+      res.status(400).json({ message: "Difficulty rating must be between 1 and 5" });
+      return;
+    }
+
+    if (!deckId || !userId || !cardId) {
+      res.status(400).json({ message: "Missing required parameters: deckId, userId, or cardId" });
       return;
     }
 
@@ -690,75 +826,175 @@ export const submitReview = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Get the deck
+    console.log(`Processing review: userId=${userId}, deckId=${deckId}, cardId=${cardId}, rating=${difficultyRating}`);
+
+    // Get the deck with error handling
     const deck = await MemoryCardDeck.get({
       deckId,
       userId,
     }) as unknown as MemoryCardDeckModel | null;
 
     if (!deck) {
+      console.error(`Deck not found: deckId=${deckId}, userId=${userId}`);
       res.status(404).json({ message: "Deck not found" });
       return;
     }
 
-    // Find the card
+    // Find the card with better error handling
     const cards = deck.cards || [];
     const cardIndex = cards.findIndex((c: { cardId: string }) => c.cardId === cardId);
 
     if (cardIndex === -1) {
-      res.status(404).json({ message: "Card not found" });
+      console.error(`Card not found: cardId=${cardId} in deck ${deckId}`);
+      res.status(404).json({ message: "Card not found in deck" });
       return;
     }
 
-    // Update card stats
+    // Update card stats with comprehensive tracking
     const card = cards[cardIndex];
-    card.lastReviewed = Date.now();
+    const now = Date.now();
+    
+    card.lastReviewed = now;
     card.repetitionCount = (card.repetitionCount || 0) + 1;
     
-    if (isCorrect) {
+    // Enhanced correctness tracking based on rating
+    const cardIsCorrect = isCorrect !== undefined ? isCorrect : difficultyRating >= 3;
+    
+    if (cardIsCorrect) {
       card.correctCount = (card.correctCount || 0) + 1;
     } else {
       card.incorrectCount = (card.incorrectCount || 0) + 1;
     }
 
-    // Calculate next review date
-    card.nextReviewDue = calculateNextReview(
+    // Store thinking time if provided
+    if (thinkingTime) {
+      card.averageThinkingTime = card.averageThinkingTime 
+        ? Math.round((card.averageThinkingTime + thinkingTime) / 2)
+        : thinkingTime;
+    }
+
+    // Store confidence level if provided
+    if (confidence) {
+      card.lastConfidence = confidence;
+    }
+
+    // Calculate next review date using enhanced algorithm
+    let nextReviewInterval = calculateNextReview(
       difficultyRating,
       card.repetitionCount,
       deck.intervalModifier,
       deck.easyBonus
     );
 
-    // Update deck stats
-    const totalReviews = (deck.totalReviews || 0) + 1;
-    const correctReviews = isCorrect 
-      ? (deck.correctReviews || 0) + 1 
-      : (deck.correctReviews || 0);
+    // Apply minimum and maximum intervals for data safety
+    const minInterval = 10 * 60 * 1000; // 10 minutes minimum
+    const maxInterval = 365 * 24 * 60 * 60 * 1000; // 1 year maximum
+    
+    if (nextReviewInterval < now + minInterval) {
+      nextReviewInterval = now + minInterval;
+    } else if (nextReviewInterval > now + maxInterval) {
+      nextReviewInterval = now + maxInterval;
+    }
 
-    // Save changes
-    await MemoryCardDeck.update(
-      {
-        deckId,
-        userId,
-      },
-      {
-        cards,
-        totalReviews,
-        correctReviews,
-        updatedAt: Date.now(),
+    card.nextReviewDue = nextReviewInterval;
+
+    // Update difficulty level based on performance
+    if (cardIsCorrect && difficultyRating <= 2) {
+      // If user found it easy, decrease difficulty
+      card.difficultyLevel = Math.max(1, (card.difficultyLevel || 3) - 1);
+    } else if (!cardIsCorrect || difficultyRating >= 4) {
+      // If user struggled, increase difficulty
+      card.difficultyLevel = Math.min(5, (card.difficultyLevel || 3) + 1);
+    }
+
+    // Update deck stats with validation
+    const totalReviews = Math.max(0, (deck.totalReviews || 0) + 1);
+    const correctReviews = cardIsCorrect 
+      ? Math.max(0, (deck.correctReviews || 0) + 1)
+      : Math.max(0, (deck.correctReviews || 0));
+
+    // Ensure data consistency
+    if (correctReviews > totalReviews) {
+      console.warn(`Data inconsistency detected: correctReviews (${correctReviews}) > totalReviews (${totalReviews})`);
+    }
+
+    // Save changes with comprehensive error handling
+    try {
+      // Create backup before updating
+      createDataBackup(deck, 'submitReview');
+      
+      // Validate data integrity before saving
+      const deckErrors = validateDeckData(deck);
+      if (deckErrors.length > 0) {
+        console.error(`Data validation failed for deck ${deckId}:`, deckErrors);
+        res.status(400).json({ 
+          message: "Data validation failed", 
+          errors: deckErrors.slice(0, 5), // Limit error count
+          details: "Please contact support if this issue persists"
+        });
+        return;
       }
-    );
 
-    res.json({
-      message: "Review submitted successfully",
-      data: {
-        nextReview: new Date(card.nextReviewDue).toISOString(),
-        card,
-      },
-    });
+      await MemoryCardDeck.update(
+        {
+          deckId,
+          userId,
+        },
+        {
+          cards,
+          totalReviews,
+          correctReviews,
+          updatedAt: now,
+        }
+      );
+
+      console.log(`Review saved successfully: cardId=${cardId}, nextReview=${new Date(card.nextReviewDue).toISOString()}`);
+
+      // Verify the data was saved correctly
+      const verificationDeck = await MemoryCardDeck.get({ deckId, userId }) as unknown as MemoryCardDeckModel | null;
+      if (!verificationDeck) {
+        throw new Error("Failed to verify data after save");
+      }
+
+      const verifiedCard = verificationDeck.cards?.find((c: MemoryCard) => c.cardId === cardId);
+      if (!verifiedCard || verifiedCard.lastReviewed !== card.lastReviewed) {
+        console.warn(`Data verification failed for cardId=${cardId}`);
+      }
+
+      res.json({
+        message: "Review submitted successfully",
+        data: {
+          nextReview: new Date(card.nextReviewDue).toISOString(),
+          nextReviewDue: card.nextReviewDue,
+          repetitionCount: card.repetitionCount,
+          difficultyLevel: card.difficultyLevel,
+          accuracy: card.correctCount > 0 ? Math.round((card.correctCount / (card.correctCount + card.incorrectCount)) * 100) : 0,
+          card: {
+            cardId: card.cardId,
+            lastReviewed: card.lastReviewed,
+            nextReviewDue: card.nextReviewDue,
+            repetitionCount: card.repetitionCount,
+            correctCount: card.correctCount,
+            incorrectCount: card.incorrectCount,
+            difficultyLevel: card.difficultyLevel,
+          },
+        },
+      });
+    } catch (updateError) {
+      console.error("Error updating deck in database:", updateError);
+      res.status(500).json({ 
+        message: "Failed to save review data", 
+        error: "Database update failed",
+        details: process.env.NODE_ENV === 'development' ? updateError : undefined
+      });
+    }
   } catch (error) {
     console.error("Error submitting review:", error);
-    res.status(500).json({ message: "Error submitting review", error });
+    res.status(500).json({ 
+      message: "Error submitting review", 
+      error: "Internal server error",
+      details: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 };
 
@@ -904,90 +1140,65 @@ export const generateCardsFromCourse = async (req: Request, res: Response): Prom
         });
     });
 
-    // Use DeepSeek API to generate cards from collected content if there's enough content
+    // Use DeepSeek AI Content Analyzer to generate cards from collected content
     if (contentForAIGeneration.length > 0) {
       try {
-        // We'll use axios which is already imported in the file
-        const axios = require('axios');
+        // Initialize the AI Content Analyzer
+        const aiAnalyzer = new AIContentAnalyzer();
         
-        // For each content piece, generate more sophisticated cards using DeepSeek
+        console.log(`Processing ${contentForAIGeneration.length} content pieces with AI analyzer...`);
+        
+        // For each content piece, generate cards using the AI analyzer
         for (const content of contentForAIGeneration) {
           // Skip if content is too short
-          if (content.content.length < 50) continue;
+          if (content.content.length < 100) {
+            console.log(`Skipping short content: ${content.title} (${content.content.length} chars)`);
+            continue;
+          }
           
-          const prompt = `You are an expert educator creating flashcards to help students learn. 
-Generate 5 high-quality flashcards from the following course content. 
-Each flashcard should have a question and answer format that tests key concepts.
-Make questions that require understanding, not just memorization.
-Format your response as JSON array: [{"question": "...", "answer": "..."}]
-Don't include any other text in your response, just the JSON array.
-
-Content title: ${content.title}
-Content: ${content.content.substring(0, 3000)}`; // Limit to 3000 chars to avoid token limits
-
           try {
-            const response = await axios.post(
-              'https://api.deepseek.com/v1/chat/completions',
-              {
-                model: 'deepseek-chat',
-                messages: [
-                  { role: 'system', content: 'You are an educational content AI that creates flashcard questions and answers from course material. Respond with valid JSON only.' },
-                  { role: 'user', content: prompt }
-                ],
-                temperature: 0.7,
-                max_tokens: 1000,
-                response_format: { type: "json_object" }
-              },
-              {
-                headers: {
-                  'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}`,
-                  'Content-Type': 'application/json'
-                }
-              }
+            console.log(`Analyzing content: ${content.title} (${content.content.length} chars)`);
+            
+            // Generate cards using the AI analyzer
+            const aiCards = await aiAnalyzer.generateCardsFromContent(
+              content.content, 
+              content.title, 
+              5 // Generate up to 5 cards per content piece
             );
-
-            // Parse the response to get the flashcards
-            let aiCards = [];
-            try {
-              const responseText = response.data.choices[0]?.message?.content || '';
-              
-              // DeepSeek might wrap JSON in ```json or other formatting - extract just the JSON
-              const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-              const jsonString = jsonMatch ? jsonMatch[0] : responseText;
-              
-              aiCards = JSON.parse(jsonString);
-            } catch (parseError) {
-              console.error('Error parsing AI response:', parseError);
-              console.log('Raw response:', response.data.choices[0]?.message?.content);
-              aiCards = [];
-            }
-
-            // Add the AI-generated cards to our collection
-            aiCards.forEach((card: { question?: string, answer?: string }) => {
-              if (card.question && card.answer) {
-                generatedCards.push({
-                  cardId: uuidv4(),
-                  question: card.question,
-                  answer: card.answer,
-                  chapterId: content.chapterId,
-                  sectionId: content.sectionId,
-                  difficultyLevel: 3,
-                  lastReviewed: Date.now(),
-                  nextReviewDue: Date.now() + 24 * 60 * 60 * 1000,
-                  repetitionCount: 0,
-                  correctCount: 0,
-                  incorrectCount: 0,
-                  aiGenerated: true,
-                });
-              }
+            
+            // Convert AI cards to the memory card format
+            aiCards.forEach((card) => {
+              generatedCards.push({
+                cardId: uuidv4(),
+                question: card.question,
+                answer: card.answer,
+                chapterId: content.chapterId,
+                sectionId: content.sectionId,
+                difficultyLevel: card.difficulty,
+                lastReviewed: Date.now(),
+                nextReviewDue: Date.now() + 24 * 60 * 60 * 1000,
+                repetitionCount: 0,
+                correctCount: 0,
+                incorrectCount: 0,
+                aiGenerated: true,
+              });
             });
-          } catch (aiError) {
-            console.error('Error generating AI cards:', aiError);
+            
+            console.log(`Generated ${aiCards.length} AI cards from: ${content.title}`);
+            
+            // Add a small delay between AI calls to respect rate limits
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+          } catch (contentError: any) {
+            console.error(`Error processing content "${content.title}":`, contentError.message);
             // Continue with other content pieces if one fails
           }
         }
-      } catch (deepseekError) {
-        console.error('Error with DeepSeek API:', deepseekError);
+        
+        console.log(`Total AI cards generated: ${generatedCards.filter(c => c.aiGenerated).length}`);
+        
+      } catch (aiSetupError: any) {
+        console.error('Error setting up AI Content Analyzer:', aiSetupError.message);
         // Continue with the basic cards if AI generation fails
       }
     }
@@ -1162,7 +1373,7 @@ export const submitCardReview = async (req: Request, res: Response) => {
   }
 };
 
-// Generate AI alternatives for a given card
+// Generate AI alternatives for a given card using Deepseek API
 export const generateAIAlternatives = async (req: Request, res: Response): Promise<void> => {
   try {
     const { userId } = req.params;
@@ -1179,52 +1390,254 @@ export const generateAIAlternatives = async (req: Request, res: Response): Promi
       return;
     }
 
-    // In a real implementation, this would call an AI service like OpenAI
-    // For now, we'll simulate it with predefined alternatives
+    // Validate count parameter
+    const requestedCount = Math.min(Math.max(parseInt(count) || 3, 1), 10); // Limit between 1-10
+
+    console.log(`Generating ${requestedCount} AI alternatives for question: "${question.substring(0, 50)}..."`);
+
+    // Use the new AI Content Analyzer
+    const aiAnalyzer = new AIContentAnalyzer();
     
-    // Simulate API processing time
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Create variations by adding different perspectives or formats
-    const alternatives = [];
-    
-    // Simple algorithm to generate alternatives by reformatting the question
-    const questionFormats = [
-      `Explain: ${question}`,
-      `Define in your own words: ${question}`,
-      `What is meant by "${question}"?`,
-      `How would you describe "${question}" to someone new to this topic?`,
-    ];
-    
-    // Answer reformatting patterns
-    const answerFormats = [
-      answer,
-      `Simply put, ${answer.toLowerCase()}`,
-      `In technical terms, ${answer}`,
-      `The most accurate description would be: ${answer}`,
-    ];
-    
-    // Generate count number of alternatives
-    for (let i = 0; i < Math.min(count, questionFormats.length); i++) {
-      alternatives.push({
-        question: questionFormats[i],
-        answer: answerFormats[i],
+    try {
+      const alternatives = await aiAnalyzer.generateAlternativeCards(question, answer, requestedCount);
+      
+      // Convert to the expected format
+      const formattedAlternatives = alternatives.map(card => ({
+        question: card.question,
+        answer: card.answer
+      }));
+
+      console.log(`Successfully generated ${formattedAlternatives.length} AI alternatives using AIContentAnalyzer`);
+
+      // Success response
+      res.json({
+        message: "AI alternatives generated successfully",
+        data: {
+          alternatives: formattedAlternatives,
+          originalQuestion: question,
+          originalAnswer: answer,
+          count: formattedAlternatives.length,
+          generatedBy: 'deepseek-chat-v2',
+          metadata: {
+            difficulties: alternatives.map(a => a.difficulty),
+            types: alternatives.map(a => a.type)
+          }
+        },
+      });
+
+    } catch (aiError: any) {
+      console.error('AI Content Analyzer error:', aiError);
+      
+      // Check if it's a rate limit or quota error
+      const isRateLimit = aiError.response?.status === 429;
+      const isQuotaError = aiError.response?.status === 402;
+      const isAuthError = aiError.response?.status === 401;
+
+      if (isRateLimit) {
+        res.status(429).json({ 
+          message: "AI service is temporarily busy. Please try again in a few moments.",
+          error: "Rate limit exceeded"
+        });
+        return;
+      }
+
+      if (isQuotaError) {
+        res.status(402).json({ 
+          message: "AI service quota exceeded. Please contact support.",
+          error: "Quota exceeded"
+        });
+        return;
+      }
+
+      if (isAuthError) {
+        res.status(500).json({ 
+          message: "AI service configuration error. Please contact support.",
+          error: "Authentication failed"
+        });
+        return;
+      }
+
+      // Fallback to enhanced mock generation for other errors
+      console.log('Falling back to enhanced mock generation...');
+      
+      const fallbackAlternatives = generateEnhancedMockAlternatives(question, answer, requestedCount);
+      
+      res.json({
+        message: "AI alternatives generated successfully (fallback mode)",
+        data: {
+          alternatives: fallbackAlternatives,
+          originalQuestion: question,
+          originalAnswer: answer,
+          count: fallbackAlternatives.length,
+          generatedBy: 'fallback-enhanced-v2'
+        },
       });
     }
-    
-    res.json({
-      message: "AI alternatives generated successfully",
-      data: {
-        alternatives,
-        originalQuestion: question,
-        originalAnswer: answer,
-      },
-    });
-  } catch (error) {
+
+  } catch (error: any) {
     console.error("Error generating AI alternatives:", error);
-    res.status(500).json({ message: "Error generating AI alternatives", error });
+    res.status(500).json({ 
+      message: "Error generating AI alternatives", 
+      error: error.message || 'Unknown error'
+    });
   }
-}; 
+};
+
+// Enhanced fallback function for when Deepseek API is unavailable
+function generateEnhancedMockAlternatives(originalQuestion: string, originalAnswer: string, count: number) {
+  const alternatives = [];
+  
+  // Improved question transformation patterns
+  const questionPatterns = [
+    // Different question formats
+    {
+      pattern: (q: string) => `Explain the concept behind: ${q.replace(/^(what|how|why|when|where|which)/i, '').trim()}`,
+      answerPattern: (a: string) => `This concept refers to ${a.toLowerCase()}. Understanding this helps in grasping the broader context.`
+    },
+    {
+      pattern: (q: string) => `In simple terms, ${q.toLowerCase().replace('?', '')}?`,
+      answerPattern: (a: string) => `Simply put, ${a}.`
+    },
+    {
+      pattern: (q: string) => `How would you describe ${q.replace(/^(what|how) is |^(what|how) are /i, '').replace('?', '')} to a beginner?`,
+      answerPattern: (a: string) => `For beginners: ${a}. This fundamental concept is important because it forms the basis for more advanced topics.`
+    },
+    {
+      pattern: (q: string) => `What is the significance of ${q.replace(/^(what|how) is |^(what|how) are /i, '').replace('?', '')}?`,
+      answerPattern: (a: string) => `The significance lies in the fact that ${a.toLowerCase()}. This plays a crucial role in the overall understanding.`
+    },
+    {
+      pattern: (q: string) => `Compare and contrast: ${q.replace('?', '').replace(/^(what|how) is /i, '')}`,
+      answerPattern: (a: string) => `When comparing this concept: ${a}. The key differences and similarities help in better comprehension.`
+    },
+    {
+      pattern: (q: string) => `Give an example of ${q.replace(/^(what|how) is |^(what|how) are /i, '').replace('?', '')}`,
+      answerPattern: (a: string) => `An example would be: ${a}. This illustrates the practical application of the concept.`
+    }
+  ];
+
+  // Generate alternatives using patterns
+  for (let i = 0; i < Math.min(count, questionPatterns.length); i++) {
+    const pattern = questionPatterns[i];
+    try {
+      const altQuestion = pattern.pattern(originalQuestion);
+      const altAnswer = pattern.answerPattern(originalAnswer);
+      
+      if (altQuestion && altAnswer && altQuestion !== originalQuestion) {
+        alternatives.push({
+          question: altQuestion,
+          answer: altAnswer
+        });
+      }
+    } catch (err) {
+      console.warn('Error applying pattern:', err);
+    }
+  }
+
+  // If we need more alternatives, add some generic but useful ones
+  while (alternatives.length < count) {
+    const remaining = count - alternatives.length;
+    const genericPatterns = [
+      {
+        question: `What are the key points about ${originalQuestion.replace('?', '').replace(/^(what|how) is /i, '')}?`,
+        answer: `The key points include: ${originalAnswer}. These points are essential for understanding.`
+      },
+      {
+        question: `Why is understanding ${originalQuestion.replace('?', '').replace(/^(what|how) is /i, '')} important?`,
+        answer: `Understanding this is important because ${originalAnswer.toLowerCase()}. This knowledge is valuable for further learning.`
+      }
+    ];
+
+    if (remaining > 0 && genericPatterns[0]) {
+      alternatives.push(genericPatterns[0]);
+    }
+    if (remaining > 1 && genericPatterns[1]) {
+      alternatives.push(genericPatterns[1]);
+    }
+    
+    break; // Prevent infinite loop
+  }
+
+  return alternatives.slice(0, count);
+}
+
+// Debug endpoint to check deck status
+export const debugDeckStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { userId, deckId } = req.params;
+    
+    console.log(`Debug request for deckId=${deckId}, userId=${userId}`);
+    
+    // Check auth
+    if ((req as any).user?.id !== userId && (req as any).user?.role !== "admin") {
+      res.status(403).json({ message: "Unauthorized access" });
+      return;
+    }
+    
+    const results: any = {
+      requestedDeckId: deckId,
+      requestedUserId: userId,
+      authUserId: (req as any).user?.id,
+      timestamp: new Date().toISOString(),
+    };
+    
+    // Try to get the specific deck
+    try {
+      const specificDeck = await MemoryCardDeck.get({
+        deckId,
+        userId,
+      });
+      
+      results.specificDeckFound = !!specificDeck;
+      if (specificDeck) {
+        results.specificDeck = {
+          deckId: specificDeck.deckId,
+          userId: specificDeck.userId,
+          title: specificDeck.title,
+          cardCount: specificDeck.cards?.length || 0,
+          createdAt: new Date(specificDeck.createdAt).toISOString(),
+        };
+      }
+    } catch (error) {
+      results.specificDeckError = error;
+    }
+    
+    // Get all decks for this user
+    try {
+      const userDecks = await MemoryCardDeck.scan("userId").eq(userId).exec();
+      results.userDeckCount = userDecks.length;
+      results.userDecks = userDecks.map(deck => ({
+        deckId: deck.deckId,
+        title: deck.title,
+        cardCount: deck.cards?.length || 0,
+        createdAt: new Date(deck.createdAt).toISOString(),
+      }));
+    } catch (error) {
+      results.userDecksError = error;
+    }
+    
+    // Try to find any deck with this deckId regardless of userId
+    try {
+      const anyDecksWithId = await MemoryCardDeck.scan("deckId").eq(deckId).exec();
+      results.allDecksWithThisId = anyDecksWithId.map(deck => ({
+        deckId: deck.deckId,
+        userId: deck.userId,
+        title: deck.title,
+        cardCount: deck.cards?.length || 0,
+      }));
+    } catch (error) {
+      results.scanError = error;
+    }
+    
+    res.json(results);
+    
+  } catch (error) {
+    console.error("Error in debug endpoint:", error);
+    res.status(500).json({ error: "Debug endpoint failed", details: error });
+  }
+};
+
+ 
  
  
  

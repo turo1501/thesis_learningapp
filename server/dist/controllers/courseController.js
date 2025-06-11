@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.checkDeepseekStatus = exports.generateAICourse = exports.getUploadVideoUrl = exports.deleteCourse = exports.updateCourse = exports.createCourse = exports.getCourse = exports.listCourses = void 0;
+exports.serveLocalVideo = exports.uploadVideoToLocal = exports.checkDeepseekStatus = exports.generateAICourse = exports.getUploadVideoUrl = exports.deleteCourse = exports.updateCourse = exports.createCourse = exports.getCourse = exports.listCourses = void 0;
 const courseModel_1 = __importDefault(require("../models/courseModel"));
 const aws_sdk_1 = __importDefault(require("aws-sdk"));
 const uuid_1 = require("uuid");
@@ -36,11 +36,32 @@ const checkS3Config = () => {
     return true;
 };
 const listCourses = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { category } = req.query;
+    const { category, teacherId } = req.query;
     try {
-        const courses = category && category !== "all"
-            ? yield courseModel_1.default.scan("category").eq(category).exec()
-            : yield courseModel_1.default.scan().exec();
+        let courses;
+        if (teacherId && category && category !== "all") {
+            // Filter by both teacherId and category
+            courses = yield courseModel_1.default.scan()
+                .where("teacherId").eq(teacherId)
+                .where("category").eq(category)
+                .exec();
+        }
+        else if (teacherId) {
+            // Filter only by teacherId
+            courses = yield courseModel_1.default.scan()
+                .where("teacherId").eq(teacherId)
+                .exec();
+        }
+        else if (category && category !== "all") {
+            // Filter only by category
+            courses = yield courseModel_1.default.scan()
+                .where("category").eq(category)
+                .exec();
+        }
+        else {
+            // No filters applied
+            courses = yield courseModel_1.default.scan().exec();
+        }
         res.json({ message: "Courses retrieved successfully", data: courses });
     }
     catch (error) {
@@ -221,9 +242,34 @@ const getUploadVideoUrl = (req, res) => __awaiter(void 0, void 0, void 0, functi
         });
         return;
     }
-    // Kiểm tra môi trường - nếu là development và không có AWS config, sử dụng mock URL
+    // Kiểm tra môi trường và cấu hình
     const isDevelopment = process.env.NODE_ENV !== 'production';
     const hasAwsConfig = process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.S3_BUCKET_NAME;
+    const useLocalStorage = process.env.USE_LOCAL_VIDEO_STORAGE === 'true' || isDevelopment; // Mặc định dùng local storage trong development
+    // Nếu sử dụng local storage
+    if (useLocalStorage) {
+        console.log("Using local storage for video upload");
+        // Tạo URL cho local upload endpoint
+        const localUploadUrl = `/api/courses/${courseId}/sections/${sectionId}/chapters/${chapterId}/upload-video`;
+        const uniqueId = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const filename = `${courseId}_${sectionId}_${chapterId}_${uniqueId}_${fileName.replace(/\s+/g, '_')}`;
+        // Generate video URL for serving - use backend server URL
+        const backendUrl = process.env.BACKEND_URL || 'http://localhost:8001';
+        const localVideoUrl = `${backendUrl}/courses/local-video/${filename}`;
+        console.log("Local upload URL:", localUploadUrl);
+        console.log("Local video URL:", localVideoUrl);
+        res.json({
+            message: "Local upload URL generated successfully",
+            data: {
+                uploadUrl: localUploadUrl,
+                videoUrl: localVideoUrl,
+                isLocal: true,
+                filename: filename
+            }
+        });
+        return;
+    }
+    // Nếu là development và không có AWS config, sử dụng mock URL
     if (isDevelopment && !hasAwsConfig) {
         console.log("Running in development mode without AWS config, using mock URLs");
         const uniqueId = (0, uuid_1.v4)();
@@ -1172,3 +1218,130 @@ const checkDeepseekStatus = (_req, res) => __awaiter(void 0, void 0, void 0, fun
     }
 });
 exports.checkDeepseekStatus = checkDeepseekStatus;
+// Function to upload video to local storage
+const uploadVideoToLocal = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { courseId, sectionId, chapterId } = req.params;
+        const { userId } = (0, express_1.getAuth)(req);
+        const file = req.file;
+        console.log("Local video upload request:", { courseId, sectionId, chapterId, userId });
+        // Validate required parameters
+        if (!courseId || !sectionId || !chapterId) {
+            res.status(400).json({
+                message: "Course ID, section ID, and chapter ID are required",
+                error: "Missing required parameters"
+            });
+            return;
+        }
+        if (!file) {
+            res.status(400).json({
+                message: "No video file provided",
+                error: "Video file is required"
+            });
+            return;
+        }
+        // Verify course ownership
+        try {
+            const course = yield courseModel_1.default.get(courseId);
+            if (!course) {
+                res.status(404).json({ message: "Course not found" });
+                return;
+            }
+            if (course.teacherId !== userId) {
+                res.status(403).json({ message: "Not authorized to upload videos to this course" });
+                return;
+            }
+        }
+        catch (error) {
+            console.error("Error verifying course ownership:", error);
+            res.status(500).json({
+                message: "Error verifying course access",
+                error: error instanceof Error ? error.message : "Unknown error"
+            });
+            return;
+        }
+        // Generate video URL for serving - use backend server URL
+        const backendUrl = process.env.BACKEND_URL || 'http://localhost:8001';
+        const videoUrl = `${backendUrl}/courses/local-video/${file.filename}`;
+        console.log("Video uploaded successfully:", {
+            filename: file.filename,
+            size: file.size,
+            videoUrl: videoUrl
+        });
+        res.json({
+            message: "Video uploaded successfully to local storage",
+            data: {
+                filename: file.filename,
+                originalName: file.originalname,
+                size: file.size,
+                videoUrl: videoUrl,
+                uploadedAt: new Date().toISOString()
+            }
+        });
+    }
+    catch (error) {
+        console.error("Error uploading video to local storage:", error);
+        res.status(500).json({
+            message: "Error uploading video to local storage",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+});
+exports.uploadVideoToLocal = uploadVideoToLocal;
+// Function to serve local videos
+const serveLocalVideo = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { filename } = req.params;
+        if (!filename) {
+            res.status(400).json({ message: "Filename is required" });
+            return;
+        }
+        // Correct path: from src/controllers/ go up 3 levels to thesis_learningapp/ then to video/
+        const videoPath = path_1.default.join(__dirname, "../../../video", filename);
+        console.log("Attempting to serve video from path:", videoPath);
+        console.log("File exists:", fs_1.default.existsSync(videoPath));
+        // Check if file exists
+        if (!fs_1.default.existsSync(videoPath)) {
+            console.error("Video file not found at:", videoPath);
+            res.status(404).json({ message: "Video file not found", path: videoPath });
+            return;
+        }
+        // Get file stats for Content-Length header
+        const stat = fs_1.default.statSync(videoPath);
+        const fileSize = stat.size;
+        const range = req.headers.range;
+        if (range) {
+            // Support for video streaming with range requests
+            const parts = range.replace(/bytes=/, "").split("-");
+            const start = parseInt(parts[0], 10);
+            const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+            const chunksize = (end - start) + 1;
+            const file = fs_1.default.createReadStream(videoPath, { start, end });
+            const head = {
+                'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+                'Accept-Ranges': 'bytes',
+                'Content-Length': chunksize,
+                'Content-Type': 'video/mp4',
+            };
+            res.writeHead(206, head);
+            file.pipe(res);
+        }
+        else {
+            // Serve the entire file
+            const head = {
+                'Content-Length': fileSize,
+                'Content-Type': 'video/mp4',
+            };
+            res.writeHead(200, head);
+            fs_1.default.createReadStream(videoPath).pipe(res);
+        }
+    }
+    catch (error) {
+        console.error("Error serving local video:", error);
+        res.status(500).json({
+            message: "Error serving video file",
+            error: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+});
+exports.serveLocalVideo = serveLocalVideo;

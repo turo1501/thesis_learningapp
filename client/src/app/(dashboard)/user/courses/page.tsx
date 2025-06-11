@@ -7,11 +7,14 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { useUser } from "@clerk/nextjs";
 import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Loading from "@/components/Loading";
+import { Button } from "@/components/ui/button";
 
 const Courses = () => {
   const router = useRouter();
   const { user, isLoaded } = useUser();
+  const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [retryCount, setRetryCount] = useState(0);
@@ -40,6 +43,10 @@ const Courses = () => {
     refetch,
   } = useGetUserEnrolledCoursesQuery(user?.id ?? "", {
     skip: !isLoaded || !user || !hasToken,
+    // Refetch more frequently to catch new enrollments
+    refetchOnMountOrArgChange: true,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
   });
   
   // Retry loading if we have a user but no data
@@ -85,6 +92,24 @@ const Courses = () => {
     console.log('Extracted courses array:', courses);
   }, [courses]);
 
+  // Force refresh when component mounts (useful after purchase)
+  useEffect(() => {
+    if (isLoaded && user && hasToken) {
+      // Check if user came from completion page
+      const isFromCompletion = document.referrer.includes('/checkout') || 
+                              searchParams.get('refresh') === 'true';
+      
+      // Longer delay if coming from checkout to ensure transaction is processed
+      const delay = isFromCompletion ? 2000 : 500;
+      
+      const refreshTimer = setTimeout(() => {
+        refetch();
+      }, delay);
+      
+      return () => clearTimeout(refreshTimer);
+    }
+  }, [isLoaded, user, hasToken, refetch, searchParams]);
+
   const filteredCourses = useMemo(() => {
     // Ensure courses is an array
     if (!Array.isArray(courses)) {
@@ -125,9 +150,63 @@ const Courses = () => {
   if (!isLoaded || (isLoading && !coursesResponse)) return <Loading />;
   if (!user) return <div>Please sign in to view your courses.</div>;
   if (!hasToken) return <Loading />;
-  if (isError) return <div>Error loading your enrolled courses. Please try again later.</div>;
-  if (!courses || !Array.isArray(courses) || courses.length === 0)
-    return <div>You are not enrolled in any courses yet.</div>;
+  
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] bg-customgreys-secondarybg rounded-xl p-8">
+        <div className="text-6xl mb-4">😞</div>
+        <h2 className="text-2xl font-bold text-white mb-3">Oops! Something went wrong</h2>
+        <p className="text-customgreys-dirtyGrey mb-6 text-center max-w-md">
+          We couldn't load your enrolled courses. This might be a temporary issue.
+        </p>
+        <div className="flex space-x-4">
+          <Button 
+            onClick={() => refetch()}
+            className="bg-primary-700 hover:bg-primary-600 px-6 py-3"
+          >
+            Try Again
+          </Button>
+          <Button 
+            onClick={() => window.location.href = "/search"}
+            variant="outline"
+            className="px-6 py-3"
+          >
+            Browse Courses
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!courses || !Array.isArray(courses) || courses.length === 0) {
+    return (
+      <div className="user-courses">
+        <Header title="My Courses" subtitle="View your enrolled courses" />
+        <div className="flex flex-col items-center justify-center min-h-[60vh] bg-customgreys-secondarybg rounded-xl p-8 mt-6">
+          <div className="text-6xl mb-4">📚</div>
+          <h2 className="text-2xl font-bold text-white mb-3">No Courses Yet</h2>
+          <p className="text-customgreys-dirtyGrey mb-6 text-center max-w-md">
+            You haven't enrolled in any courses yet. Start your learning journey today!
+          </p>
+          <div className="flex space-x-4">
+            <Button 
+              onClick={() => router.push("/search")}
+              className="bg-primary-700 hover:bg-primary-600 px-6 py-3"
+            >
+              Browse Courses
+            </Button>
+            <Button 
+              onClick={() => refetch()}
+              variant="outline"
+              className="px-6 py-3"
+            >
+              Refresh
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="user-courses">

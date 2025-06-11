@@ -47,6 +47,19 @@ const cardSchema = new Schema({
     type: Number,
     default: 0,
   },
+  // Enhanced tracking properties
+  averageThinkingTime: {
+    type: Number, // in milliseconds
+    required: false,
+  },
+  lastConfidence: {
+    type: Number, // 1-5 confidence level
+    required: false,
+  },
+  aiGenerated: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const memoryCardDeckSchema = new Schema(

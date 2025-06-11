@@ -4,6 +4,7 @@ import { Request, Response } from "express";
 import Course from "../models/courseModel";
 import Transaction from "../models/transactionModel";
 import UserCourseProgress from "../models/userCourseProgressModel";
+import { v4 as uuidv4 } from "uuid";
 
 dotenv.config();
 
@@ -88,11 +89,54 @@ export const createTransaction = async (
 ): Promise<void> => {
   const { userId, courseId, transactionId, amount, paymentProvider } = req.body;
 
-  try {
-    // 1. get course info
-    const course = await Course.get(courseId);
+  // Validate required fields
+  if (!userId || !courseId || !transactionId || !paymentProvider) {
+    res.status(400).json({ 
+      message: "Missing required fields: userId, courseId, transactionId, paymentProvider" 
+    });
+    return;
+  }
 
-    // 2. create transaction record
+  console.log(`Creating transaction for user ${userId}, course ${courseId}, transaction ${transactionId}`);
+
+  try {
+    // 1. Get course info
+    console.log(`Fetching course data for courseId: ${courseId}`);
+    const course = await Course.get(courseId);
+    
+    if (!course) {
+      console.error(`Course not found: ${courseId}`);
+      res.status(404).json({ message: "Course not found" });
+      return;
+    }
+
+    console.log(`Course found: ${course.title}`);
+
+    // 2. Check if user is already enrolled to prevent duplicate enrollments
+    console.log(`Checking existing enrollment for user ${userId} in course ${courseId}`);
+    try {
+      const existingProgress = await UserCourseProgress.scan()
+        .where("userId").eq(userId)
+        .where("courseId").eq(courseId)
+        .exec();
+      
+      if (existingProgress && existingProgress.length > 0) {
+        console.log(`User ${userId} already enrolled in course ${courseId}`);
+        res.status(409).json({ 
+          message: "User is already enrolled in this course",
+          data: {
+            transaction: null,
+            courseProgress: existingProgress[0]
+          }
+        });
+        return;
+      }
+    } catch (checkError) {
+      console.log("Error checking existing enrollment, proceeding with enrollment");
+    }
+
+    // 3. Create transaction record
+    console.log(`Creating transaction record`);
     const newTransaction = new Transaction({
       dateTime: new Date().toISOString(),
       userId,
@@ -102,25 +146,32 @@ export const createTransaction = async (
       paymentProvider,
     });
     await newTransaction.save();
+    console.log(`Transaction saved: ${newTransaction.transactionId}`);
 
-    // 3. create initial course progress
+    // 4. Create initial course progress with required id field
+    console.log(`Creating course progress for user ${userId}`);
     const initialProgress = new UserCourseProgress({
+      id: uuidv4(), // Add required id field as hashKey
       userId,
       courseId,
       enrollmentDate: new Date().toISOString(),
       overallProgress: 0,
-      sections: course.sections.map((section: any) => ({
+      sections: course.sections?.map((section: any) => ({
         sectionId: section.sectionId,
-        chapters: section.chapters.map((chapter: any) => ({
+        chapters: section.chapters?.map((chapter: any) => ({
           chapterId: chapter.chapterId,
           completed: false,
-        })),
-      })),
+        })) || [],
+      })) || [],
       lastAccessedTimestamp: new Date().toISOString(),
+      isPreview: false,
     });
     await initialProgress.save();
+    console.log(`Course progress created with id: ${initialProgress.id}`);
 
-    // 4. add enrollment to relevant course
+    // 5. Add enrollment to relevant course
+    console.log(`Adding enrollment to course ${courseId}`);
+    try {
     await Course.update(
       { courseId },
       {
@@ -129,17 +180,33 @@ export const createTransaction = async (
         },
       }
     );
+      console.log(`Enrollment added to course ${courseId}`);
+    } catch (enrollmentError) {
+      console.error("Error adding enrollment to course:", enrollmentError);
+      // Don't fail the transaction if enrollment update fails
+    }
+
+    console.log(`Transaction completed successfully for user ${userId}, course ${courseId}`);
 
     res.json({
-      message: "Purchased Course successfully",
+      message: "Course purchased and enrolled successfully",
       data: {
         transaction: newTransaction,
         courseProgress: initialProgress,
+        course: {
+          courseId: course.courseId,
+          title: course.title,
+        }
       },
     });
   } catch (error) {
+    console.error("Error creating transaction and enrollment:", error);
     res
       .status(500)
-      .json({ message: "Error creating transaction and enrollment", error });
+      .json({ 
+        message: "Error creating transaction and enrollment", 
+        error: error instanceof Error ? error.message : "Unknown error",
+        details: process.env.NODE_ENV === 'development' ? error : undefined
+      });
   }
 };

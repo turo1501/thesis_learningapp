@@ -16,6 +16,7 @@ import {
   useGetCourseQuery,
   useUpdateCourseMutation,
   useGetUploadVideoUrlMutation,
+  useUploadVideoToLocalMutation,
 } from "@/state/api";
 import { useAppDispatch, useAppSelector } from "@/state/redux";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -31,7 +32,8 @@ import {
   Settings,
   CheckCircle,
   AlertCircle,
-  Save
+  Save,
+  Eye
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
@@ -96,6 +98,7 @@ const CourseEditor = () => {
   });
   const [updateCourse, { isLoading: isUpdating }] = useUpdateCourseMutation();
   const [getUploadVideoUrl] = useGetUploadVideoUrlMutation();
+  const [uploadVideoToLocal] = useUploadVideoToLocalMutation();
 
   const dispatch = useAppDispatch();
   const { sections } = useAppSelector((state) => state.global.courseEditor);
@@ -177,7 +180,8 @@ const CourseEditor = () => {
         updatedSections = await uploadAllVideos(
           sections,
           id,
-          getUploadVideoUrl
+          getUploadVideoUrl,
+          uploadVideoToLocal
         );
         
         // Update the sections in the Redux store
@@ -232,6 +236,29 @@ const CourseEditor = () => {
     } finally {
       // Always reset submitting state when done
       setIsSubmitting(false);
+    }
+  };
+
+  const handlePreviewCourse = () => {
+    // Navigate to the preview route with this course
+    if (course) {
+      const courseData = typeof course === 'object' && course !== null && 'data' in course 
+        ? (course as any).data 
+        : course;
+        
+      // If the course has sections and chapters, navigate to the first chapter
+      if (courseData.sections && 
+          courseData.sections.length > 0 && 
+          courseData.sections[0].chapters && 
+          courseData.sections[0].chapters.length > 0) {
+        const firstChapter = courseData.sections[0].chapters[0];
+        router.push(`/teacher/courses/preview/${id}/chapters/${firstChapter.chapterId}`);
+      } else {
+        // Otherwise just show a message that there are no chapters yet
+        toast.info("This course has no chapters yet. Add some content first to preview.", {
+          position: "bottom-right",
+        });
+      }
     }
   };
 
@@ -293,6 +320,16 @@ const CourseEditor = () => {
             </div>
             
             <Button
+              type="button"
+              onClick={handlePreviewCourse}
+              className="bg-blue-600 hover:bg-blue-500 text-white flex items-center gap-2"
+              disabled={isSubmitting || isUpdating}
+            >
+              <Eye className="h-4 w-4" />
+              <span>Preview</span>
+            </Button>
+            
+            <Button
               type="submit"
               form="course-form"
               className={`transition-all ${
@@ -339,7 +376,7 @@ const CourseEditor = () => {
             <div className="bg-customgreys-darkGrey/50 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm text-primary-400 flex items-center gap-1.5">
               <Video className="h-3.5 w-3.5" />
               <span>
-                {sections.reduce((count, section) => count + section.chapters.length, 0)} {sections.reduce((count, section) => count + section.chapters.length, 0) === 1 ? 'Chapter' : 'Chapters'}
+                {sections.reduce((count: number, section: any) => count + section.chapters.length, 0)} {sections.reduce((count: number, section: any) => count + section.chapters.length, 0) === 1 ? 'Chapter' : 'Chapters'}
               </span>
             </div>
             

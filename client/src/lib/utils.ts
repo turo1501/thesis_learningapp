@@ -399,7 +399,8 @@ export const createCourseFormData = (
 export const uploadAllVideos = async (
   localSections: Section[],
   courseId: string,
-  getUploadVideoUrl: any
+  getUploadVideoUrl: any,
+  uploadVideoToLocal?: any
 ) => {
   if (!Array.isArray(localSections) || localSections.length === 0) {
     console.log("No sections to process for video uploads");
@@ -429,29 +430,29 @@ export const uploadAllVideos = async (
       console.log(`Processing chapter ${j+1}/${section.chapters.length}: ${chapter.title}`);
       
       // Check if this chapter has a video that needs uploading
-            const originalChapter = localSections[i]?.chapters[j];
+      const originalChapter = localSections[i]?.chapters[j];
       const hasFileToUpload = originalChapter?.video instanceof File;
       
       if (!hasFileToUpload) {
         console.log(`No video file to upload for chapter: ${chapter.title}`);
-              continue;
-            }
+        continue;
+      }
 
       try {
         const videoFile = originalChapter.video as File;
         console.log(`Found video file to upload: ${videoFile.name} (${videoFile.size} bytes)`);
         
-        // Request a presigned URL from the server
+        // Request a presigned URL from the server first
         console.log(`Requesting upload URL for: courseId=${courseId}, sectionId=${section.sectionId}, chapterId=${chapter.chapterId}`);
-            
-            const response = await getUploadVideoUrl({
-              courseId,
+        
+        const response = await getUploadVideoUrl({
+          courseId,
           sectionId: section.sectionId,
-              chapterId: chapter.chapterId,
+          chapterId: chapter.chapterId,
           fileName: videoFile.name,
           fileType: videoFile.type,
-            }).unwrap();
-            
+        }).unwrap();
+        
         // Improved response validation
         if (!response) {
           throw new Error("Empty response from server when requesting upload URL");
@@ -464,10 +465,33 @@ export const uploadAllVideos = async (
         const uploadUrl = responseData.uploadUrl;
         const videoUrl = responseData.videoUrl;
         const isMock = responseData.isMock || false;
-            
-            if (!uploadUrl || !videoUrl) {
+        const isLocal = responseData.isLocal || false;
+        
+        if (!uploadUrl || !videoUrl) {
           console.error("Invalid response structure:", responseData);
           throw new Error("Missing upload URL or video URL in server response");
+        }
+        
+        // If it's a local upload
+        if (isLocal && uploadVideoToLocal) {
+          console.log(`Using local storage for video upload`);
+          try {
+            const localResponse = await uploadVideoToLocal({
+              courseId,
+              sectionId: section.sectionId,
+              chapterId: chapter.chapterId,
+              videoFile: videoFile
+            }).unwrap();
+            
+            console.log(`Video uploaded successfully to local storage:`, localResponse);
+            updatedSections[i].chapters[j].video = localResponse.videoUrl;
+            toast.success(`Video uploaded successfully for ${chapter.title} (local storage)`);
+          } catch (localError) {
+            console.error(`Local upload error for ${chapter.title}:`, localError);
+            toast.error(`Failed to upload video to local storage: ${localError instanceof Error ? localError.message : 'Unknown error'}`);
+            updatedSections[i].chapters[j].video = "";
+          }
+          continue;
         }
         
         // If it's a mock URL (local environment without AWS S3)
@@ -484,21 +508,21 @@ export const uploadAllVideos = async (
         // Upload the file to S3 using the presigned URL
         try {
           const uploadResponse = await fetch(uploadUrl, {
-              method: "PUT",
-              headers: {
+            method: "PUT",
+            headers: {
               "Content-Type": videoFile.type,
-              },
+            },
             body: videoFile,
-            });
-            
+          });
+          
           if (!uploadResponse.ok) {
             throw new Error(`Failed to upload to S3: ${uploadResponse.status} ${uploadResponse.statusText}`);
           }
           
           console.log(`Video uploaded successfully. Final URL: ${videoUrl}`);
-            
+          
           // Update the chapter with the video URL
-            updatedSections[i].chapters[j].video = videoUrl;
+          updatedSections[i].chapters[j].video = videoUrl;
           toast.success(`Video uploaded successfully for ${chapter.title}`);
         } catch (uploadError) {
           console.error(`S3 upload error for ${chapter.title}:`, uploadError);

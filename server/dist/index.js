@@ -72,6 +72,7 @@ const analyticsRoutes_1 = __importDefault(require("./routes/analyticsRoutes"));
 const memoryCardRoutes_1 = __importDefault(require("./routes/memoryCardRoutes"));
 const userNoteRoutes_1 = __importDefault(require("./routes/userNoteRoutes"));
 const commentRoutes_1 = __importDefault(require("./routes/commentRoutes"));
+const quizRoutes_1 = __importDefault(require("./routes/quizRoutes"));
 const errorMiddleware_1 = require("./middleware/errorMiddleware");
 const authMiddleware_1 = require("./middleware/authMiddleware");
 const userClerkController_1 = require("./controllers/userClerkController");
@@ -112,10 +113,11 @@ app.use("/analytics", (0, express_2.requireAuth)(), authMiddleware_1.authenticat
 app.use("/memory-cards", memoryCardRoutes_1.default);
 app.use("/user-notes", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, userNoteRoutes_1.default);
 app.use("/comments", commentRoutes_1.default);
+app.use("/quizzes", (0, express_2.requireAuth)(), authMiddleware_1.authenticate, quizRoutes_1.default);
 /* ERROR MIDDLEWARE */
 app.use(errorMiddleware_1.errorHandler);
 /* SERVER */
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 8001;
 if (!isProduction) {
     app.listen(port, () => __awaiter(void 0, void 0, void 0, function* () {
         console.log(`Server running on port ${port}`);

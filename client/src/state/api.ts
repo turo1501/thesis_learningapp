@@ -55,6 +55,9 @@ export interface MemoryCard {
   deckTitle?: string;
   courseId?: string;
   aiGenerated?: boolean;
+  // Enhanced tracking properties
+  averageThinkingTime?: number;
+  lastConfidence?: number;
 }
 
 export interface MemoryCardDeck {
@@ -79,9 +82,21 @@ export interface AIAlternative {
 }
 
 export interface AIAlternativesResponse {
-  alternatives: AIAlternative[];
-  originalQuestion: string;
-  originalAnswer: string;
+  message: string;
+  data: {
+    alternatives: Array<{
+      question: string;
+      answer: string;
+    }>;
+    originalQuestion: string;
+    originalAnswer: string;
+    count: number;
+    generatedBy: string;
+    metadata?: {
+      difficulties: number[];
+      types: string[];
+    };
+  };
 }
 
 // Add a chat feedback interface
@@ -118,6 +133,155 @@ export interface UserNote {
   color: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+// Add these interfaces for the review system
+export interface CourseReview {
+  id: string;
+  userId: string;
+  courseId: string;
+  userName: string;
+  userImage?: string;
+  rating: number;
+  reviewText?: string;
+  contentQuality?: number;
+  instructorEngagement?: number;
+  courseStructure?: number;
+  helpfulCount: number;
+  helpfulUsers: string[];
+  progressPercentage?: number;
+  isCompletedReview: boolean;
+  verifiedPurchase: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CourseRatingStats {
+  averageRating: number;
+  totalReviews: number;
+  ratingDistribution: {
+    "5": number;
+    "4": number;
+    "3": number;
+    "2": number;
+    "1": number;
+  };
+  categoryRatings: {
+    contentQuality: number;
+    instructorEngagement: number;
+    courseStructure: number;
+  };
+}
+
+// Quiz System Interfaces
+export interface QuizOption {
+  optionId: string;
+  text: string;
+  isCorrect?: boolean;
+  explanation?: string;
+}
+
+export interface QuizQuestion {
+  questionId: string;
+  type: "multiple-choice" | "true-false" | "fill-in-blank" | "short-answer" | "matching";
+  question: string;
+  options?: QuizOption[];
+  correctAnswer?: string;
+  points: number;
+  difficulty: "easy" | "medium" | "hard";
+  explanation?: string;
+  hints?: string[];
+  timeLimit?: number;
+  tags?: string[];
+  imageUrl?: string;
+  videoUrl?: string;
+}
+
+export interface Quiz {
+  quizId: string;
+  courseId: string;
+  sectionId: string;
+  chapterId: string;
+  title: string;
+  description?: string;
+  instructions?: string;
+  questions: QuizQuestion[];
+  settings: {
+    timeLimit?: number;
+    shuffleQuestions?: boolean;
+    shuffleOptions?: boolean;
+    showResultsImmediately?: boolean;
+    allowRetake?: boolean;
+    maxAttempts?: number;
+    passingScore?: number;
+    showCorrectAnswers?: boolean;
+    showExplanations?: boolean;
+    randomizeFromPool?: boolean;
+    questionsPerAttempt?: number;
+  };
+  totalPoints: number;
+  difficulty: "easy" | "medium" | "hard" | "mixed";
+  tags?: string[];
+  isActive: boolean;
+  createdBy: string;
+  analytics?: {
+    totalAttempts: number;
+    averageScore: number;
+    averageTimeSpent: number;
+    passRate: number;
+    mostMissedQuestions: string[];
+    lastUpdated: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuizSubmissionAnswer {
+  questionId: string;
+  userAnswer?: string;
+  selectedOptions?: string[];
+  isCorrect: boolean;
+  pointsEarned: number;
+  timeSpent?: number;
+  hintsUsed?: number;
+}
+
+export interface QuizSubmission {
+  submissionId: string;
+  userId: string;
+  quizId: string;
+  courseId: string;
+  sectionId: string;
+  chapterId: string;
+  attemptNumber: number;
+  answers: QuizSubmissionAnswer[];
+  score: number;
+  percentage: number;
+  totalPoints: number;
+  passed: boolean;
+  timeSpent: number;
+  status: "in-progress" | "completed" | "timed-out" | "abandoned";
+  startedAt: string;
+  completedAt?: string;
+  submittedAt?: string;
+  feedback?: {
+    overallFeedback?: string;
+    strengthAreas?: string[];
+    improvementAreas?: string[];
+    suggestedResources?: string[];
+    nextSteps?: string;
+  };
+  analytics?: {
+    questionStats: any[];
+    behaviorMetrics?: any;
+    performanceByTopic?: any[];
+  };
+  deviceInfo?: {
+    userAgent?: string;
+    platform?: string;
+    screenResolution?: string;
+    timezone?: string;
+  };
 }
 
 // Sửa lỗi liên quan đến replace method
@@ -430,6 +594,9 @@ export const api = createApi({
     "DueCards",
     "CourseComments",
     "UserNotes",
+    "Reviews",
+    "Quiz",
+    "QuizSubmission",
   ],
   endpoints: (builder) => ({
     /* 
@@ -576,15 +743,19 @@ export const api = createApi({
     COURSES
     =============== 
     */
-    getCourses: builder.query<Course[], { category?: string } | void>({
-      query: (params = {}) => {
-        const { category } = params || {};
-        return {
-          url: "courses",
-          params: category ? { category } : undefined,
-        };
+    getCourses: builder.query<any, any>({
+      query: ({ category, teacherId }) => {
+        let url = "/courses";
+        const params = new URLSearchParams();
+        
+        if (category) params.append("category", category);
+        if (teacherId) params.append("teacherId", teacherId);
+        
+        const queryString = params.toString();
+        if (queryString) url += `?${queryString}`;
+        
+        return url;
       },
-      // Add a custom transform response function to ensure we always get a valid array
       transformResponse: (response: any) => {
         console.log('Transform response for getCourses:', response);
         
@@ -608,6 +779,7 @@ export const api = createApi({
         return [];
       },
       providesTags: ["Courses"],
+      keepUnusedDataFor: 300, // 5 minutes
     }),
 
     getCourse: builder.query<Course, string>({
@@ -757,6 +929,40 @@ export const api = createApi({
       }),
     }),
 
+    uploadVideoToLocal: builder.mutation<
+      { 
+        filename: string; 
+        originalName: string; 
+        size: number; 
+        videoUrl: string;
+        uploadedAt: string;
+      },
+      {
+        courseId: string;
+        chapterId: string;
+        sectionId: string;
+        videoFile: File;
+      }
+    >({
+      query: ({ courseId, sectionId, chapterId, videoFile }) => {
+        const formData = new FormData();
+        formData.append('video', videoFile);
+        
+        return {
+          url: `courses/${courseId}/sections/${sectionId}/chapters/${chapterId}/upload-video`,
+          method: "POST",
+          body: formData,
+        };
+      },
+      transformResponse: (response: any) => {
+        // Handle response structure
+        if (response && response.data) {
+          return response.data;
+        }
+        return response;
+      },
+    }),
+
     /* 
     ===============
     TRANSACTIONS
@@ -781,6 +987,27 @@ export const api = createApi({
         method: "POST",
         body: transaction,
       }),
+      // Invalidate cache to refresh enrolled courses after successful purchase
+      invalidatesTags: ["Courses", "UserCourseProgress"],
+      // Optimistically update the cache
+      async onQueryStarted(transaction, { dispatch, queryFulfilled }) {
+        try {
+          const result = await queryFulfilled;
+          console.log('Transaction created successfully:', result);
+          
+          // Invalidate getUserEnrolledCourses query for this user
+          if (transaction.userId) {
+            dispatch(
+              api.util.invalidateTags([
+                "Courses", 
+                "UserCourseProgress"
+              ])
+            );
+          }
+        } catch (error) {
+          console.error('Transaction creation failed:', error);
+        }
+      },
     }),
 
     /* 
@@ -1634,21 +1861,44 @@ export const api = createApi({
     }),
     
     submitCardReview: builder.mutation<
-      { success: boolean; nextReview: number },
+      any,
       {
         userId: string;
         deckId: string;
         cardId: string;
         difficultyRating: number;
         isCorrect: boolean;
+        thinkingTime?: number;
+        confidence?: number;
       }
     >({
-      query: ({ userId, deckId, cardId, ...reviewData }) => ({
+      query: ({ userId, deckId, cardId, ...body }) => ({
         url: `/memory-cards/${userId}/${deckId}/cards/${cardId}/review`,
         method: "POST",
-        body: reviewData,
+        body,
       }),
-      invalidatesTags: ["DueCards", "MemoryCardDecks"],
+      invalidatesTags: ["MemoryCards", "DueCards"],
+    }),
+
+    // Enhanced review endpoint with additional tracking
+    submitCardReviewV2: builder.mutation<
+      any,
+      {
+        userId: string;
+        deckId: string;
+        cardId: string;
+        difficultyRating: number;
+        isCorrect: boolean;
+        thinkingTime?: number;
+        confidence?: number;
+      }
+    >({
+      query: ({ userId, deckId, cardId, ...body }) => ({
+        url: `/memory-cards/${userId}/${deckId}/cards/${cardId}/review-v2`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["MemoryCards", "DueCards"],
     }),
     
     generateCardsFromCourse: builder.mutation<
@@ -1678,7 +1928,7 @@ export const api = createApi({
       }
     >({
       query: ({ userId, ...data }) => ({
-        url: `/memory-cards/${userId}/ai-alternatives`,
+        url: `/memory-cards/${userId}/alternatives`,
         method: "POST",
         body: data,
       }),
@@ -1974,6 +2224,154 @@ export const api = createApi({
         return response;
       },
     }),
+
+    // Add these queries to the builder within the existing api
+    getCourseReviews: builder.query<CourseReview[], string>({
+      query: (courseId) => `/reviews/courses/${courseId}/reviews`,
+      providesTags: (result, error, courseId) => 
+        result 
+          ? [
+              ...result.map(({ id }) => ({ type: 'Reviews' as const, id })),
+              { type: 'Reviews' as const, id: courseId }
+            ]
+          : [{ type: 'Reviews' as const, id: courseId }],
+    }),
+
+    getCourseRatingStats: builder.query<CourseRatingStats, string>({
+      query: (courseId) => `/reviews/courses/${courseId}/rating-stats`,
+      providesTags: (result, error, courseId) => [{ type: 'Reviews' as const, id: courseId }],
+    }),
+
+    createCourseReview: builder.mutation<CourseReview, { courseId: string, reviewData: Partial<CourseReview> }>({
+      query: ({ courseId, reviewData }) => ({
+        url: `/reviews/courses/${courseId}/reviews`,
+        method: 'POST',
+        body: reviewData
+      }),
+      invalidatesTags: (result, error, { courseId }) => [
+        { type: 'Reviews', id: courseId }
+      ]
+    }),
+
+    updateCourseReview: builder.mutation<CourseReview, { reviewId: string, reviewData: Partial<CourseReview> }>({
+      query: ({ reviewId, reviewData }) => ({
+        url: `/reviews/reviews/${reviewId}`,
+        method: 'PUT',
+        body: reviewData
+      }),
+      invalidatesTags: (result) => result 
+        ? [{ type: 'Reviews', id: result.id }, { type: 'Reviews', id: result.courseId }]
+        : ['Reviews']
+    }),
+
+    deleteCourseReview: builder.mutation<{ message: string }, string>({
+      query: (reviewId) => ({
+        url: `/reviews/reviews/${reviewId}`,
+        method: 'DELETE'
+      }),
+      invalidatesTags: ['Reviews']
+    }),
+
+    markReviewHelpful: builder.mutation<CourseReview, { reviewId: string, helpful: boolean }>({
+      query: ({ reviewId, helpful }) => ({
+        url: `/reviews/reviews/${reviewId}/helpful`,
+        method: 'POST',
+        body: { helpful }
+      }),
+      invalidatesTags: (result) => result 
+        ? [{ type: 'Reviews', id: result.id }]
+        : ['Reviews']
+    }),
+
+    /* 
+    ===============
+    QUIZ SYSTEM
+    =============== 
+    */
+    createQuiz: builder.mutation<Quiz, {
+      courseId: string;
+      sectionId: string;
+      chapterId: string;
+      title: string;
+      description?: string;
+      instructions?: string;
+      questions: Partial<QuizQuestion>[];
+      settings?: Partial<Quiz['settings']>;
+    }>({
+      query: (quizData) => ({
+        url: "/quizzes",
+        method: "POST",
+        body: quizData,
+      }),
+      invalidatesTags: ["Quiz"],
+    }),
+
+    getQuiz: builder.query<Quiz, string>({
+      query: (quizId) => `/quizzes/${quizId}`,
+      providesTags: (result, error, quizId) => [{ type: "Quiz", id: quizId }],
+    }),
+
+    getQuizzesByChapter: builder.query<Quiz[], { courseId: string; chapterId: string }>({
+      query: ({ courseId, chapterId }) => `/quizzes/course/${courseId}/chapter/${chapterId}`,
+      providesTags: (result, error, { chapterId }) => [{ type: "Quiz", id: chapterId }],
+    }),
+
+    startQuizAttempt: builder.mutation<QuizSubmission, {
+      quizId: string;
+      deviceInfo?: any;
+    }>({
+      query: ({ quizId, deviceInfo }) => ({
+        url: `/quizzes/${quizId}/start`,
+        method: "POST",
+        body: { deviceInfo },
+      }),
+      invalidatesTags: ["QuizSubmission"],
+    }),
+
+    submitQuizAnswer: builder.mutation<{
+      isCorrect: boolean;
+      pointsEarned: number;
+      explanation?: string;
+    }, {
+      submissionId: string;
+      questionId: string;
+      userAnswer?: string;
+      selectedOptions?: string[];
+      timeSpent?: number;
+      hintsUsed?: number;
+    }>({
+      query: ({ submissionId, ...answerData }) => ({
+        url: `/quizzes/submissions/${submissionId}/answer`,
+        method: "PUT",
+        body: answerData,
+      }),
+      invalidatesTags: (result, error, { submissionId }) => [
+        { type: "QuizSubmission", id: submissionId }
+      ],
+    }),
+
+    completeQuizAttempt: builder.mutation<{
+      submission: QuizSubmission;
+      passed: boolean;
+      score: number;
+      percentage: number;
+      feedback: any;
+    }, {
+      submissionId: string;
+      totalTimeSpent: number;
+    }>({
+      query: ({ submissionId, totalTimeSpent }) => ({
+        url: `/quizzes/submissions/${submissionId}/complete`,
+        method: "POST",
+        body: { totalTimeSpent },
+      }),
+      invalidatesTags: ["QuizSubmission", "UserCourseProgress"],
+    }),
+
+    getUserQuizSubmissions: builder.query<QuizSubmission[], string>({
+      query: (quizId) => `/quizzes/${quizId}/submissions`,
+      providesTags: (result, error, quizId) => [{ type: "QuizSubmission", id: quizId }],
+    }),
   }),
 });
 
@@ -1985,6 +2383,7 @@ export const {
   useGetCoursesQuery,
   useGetCourseQuery,
   useGetUploadVideoUrlMutation,
+  useUploadVideoToLocalMutation,
   useGetTransactionsQuery,
   useCreateTransactionMutation,
   useCreateStripePaymentIntentMutation,
@@ -2062,4 +2461,18 @@ export const {
   useGetStudentUploadUrlMutation,
   useGenerateAICourseMutation,
   useCheckAIStatusQuery,
+  useGetCourseReviewsQuery,
+  useGetCourseRatingStatsQuery,
+  useCreateCourseReviewMutation,
+  useUpdateCourseReviewMutation,
+  useDeleteCourseReviewMutation,
+  useMarkReviewHelpfulMutation,
+  useCreateQuizMutation,
+  useGetQuizzesByChapterQuery,
+  useStartQuizAttemptMutation,
+  useSubmitQuizAnswerMutation,
+  useCompleteQuizAttemptMutation,
+  useGetUserQuizSubmissionsQuery,
+  useGetQuizQuery,
+  useSubmitCardReviewV2Mutation,
 } = api;

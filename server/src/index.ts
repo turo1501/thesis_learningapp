@@ -28,6 +28,7 @@ import analyticsRoutes from "./routes/analyticsRoutes";
 import memoryCardRoutes from "./routes/memoryCardRoutes";
 import userNoteRoutes from "./routes/userNoteRoutes";
 import commentRoutes from "./routes/commentRoutes";
+import quizRoutes from "./routes/quizRoutes";
 import { errorHandler } from "./middleware/errorMiddleware";
 import { authenticate } from "./middleware/authMiddleware";
 import { resetPassword } from "./controllers/userClerkController";
@@ -73,12 +74,13 @@ app.use("/analytics", requireAuth(), authenticate, analyticsRoutes);
 app.use("/memory-cards", memoryCardRoutes);
 app.use("/user-notes", requireAuth(), authenticate, userNoteRoutes);
 app.use("/comments", commentRoutes);
+app.use("/quizzes", requireAuth(), authenticate, quizRoutes);
 
 /* ERROR MIDDLEWARE */
 app.use(errorHandler);
 
 /* SERVER */
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 8001;
 if (!isProduction) {
   app.listen(port, async () => {
     console.log(`Server running on port ${port}`);

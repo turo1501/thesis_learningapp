@@ -11,6 +11,39 @@ const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const router = express_1.default.Router();
 const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
+// Configure multer for video uploads to local storage
+const videoStorage = multer_1.default.diskStorage({
+    destination: (_req, _file, cb) => {
+        const videoDir = path_1.default.join(__dirname, "../../../video");
+        if (!fs_1.default.existsSync(videoDir)) {
+            fs_1.default.mkdirSync(videoDir, { recursive: true });
+        }
+        cb(null, videoDir);
+    },
+    filename: (req, file, cb) => {
+        const { courseId, sectionId, chapterId } = req.params;
+        const uniqueId = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const filename = `${courseId}_${sectionId}_${chapterId}_${uniqueId}_${file.originalname.replace(/\s+/g, '_')}`;
+        cb(null, filename);
+    }
+});
+const videoUpload = (0, multer_1.default)({
+    storage: videoStorage,
+    fileFilter: (_req, file, cb) => {
+        // Accept only video files
+        if (file.mimetype.startsWith('video/')) {
+            cb(null, true);
+        }
+        else {
+            const error = new Error('Only video files are allowed!');
+            error.code = 'LIMIT_FILE_TYPES';
+            cb(error, false);
+        }
+    },
+    limits: {
+        fileSize: 500 * 1024 * 1024 // 500MB limit
+    }
+});
 router.get("/", courseController_1.listCourses);
 router.post("/", (0, express_2.requireAuth)(), courseController_1.createCourse);
 router.post("/ai-generate", (0, express_2.requireAuth)(), courseController_1.generateAICourse);
@@ -19,6 +52,10 @@ router.get("/:courseId", courseController_1.getCourse);
 router.put("/:courseId", (0, express_2.requireAuth)(), upload.single("image"), courseController_1.updateCourse);
 router.delete("/:courseId", (0, express_2.requireAuth)(), courseController_1.deleteCourse);
 router.post("/:courseId/sections/:sectionId/chapters/:chapterId/get-upload-url", (0, express_2.requireAuth)(), courseController_1.getUploadVideoUrl);
+// New route for local video upload
+router.post("/:courseId/sections/:sectionId/chapters/:chapterId/upload-video", (0, express_2.requireAuth)(), videoUpload.single("video"), courseController_1.uploadVideoToLocal);
+// Route to serve local videos
+router.get("/local-video/:filename", courseController_1.serveLocalVideo);
 // Mock endpoints cho môi trường local không có AWS S3
 if (process.env.NODE_ENV !== "production") {
     console.log("Setting up mock video endpoints for local development");

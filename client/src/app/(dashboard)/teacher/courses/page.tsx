@@ -31,7 +31,9 @@ const Courses = () => {
     data: coursesData,
     isLoading,
     isError,
-  } = useGetCoursesQuery({});
+  } = useGetCoursesQuery({ 
+    teacherId: user?.id // Filter courses by teacherId
+  });
 
   const [createCourse] = useCreateCourseMutation();
   const [deleteCourse] = useDeleteCourseMutation();
@@ -92,8 +94,8 @@ const Courses = () => {
   return (
     <div className="teacher-courses">
       <Header
-        title="Courses"
-        subtitle="Browse your courses"
+        title="My Courses"
+        subtitle="Manage courses you've created"
         rightElement={
           <div className="flex gap-3">
             <Button
